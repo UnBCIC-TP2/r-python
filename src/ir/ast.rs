@@ -10,9 +10,9 @@ pub enum Expression {
 }
 
 pub enum Statement {
-    VarDeclaration(Box<Name>),
-    ValDeclaration(Box<Name>),
-    Assignment(Box<Name>, Box<Expression>),
+    VarDeclaration(Name),
+    ValDeclaration(Name),
+    Assignment(Name, Box<Expression>),
     IfThenElse(Box<Expression>, Box<Statement>, Box<Statement>),
     While(Box<Expression>, Box<Statement>),
     Sequence(Box<Statement>, Box<Statement>),
