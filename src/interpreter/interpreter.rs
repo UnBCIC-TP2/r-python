@@ -48,6 +48,68 @@ pub fn execute(stmt: &Statement, env: Environment) -> Result<Environment, ErrorM
             }
             Ok(new_env)
         }
+        Statement::For(var, exp1, exp2, incr, stmt) => {
+            let mut new_env = env.clone();
+            let srt_value = eval(exp1, &new_env)?;
+            let end_value = eval(exp2, &new_env)?;
+            let incr_value = eval(incr, &new_env)?;
+
+            new_env.insert(*var.clone(), srt_value);
+
+            let mut loop_value = srt_value;
+
+            // This could benefit from a refactor...
+            match incr_value.signum() {
+                -1 => {
+                    if srt_value < end_value {
+                        Err(String::from("For condition never reached"))
+                    } else {
+                        while loop_value > end_value {
+                            new_env = execute(stmt, new_env.clone())?;
+
+                            let increment = Expression::Add(
+                                Box::new(Expression::Var(*var.clone())),
+                                Box::new(Expression::CInt(incr_value)),
+                            );
+
+                            let new_var_value = eval(&increment, &new_env)?;
+                            new_env.insert(*var.clone(), new_var_value);
+
+                            loop_value = new_var_value;
+                        }
+                        new_env.remove(&var as &str);
+
+                        Ok(new_env)
+                    }
+                }
+                0 => {
+                    Err(String::from("Increment cannot be zero"))
+                }
+                1 => {
+                    if srt_value > end_value {
+                        Err(String::from("For condition never reached"))
+                    } else {
+                        while loop_value < end_value {
+                            new_env = execute(stmt, new_env.clone())?;
+
+                            let increment = Expression::Add(
+                                Box::new(Expression::Var(*var.clone())),
+                                Box::new(Expression::CInt(incr_value)),
+                            );
+
+                            let new_var_value = eval(&increment, &new_env)?;
+                            new_env.insert(*var.clone(), new_var_value);
+
+                            loop_value = new_var_value;
+                        }
+                        new_env.remove(&var as &str);
+
+                        Ok(new_env)
+                    }
+                }
+                _ => Ok(new_env)
+            }
+        }
         Statement::Sequence(s1, s2) => execute(s1, env).and_then(|new_env| execute(s2, new_env)),
         _ => Err(String::from("not implemented yet")),
     }
@@ -326,6 +388,139 @@ mod tests {
                 assert_eq!(new_env.get("x"), Some(&0));
             }
             Err(s) => assert!(false, "{}", s),
+        }
+    }
+
+    #[test]
+    fn eval_for_loop_increment() {
+        /*
+        * For loop test for variable increment
+        *
+        * > y = 0
+        * 
+        * > for i in range(0, 5, 2):
+        * >    y = y + i
+        * 
+        * After executing, 'y' should be 6 and 'i' should not be accessible.
+        */
+        let env = HashMap::new();
+
+        let a1 = Statement::Assignment(Box::new(String::from("y")), Box::new(Expression::CInt(0)));
+        let for_exec = Statement::Assignment(
+            Box::new(String::from("y")),
+            Box::new(Expression::Add(
+                Box::new(Expression::Var(String::from("y"))),
+                Box::new(Expression::Var(String::from("i"))),
+            )),
+        );
+
+        let for_stmt = Statement::For(
+            Box::new(String::from("i")), 
+            Box::new(Expression::CInt(0)), 
+            Box::new(Expression::CInt(5)), 
+            Box::new(Expression::CInt(2)),
+            Box::new(for_exec),
+        );
+
+        let program = Statement::Sequence(
+            Box::new(a1),
+            Box::new(for_stmt),
+        );
+
+        match execute(&program, env) {
+            Ok(new_env) => {
+                assert_eq!(new_env.get("y"), Some(&6));
+                assert_eq!(new_env.get("i"), None);
+            }
+            Err(s) => assert!(false, "{}", s),
+        }
+    }
+
+    #[test]
+    fn eval_for_loop_decrement() {
+        /*
+        * For loop test for variable decrement
+        *
+        * > y = 0
+        * 
+        * > for i in range(10, 3, -1):
+        * >    y = y + i
+        * 
+        * After executing, 'y' should be 49 and 'i' should not be accessible.
+        */
+        let env = HashMap::new();
+
+        let a1 = Statement::Assignment(Box::new(String::from("y")), Box::new(Expression::CInt(0)));
+        let for_exec = Statement::Assignment(
+            Box::new(String::from("y")),
+            Box::new(Expression::Add(
+                Box::new(Expression::Var(String::from("y"))),
+                Box::new(Expression::Var(String::from("i"))),
+            )),
+        );
+
+        let for_stmt = Statement::For(
+            Box::new(String::from("i")), 
+            Box::new(Expression::CInt(10)), 
+            Box::new(Expression::CInt(3)), 
+            Box::new(Expression::CInt(-1)),
+            Box::new(for_exec),
+        );
+
+        let program = Statement::Sequence(
+            Box::new(a1),
+            Box::new(for_stmt),
+        );
+
+        match execute(&program, env) {
+            Ok(new_env) => {
+                assert_eq!(new_env.get("y"), Some(&49));
+                assert_eq!(new_env.get("i"), None);
+            }
+            Err(s) => assert!(false, "{}", s),
+        }
+    }
+
+    #[test]
+    fn eval_for_loop_error() {
+        /*
+        * For loop test for condition never reached
+        *
+        * > y = 0
+        * 
+        * > for i in range(0, 1, -1):
+        * >    y = y + i
+        * 
+        */
+        let env = HashMap::new();
+
+        let a1 = Statement::Assignment(Box::new(String::from("y")), Box::new(Expression::CInt(0)));
+        let for_exec = Statement::Assignment(
+            Box::new(String::from("y")),
+            Box::new(Expression::Add(
+                Box::new(Expression::Var(String::from("y"))),
+                Box::new(Expression::Var(String::from("i"))),
+            )),
+        );
+
+        let for_stmt = Statement::For(
+            Box::new(String::from("i")), 
+            Box::new(Expression::CInt(0)), 
+            Box::new(Expression::CInt(1)), 
+            Box::new(Expression::CInt(-1)),
+            Box::new(for_exec),
+        );
+
+        let program = Statement::Sequence(
+            Box::new(a1),
+            Box::new(for_stmt),
+        );
+
+        match execute(&program, env) {
+            Ok(_new_env) => {
+                assert!(false);
+            }
+            Err(s) => assert_eq!(s, "For condition never reached"),
         }
     }
 
