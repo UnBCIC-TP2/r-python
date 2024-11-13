@@ -7,7 +7,13 @@ use crate::ir::ast::Statement;
 type IntValue = i32;
 type ErrorMessage = String;
 
-type Environment = HashMap<Name, i32>;
+#[derive(Debug, Clone)]
+pub enum EnvValue {
+    CInt(i32),
+    Func(Vec<Name>, Option<Box<Statement>>, Box<Expression>),
+}
+
+type Environment = HashMap<Name, EnvValue>;
 
 pub fn eval(exp: &Expression, env: &Environment) -> Result<IntValue, ErrorMessage> {
     match exp {
@@ -17,8 +23,37 @@ pub fn eval(exp: &Expression, env: &Environment) -> Result<IntValue, ErrorMessag
         Expression::Mul(lhs, rhs) => Ok(eval(lhs, env)? * eval(rhs, env)?),
         Expression::Div(lhs, rhs) => Ok(eval(lhs, env)? / eval(rhs, env)?),
         Expression::Var(name) => match env.get(name) {
-            Some(&value) => Ok(value),
-            None => Err(format!("Variable {} not found", name)),
+            Some(EnvValue::CInt(value)) => Ok(*value),
+            _ => Err(format!("Variable {} not found", name)),
+        },
+        Expression::FuncCall(name, args) => match env.get(name) {
+            Some(EnvValue::Func(params, stmt, retrn)) => {
+                let mut func_env = env.clone();
+
+                if args.len() != params.len() {
+                    return Err(format!(
+                        "{} requires {} arguments, got {}",
+                        name,
+                        params.len(),
+                        args.len()
+                    ));
+                }
+
+                for (param, arg) in params.iter().zip(args.iter()) {
+                    let value = eval(arg, env)?;
+                    func_env.insert(param.clone(), EnvValue::CInt(value));
+                }
+
+                if let Some(body_stmt) = stmt {
+                    match execute(body_stmt, func_env.clone()) {
+                        Ok(result_env) => eval(retrn, &result_env),
+                        Err(err) => Err(format!("{} generated an error: {}", name, err)),
+                    }
+                } else {
+                    eval(retrn, &func_env)
+                }
+            }
+            _ => Err(format!("{} is not defined", name)),
         },
     }
 }
@@ -28,7 +63,7 @@ pub fn execute(stmt: &Statement, env: Environment) -> Result<Environment, ErrorM
         Statement::Assignment(name, exp) => {
             let value = eval(exp, &env)?;
             let mut new_env = env;
-            new_env.insert(*name.clone(), value);
+            new_env.insert(*name.clone(), EnvValue::CInt(value));
             Ok(new_env.clone())
         }
         Statement::IfThenElse(cond, stmt_then, stmt_else) => {
@@ -46,6 +81,74 @@ pub fn execute(stmt: &Statement, env: Environment) -> Result<Environment, ErrorM
                 new_env = execute(stmt, new_env.clone())?;
                 value = eval(cond, &new_env.clone())?;
             }
+            Ok(new_env)
+        }
+        Statement::For(var, exp1, exp2, incr, stmt) => {
+            let mut new_env = env.clone();
+            let srt_value = eval(exp1, &new_env)?;
+            let end_value = eval(exp2, &new_env)?;
+            let incr_value = eval(incr, &new_env)?;
+
+            new_env.insert(*var.clone(), EnvValue::CInt(srt_value));
+
+            let mut loop_value = srt_value;
+
+            // This could benefit from a refactor...
+            match incr_value.signum() {
+                -1 => {
+                    if srt_value < end_value {
+                        Err(String::from("For condition never reached"))
+                    } else {
+                        while loop_value > end_value {
+                            new_env = execute(stmt, new_env.clone())?;
+
+                            let increment = Expression::Add(
+                                Box::new(Expression::Var(*var.clone())),
+                                Box::new(Expression::CInt(incr_value)),
+                            );
+
+                            let new_var_value = eval(&increment, &new_env)?;
+                            new_env.insert(*var.clone(), EnvValue::CInt(new_var_value));
+
+                            loop_value = new_var_value;
+                        }
+                        new_env.remove(&var as &str);
+
+                        Ok(new_env)
+                    }
+                }
+                0 => Err(String::from("Increment cannot be zero")),
+                1 => {
+                    if srt_value > end_value {
+                        Err(String::from("For condition never reached"))
+                    } else {
+                        while loop_value < end_value {
+                            new_env = execute(stmt, new_env.clone())?;
+
+                            let increment = Expression::Add(
+                                Box::new(Expression::Var(*var.clone())),
+                                Box::new(Expression::CInt(incr_value)),
+                            );
+
+                            let new_var_value = eval(&increment, &new_env)?;
+                            new_env.insert(*var.clone(), EnvValue::CInt(new_var_value));
+
+                            loop_value = new_var_value;
+                        }
+                        new_env.remove(&var as &str);
+
+                        Ok(new_env)
+                    }
+                }
+                _ => Ok(new_env),
+            }
+        }
+        Statement::Func(name, params, stmt, retrn) => {
+            let mut new_env = env.clone();
+            new_env.insert(
+                *name.clone(),
+                EnvValue::Func(params.clone(), stmt.clone(), retrn.clone()),
+            );
             Ok(new_env)
         }
         Statement::Sequence(s1, s2) => execute(s1, env).and_then(|new_env| execute(s2, new_env)),
@@ -98,7 +201,10 @@ mod tests {
 
     #[test]
     fn eval_variable() {
-        let env = HashMap::from([(String::from("x"), 10), (String::from("y"), 20)]);
+        let env = HashMap::from([
+            (String::from("x"), EnvValue::CInt(10)),
+            (String::from("y"), EnvValue::CInt(20)),
+        ]);
         let v1 = Expression::Var(String::from("x"));
         let v2 = Expression::Var(String::from("y"));
         assert_eq!(eval(&v1, &env), Ok(10));
@@ -145,17 +251,24 @@ mod tests {
     fn execute_assignment() {
         let env = HashMap::new();
         let assign_stmt =
-            Statement::Assignment(Box::from(String::from("x")), Box::new(Expression::CInt(42)));
+            Statement::Assignment(Box::new(String::from("x")), Box::new(Expression::CInt(42)));
 
         match execute(&assign_stmt, env) {
-            Ok(new_env) => assert_eq!(new_env.get("x"), Some(&42)),
+            Ok(new_env) => match new_env.get("x") {
+                Some(EnvValue::CInt(42)) => {}
+                Some(value) => assert!(false, "Expected 42, got {:?}", value),
+                None => assert!(false, "Variable x not found"),
+            },
             Err(s) => assert!(false, "{}", s),
         }
     }
 
     #[test]
     fn eval_expression_with_variables() {
-        let env = HashMap::from([(String::from("a"), 5), (String::from("b"), 3)]);
+        let env = HashMap::from([
+            (String::from("a"), EnvValue::CInt(5)),
+            (String::from("b"), EnvValue::CInt(3)),
+        ]);
         let expr = Expression::Mul(
             Box::new(Expression::Var(String::from("a"))),
             Box::new(Expression::Add(
@@ -236,8 +349,16 @@ mod tests {
 
         match execute(&program, env) {
             Ok(new_env) => {
-                assert_eq!(new_env.get("y"), Some(&55));
-                assert_eq!(new_env.get("x"), Some(&0));
+                match new_env.get("y") {
+                    Some(EnvValue::CInt(55)) => {}
+                    Some(val) => assert!(false, "Expected 55, got {:?}", val),
+                    None => assert!(false, "Variable y not found"),
+                }
+                match new_env.get("x") {
+                    Some(EnvValue::CInt(0)) => {}
+                    Some(val) => assert!(false, "Expected 0, got {:?}", val),
+                    None => assert!(false, "Variable x not found"),
+                }
             }
             Err(s) => assert!(false, "{}", s),
         }
@@ -275,7 +396,11 @@ mod tests {
         let program = Statement::Sequence(Box::new(setup_stmt), Box::new(if_statement));
 
         match execute(&program, env) {
-            Ok(new_env) => assert_eq!(new_env.get("y"), Some(&1)),
+            Ok(new_env) => match new_env.get("y") {
+                Some(EnvValue::CInt(1)) => {}
+                Some(val) => assert!(false, "Expected 1, got {:?}", val),
+                None => assert!(false, "Variable y not found"),
+            },
             Err(s) => assert!(false, "{}", s),
         }
     }
@@ -322,10 +447,156 @@ mod tests {
 
         match execute(&program, env) {
             Ok(new_env) => {
-                assert_eq!(new_env.get("y"), Some(&7));
-                assert_eq!(new_env.get("x"), Some(&0));
+                match new_env.get("y") {
+                    Some(EnvValue::CInt(7)) => {}
+                    Some(val) => assert!(false, "Expected 7, got {:?}", val),
+                    None => assert!(false, "Variable y not found"),
+                }
+                match new_env.get("x") {
+                    Some(EnvValue::CInt(0)) => {}
+                    Some(val) => assert!(false, "Expected 0, got {:?}", val),
+                    None => assert!(false, "Variable x not found"),
+                }
             }
             Err(s) => assert!(false, "{}", s),
+        }
+    }
+
+    #[test]
+    fn eval_for_loop_increment() {
+        /*
+         * For loop test for variable increment
+         *
+         * > y = 0
+         *
+         * > for i in range(0, 5, 2):
+         * >    y = y + i
+         *
+         * After executing, 'y' should be 6 and 'i' should not be accessible.
+         */
+        let env = HashMap::new();
+
+        let a1 = Statement::Assignment(Box::new(String::from("y")), Box::new(Expression::CInt(0)));
+        let for_exec = Statement::Assignment(
+            Box::new(String::from("y")),
+            Box::new(Expression::Add(
+                Box::new(Expression::Var(String::from("y"))),
+                Box::new(Expression::Var(String::from("i"))),
+            )),
+        );
+
+        let for_stmt = Statement::For(
+            Box::new(String::from("i")),
+            Box::new(Expression::CInt(0)),
+            Box::new(Expression::CInt(5)),
+            Box::new(Expression::CInt(2)),
+            Box::new(for_exec),
+        );
+
+        let program = Statement::Sequence(Box::new(a1), Box::new(for_stmt));
+
+        match execute(&program, env) {
+            Ok(new_env) => {
+                match new_env.get("y") {
+                    Some(EnvValue::CInt(6)) => {}
+                    Some(val) => assert!(false, "Expected 6, got {:?}", val),
+                    None => assert!(false, "Variable y not found"),
+                }
+                match new_env.get("i") {
+                    None => {}
+                    Some(val) => assert!(false, "Expected None, got {:?}", val),
+                }
+            }
+            Err(s) => assert!(false, "{}", s),
+        }
+    }
+
+    #[test]
+    fn eval_for_loop_decrement() {
+        /*
+         * For loop test for variable decrement
+         *
+         * > y = 0
+         *
+         * > for i in range(10, 3, -1):
+         * >    y = y + i
+         *
+         * After executing, 'y' should be 49 and 'i' should not be accessible.
+         */
+        let env = HashMap::new();
+
+        let a1 = Statement::Assignment(Box::new(String::from("y")), Box::new(Expression::CInt(0)));
+        let for_exec = Statement::Assignment(
+            Box::new(String::from("y")),
+            Box::new(Expression::Add(
+                Box::new(Expression::Var(String::from("y"))),
+                Box::new(Expression::Var(String::from("i"))),
+            )),
+        );
+
+        let for_stmt = Statement::For(
+            Box::new(String::from("i")),
+            Box::new(Expression::CInt(10)),
+            Box::new(Expression::CInt(3)),
+            Box::new(Expression::CInt(-1)),
+            Box::new(for_exec),
+        );
+
+        let program = Statement::Sequence(Box::new(a1), Box::new(for_stmt));
+
+        match execute(&program, env) {
+            Ok(new_env) => {
+                match new_env.get("y") {
+                    Some(EnvValue::CInt(49)) => {}
+                    Some(val) => assert!(false, "Expected 49, got {:?}", val),
+                    None => assert!(false, "Variable y not found"),
+                }
+                match new_env.get("i") {
+                    None => {}
+                    Some(val) => assert!(false, "Expected None, got {:?}", val),
+                }
+            }
+            Err(s) => assert!(false, "{}", s),
+        }
+    }
+
+    #[test]
+    fn eval_for_loop_error() {
+        /*
+         * For loop test for condition never reached
+         *
+         * > y = 0
+         *
+         * > for i in range(0, 1, -1):
+         * >    y = y + i
+         *
+         */
+        let env = HashMap::new();
+
+        let a1 = Statement::Assignment(Box::new(String::from("y")), Box::new(Expression::CInt(0)));
+        let for_exec = Statement::Assignment(
+            Box::new(String::from("y")),
+            Box::new(Expression::Add(
+                Box::new(Expression::Var(String::from("y"))),
+                Box::new(Expression::Var(String::from("i"))),
+            )),
+        );
+
+        let for_stmt = Statement::For(
+            Box::new(String::from("i")),
+            Box::new(Expression::CInt(0)),
+            Box::new(Expression::CInt(1)),
+            Box::new(Expression::CInt(-1)),
+            Box::new(for_exec),
+        );
+
+        let program = Statement::Sequence(Box::new(a1), Box::new(for_stmt));
+
+        match execute(&program, env) {
+            Ok(_new_env) => {
+                assert!(false, "For loop not supposed to execute");
+            }
+            Err(s) => assert_eq!(s, "For condition never reached"),
         }
     }
 
@@ -370,7 +641,11 @@ mod tests {
         let program = Statement::Sequence(Box::new(setup_stmt), Box::new(outer_if_statement));
 
         match execute(&program, env) {
-            Ok(new_env) => assert_eq!(new_env.get("y"), Some(&1)),
+            Ok(new_env) => match new_env.get("y") {
+                Some(EnvValue::CInt(1)) => {}
+                Some(val) => assert!(false, "Expected 1, got {:?}", val),
+                None => assert!(false, "Variable y not found"),
+            },
             Err(s) => assert!(false, "{}", s),
         }
     }
@@ -408,11 +683,131 @@ mod tests {
 
         match execute(&program, env) {
             Ok(new_env) => {
-                assert_eq!(new_env.get("x"), Some(&5));
-                assert_eq!(new_env.get("y"), Some(&0));
-                assert_eq!(new_env.get("z"), Some(&13));
+                match new_env.get("x") {
+                    Some(EnvValue::CInt(5)) => {}
+                    Some(val) => assert!(false, "Expected 5, got {:?}", val),
+                    None => assert!(false, "Variable x not found"),
+                }
+                match new_env.get("y") {
+                    Some(EnvValue::CInt(0)) => {}
+                    Some(val) => assert!(false, "Expected 0, got {:?}", val),
+                    None => assert!(false, "Variable y not found"),
+                }
+                match new_env.get("z") {
+                    Some(EnvValue::CInt(13)) => {}
+                    Some(val) => assert!(false, "Expected 13, got {:?}", val),
+                    None => assert!(false, "Variable z not found"),
+                }
             }
             Err(s) => assert!(false, "{}", s),
+        }
+    }
+
+    #[test]
+    fn func_decl_call() {
+        /*
+         * Test for declaration and call of a function
+         *
+         * > def add(a,b):
+         * >    t = a + b
+         * >    return t
+         * >
+         * > sum = add(5, 7)
+         *
+         * After executing, 'sum' should be 12.
+         */
+        let env = Environment::new();
+
+        let program = Statement::Sequence(
+            Box::new(Statement::Func(
+                Box::new(String::from("add")),
+                vec![String::from("a"), String::from("b")],
+                Some(Box::new(Statement::Assignment(
+                    Box::new(String::from("t")),
+                    Box::new(Expression::Add(
+                        Box::new(Expression::Var(String::from("a"))),
+                        Box::new(Expression::Var(String::from("b"))),
+                    )),
+                ))),
+                Box::new(Expression::Var(String::from("t"))),
+            )),
+            Box::new(Statement::Assignment(
+                Box::new(String::from("sum")),
+                Box::new(Expression::FuncCall(
+                    String::from("add"),
+                    vec![Expression::CInt(5), Expression::CInt(7)],
+                )),
+            )),
+        );
+
+        match execute(&program, env) {
+            Ok(new_env) => match new_env.get("sum") {
+                Some(EnvValue::CInt(12)) => {}
+                Some(val) => assert!(false, "Expected 12, got {:?}", val),
+                None => assert!(false, "Variable sum not found"),
+            },
+            Err(s) => assert!(false, "{}", s),
+        }
+    }
+
+    #[test]
+    fn func_decl_call_without_stmt() {
+        /*
+         * Test for declaration and call of a function with no statement
+         *
+         * > def add(a,b):
+         * >    return a + b
+         * >
+         * > sum = add(1, 2)
+         *
+         * After executing, 'sum' should be 3.
+         */
+        let env = Environment::new();
+
+        let program = Statement::Sequence(
+            Box::new(Statement::Func(
+                Box::new(String::from("add")),
+                vec![String::from("a"), String::from("b")],
+                None,
+                Box::new(Expression::Add(
+                    Box::new(Expression::Var(String::from("a"))),
+                    Box::new(Expression::Var(String::from("b"))),
+                )),
+            )),
+            Box::new(Statement::Assignment(
+                Box::new(String::from("sum")),
+                Box::new(Expression::FuncCall(
+                    String::from("add"),
+                    vec![Expression::CInt(1), Expression::CInt(2)],
+                )),
+            )),
+        );
+
+        match execute(&program, env) {
+            Ok(new_env) => match new_env.get("sum") {
+                Some(EnvValue::CInt(3)) => {}
+                Some(val) => assert!(false, "Expected 3, got {:?}", val),
+                None => assert!(false, "Variable sum not found"),
+            },
+            Err(s) => assert!(false, "{}", s),
+        }
+    }
+
+    #[test]
+    fn undefined_func_call() {
+        let env = Environment::new();
+
+        let program = Box::new(Statement::Assignment(
+            Box::new(String::from("sum")),
+            Box::new(Expression::FuncCall(
+                String::from("add"),
+                vec![Expression::CInt(1), Expression::CInt(2)],
+            )),
+        ));
+
+        match execute(&program, env) {
+            Ok(_) => assert!(false, "Function not supposed to execute"),
+            Err(s) => assert_eq!(s, "add is not defined"),
         }
     }
 }
