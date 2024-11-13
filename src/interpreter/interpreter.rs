@@ -10,7 +10,7 @@ type ErrorMessage = String;
 #[derive(Debug, Clone)]
 pub enum EnvValue {
     CInt(i32),
-    Func(Vec<Name>, Box<Statement>, Box<Expression>),
+    Func(Vec<Name>, Option<Box<Statement>>, Box<Expression>),
 }
 
 type Environment = HashMap<Name, EnvValue>;
@@ -40,10 +40,14 @@ pub fn eval(exp: &Expression, env: &Environment) -> Result<IntValue, ErrorMessag
                         func_env.insert(param.clone(), EnvValue::CInt(value));
                     }
                     
-                    let _ = match execute(stmt, func_env.clone()) {
-                        Ok(result_env) => return Ok(eval(retrn, &result_env)?),
-                        Err(_) => return Err(format!("{} generated an error", name)),
-                    };
+                    if let Some(body_stmt) = stmt {
+                        match execute(body_stmt, func_env.clone()) {
+                            Ok(result_env) => eval(retrn, &result_env),
+                            Err(err) => Err(format!("{} generated an error: {}", name, err)),
+                        }
+                    } else {
+                        eval(retrn, &func_env)
+                    }
                 }
                 _ => Err(format!("{} is not defined", name)),
             }
@@ -139,7 +143,7 @@ pub fn execute(stmt: &Statement, env: Environment) -> Result<Environment, ErrorM
             }
         }
         Statement::Func(name, params, stmt, retrn) => {
-            let mut new_env = env;
+            let mut new_env = env.clone();
             new_env.insert(*name.clone(), EnvValue::Func(params.clone(), stmt.clone(), retrn.clone()));
             Ok(new_env)
         }
@@ -593,7 +597,7 @@ mod tests {
 
         match execute(&program, env) {
             Ok(_new_env) => {
-                assert!(false);
+                assert!(false, "For loop not supposed to execute");
             }
             Err(s) => assert_eq!(s, "For condition never reached"),
         }
@@ -710,7 +714,8 @@ mod tests {
          * Test for declaration and call of a function
          *
          * > def add(a,b):
-         * >    return a + b
+         * >    t = a + b
+         * >    return t
          * >
          * > sum = add(5, 7)
          *
@@ -722,13 +727,13 @@ mod tests {
             Box::new(Statement::Func(
                 Box::new(String::from("add")),
                 vec![String::from("a"), String::from("b")],
-                Box::new(Statement::Assignment(
+                Some(Box::new(Statement::Assignment(
                     Box::new(String::from("t")),
                     Box::new(Expression::Add(
                         Box::new(Expression::Var(String::from("a"))),
                         Box::new(Expression::Var(String::from("b"))),
                     )),
-                )),
+                ))),
                 Box::new(Expression::Var(String::from("t")))
             )),
             Box::new(Statement::Assignment(
@@ -750,5 +755,69 @@ mod tests {
             }
             Err(s) => assert!(false, "{}", s),
         }
+    }
+
+    #[test]
+    fn func_decl_call_without_stmt() {
+        /*
+         * Test for declaration and call of a function with no statement
+         *
+         * > def add(a,b):
+         * >    return a + b
+         * >
+         * > sum = add(1, 2)
+         *
+         * After executing, 'sum' should be 3.
+         */
+        let env = Environment::new();
+
+        let program = Statement::Sequence(
+            Box::new(Statement::Func(
+                Box::new(String::from("add")),
+                vec![String::from("a"), String::from("b")],
+                None,
+                Box::new(Expression::Add(
+                    Box::new(Expression::Var(String::from("a"))), 
+                    Box::new(Expression::Var(String::from("b")))
+                ))
+            )),
+            Box::new(Statement::Assignment(
+                Box::new(String::from("sum")),
+                Box::new(Expression::FuncCall(
+                    String::from("add"),
+                    vec![Expression::CInt(1), Expression::CInt(2)],
+                )),
+            )),
+        );
+
+        match execute(&program, env) {
+            Ok(new_env) => {
+                match new_env.get("sum") {
+                    Some(EnvValue::CInt(3)) => {}, 
+                    Some(val) => assert!(false, "Expected 3, got {:?}", val),
+                    None => assert!(false, "Variable sum not found"),
+                }
+            }
+            Err(s) => assert!(false, "{}", s),
+        }
+    }
+
+    #[test]
+    fn undefined_func_call() {
+        let env = Environment::new();
+
+        let program = Box::new(Statement::Assignment(
+            Box::new(String::from("sum")),
+            Box::new(Expression::FuncCall(
+                String::from("add"),
+                vec![Expression::CInt(1), Expression::CInt(2)],
+            ))
+        ));
+
+        match execute(&program, env) {
+            Ok(_) => assert!(false, "Function not supposed to execute"),
+            Err(s) => assert_eq!(s, "add is not defined"),
+        }
+
     }
 }
