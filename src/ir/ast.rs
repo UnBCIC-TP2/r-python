@@ -18,7 +18,18 @@ pub enum Statement {
     Assignment(Box<Name>, Box<Expression>),
     IfThenElse(Box<Expression>, Box<Statement>, Box<Statement>),
     While(Box<Expression>, Box<Statement>),
-    For(Box<Name>, Box<Expression>, Box<Expression>, Box<Expression>, Box<Statement>),
+    For(
+        Box<Name>,
+        Box<Expression>,
+        Box<Expression>,
+        Box<Expression>,
+        Box<Statement>,
+    ),
     Sequence(Box<Statement>, Box<Statement>),
-    Func(Box<Name>, Vec<Name>, Option<Box<Statement>>, Box<Expression>),
+    Func(
+        Box<Name>,
+        Vec<Name>,
+        Option<Box<Statement>>,
+        Box<Expression>,
+    ),
 }
