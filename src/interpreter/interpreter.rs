@@ -10,7 +10,7 @@ type ErrorMessage = String;
 #[derive(Debug, Clone)]
 pub enum EnvValue {
     CInt(i32),
-    Func(Vec<Name>, Box<Statement>),
+    Func(Vec<Name>, Box<Statement>, Box<Expression>),
 }
 
 type Environment = HashMap<Name, EnvValue>;
@@ -28,7 +28,7 @@ pub fn eval(exp: &Expression, env: &Environment) -> Result<IntValue, ErrorMessag
         },
         Expression::FuncCall(name, args) => {
             match env.get(name) {
-                Some(EnvValue::Func(params, stmt)) => {
+                Some(EnvValue::Func(params, stmt, retrn)) => {
                     let mut func_env = env.clone();
 
                     if args.len() != params.len() {
@@ -39,13 +39,11 @@ pub fn eval(exp: &Expression, env: &Environment) -> Result<IntValue, ErrorMessag
                         let value = eval(arg, env)?;
                         func_env.insert(param.clone(), EnvValue::CInt(value));
                     }
-
-                    let result = execute(stmt, func_env)?;
                     
-                    match result.get("result") {
-                        Some(EnvValue::CInt(val)) => Ok(*val),
-                        _ => Err(format!("{} did not return a valid result", name)),
-                    }
+                    let _ = match execute(stmt, func_env.clone()) {
+                        Ok(result_env) => return Ok(eval(retrn, &result_env)?),
+                        Err(_) => return Err(format!("{} generated an error", name)),
+                    };
                 }
                 _ => Err(format!("{} is not defined", name)),
             }
@@ -140,9 +138,9 @@ pub fn execute(stmt: &Statement, env: Environment) -> Result<Environment, ErrorM
                 _ => Ok(new_env)
             }
         }
-        Statement::Func(name, params, stmt) => {
+        Statement::Func(name, params, stmt, retrn) => {
             let mut new_env = env;
-            new_env.insert(*name.clone(), EnvValue::Func(params.clone(), stmt.clone()));
+            new_env.insert(*name.clone(), EnvValue::Func(params.clone(), stmt.clone(), retrn.clone()));
             Ok(new_env)
         }
         Statement::Sequence(s1, s2) => execute(s1, env).and_then(|new_env| execute(s2, new_env)),
@@ -712,7 +710,7 @@ mod tests {
          * Test for declaration and call of a function
          *
          * > def add(a,b):
-         * >    result = a + b
+         * >    return a + b
          * >
          * > sum = add(5, 7)
          *
@@ -725,12 +723,13 @@ mod tests {
                 Box::new(String::from("add")),
                 vec![String::from("a"), String::from("b")],
                 Box::new(Statement::Assignment(
-                    Box::new(String::from("result")),
+                    Box::new(String::from("t")),
                     Box::new(Expression::Add(
                         Box::new(Expression::Var(String::from("a"))),
                         Box::new(Expression::Var(String::from("b"))),
                     )),
                 )),
+                Box::new(Expression::Var(String::from("t")))
             )),
             Box::new(Statement::Assignment(
                 Box::new(String::from("sum")),
