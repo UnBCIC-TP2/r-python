@@ -24,8 +24,7 @@ pub fn eval(exp: &Expression, env: &Environment) -> Result<IntValue, ErrorMessag
         Expression::Div(lhs, rhs) => Ok(eval(lhs, env)? / eval(rhs, env)?),
         Expression::Var(name) => match env.get(name) {
             Some(EnvValue::CInt(value)) => Ok(*value),
-            Some(EnvValue::Func(_, _)) => Err(format!("{} is not a variable", name)),
-            None => Err(format!("Variable {} not found", name)),
+            _ => Err(format!("Variable {} not found", name)),
         },
         Expression::FuncCall(name, args) => {
             match env.get(name) {
@@ -45,10 +44,10 @@ pub fn eval(exp: &Expression, env: &Environment) -> Result<IntValue, ErrorMessag
                     
                     match result.get("result") {
                         Some(EnvValue::CInt(val)) => Ok(*val),
-                        _ => Err(String::from("Function statement did not return a valid result")),
+                        _ => Err(format!("{} did not return a valid result", name)),
                     }
                 }
-                _ => Err(format!("Function {} not found", name)),
+                _ => Err(format!("{} is not defined", name)),
             }
         }
     }
