@@ -8,6 +8,7 @@ pub enum Expression {
     Sub(Box<Expression>, Box<Expression>),
     Mul(Box<Expression>, Box<Expression>),
     Div(Box<Expression>, Box<Expression>),
+    FuncCall(String, Vec<Expression>),
 }
 
 #[derive(Debug, Clone)]
@@ -19,6 +20,7 @@ pub enum Statement {
     While(Box<Expression>, Box<Statement>),
     For(Box<Name>, Box<Expression>, Box<Expression>, Box<Expression>, Box<Statement>),
     Sequence(Box<Statement>, Box<Statement>),
+    Func(Box<Name>, Vec<Name>, Box<Statement>),
 }
 
 

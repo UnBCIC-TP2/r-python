@@ -10,7 +10,7 @@ type ErrorMessage = String;
 #[derive(Debug, Clone)]
 pub enum EnvValue {
     CInt(i32),
-    Func(Box<Statement>),
+    Func(Vec<Name>, Box<Statement>),
 }
 
 type Environment = HashMap<Name, EnvValue>;
@@ -24,9 +24,33 @@ pub fn eval(exp: &Expression, env: &Environment) -> Result<IntValue, ErrorMessag
         Expression::Div(lhs, rhs) => Ok(eval(lhs, env)? / eval(rhs, env)?),
         Expression::Var(name) => match env.get(name) {
             Some(EnvValue::CInt(value)) => Ok(*value),
-            Some(EnvValue::Func(_)) => Err(format!("{} is not a variable", name)),
+            Some(EnvValue::Func(_, _)) => Err(format!("{} is not a variable", name)),
             None => Err(format!("Variable {} not found", name)),
         },
+        Expression::FuncCall(name, args) => {
+            match env.get(name) {
+                Some(EnvValue::Func(params, stmt)) => {
+                    let mut func_env = env.clone();
+
+                    if args.len() != params.len() {
+                        return Err(format!("{} requires {} arguments, got {}", name, params.len(), args.len()));
+                    }
+
+                    for (param, arg) in params.iter().zip(args.iter()) {
+                        let value = eval(arg, env)?;
+                        func_env.insert(param.clone(), EnvValue::CInt(value));
+                    }
+
+                    let result = execute(stmt, func_env)?;
+                    
+                    match result.get("result") {
+                        Some(EnvValue::CInt(val)) => Ok(*val),
+                        _ => Err(String::from("Function statement did not return a valid result")),
+                    }
+                }
+                _ => Err(format!("Function {} not found", name)),
+            }
+        }
     }
 }
 
@@ -116,6 +140,11 @@ pub fn execute(stmt: &Statement, env: Environment) -> Result<Environment, ErrorM
                 }
                 _ => Ok(new_env)
             }
+        }
+        Statement::Func(name, params, stmt) => {
+            let mut new_env = env;
+            new_env.insert(*name.clone(), EnvValue::Func(params.clone(), stmt.clone()));
+            Ok(new_env)
         }
         Statement::Sequence(s1, s2) => execute(s1, env).and_then(|new_env| execute(s2, new_env)),
         _ => Err(String::from("not implemented yet")),
@@ -672,6 +701,53 @@ mod tests {
                     Some(EnvValue::CInt(13)) => {}, 
                     Some(val) => assert!(false, "Expected 13, got {:?}", val),
                     None => assert!(false, "Variable z not found"),
+                }
+            }
+            Err(s) => assert!(false, "{}", s),
+        }
+    }
+
+    #[test]
+    fn func_decl_call() {
+        /*
+         * Test for declaration and call of a function
+         *
+         * > def add(a,b):
+         * >    result = a + b
+         * >
+         * > sum = add(5, 7)
+         *
+         * After executing, 'sum' should be 12.
+         */
+        let env = Environment::new();
+
+        let program = Statement::Sequence(
+            Box::new(Statement::Func(
+                Box::new(String::from("add")),
+                vec![String::from("a"), String::from("b")],
+                Box::new(Statement::Assignment(
+                    Box::new(String::from("result")),
+                    Box::new(Expression::Add(
+                        Box::new(Expression::Var(String::from("a"))),
+                        Box::new(Expression::Var(String::from("b"))),
+                    )),
+                )),
+            )),
+            Box::new(Statement::Assignment(
+                Box::new(String::from("sum")),
+                Box::new(Expression::FuncCall(
+                    String::from("add"),
+                    vec![Expression::CInt(5), Expression::CInt(7)],
+                )),
+            )),
+        );
+
+        match execute(&program, env) {
+            Ok(new_env) => {
+                match new_env.get("sum") {
+                    Some(EnvValue::CInt(12)) => {}, 
+                    Some(val) => assert!(false, "Expected 12, got {:?}", val),
+                    None => assert!(false, "Variable sum not found"),
                 }
             }
             Err(s) => assert!(false, "{}", s),
