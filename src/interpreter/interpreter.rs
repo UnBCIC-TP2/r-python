@@ -7,7 +7,13 @@ use crate::ir::ast::Statement;
 type IntValue = i32;
 type ErrorMessage = String;
 
-type Environment = HashMap<Name, i32>;
+#[derive(Debug, Clone)]
+pub enum EnvValue {
+    CInt(i32),
+    Func(Box<Statement>),
+}
+
+type Environment = HashMap<Name, EnvValue>;
 
 pub fn eval(exp: &Expression, env: &Environment) -> Result<IntValue, ErrorMessage> {
     match exp {
@@ -17,7 +23,8 @@ pub fn eval(exp: &Expression, env: &Environment) -> Result<IntValue, ErrorMessag
         Expression::Mul(lhs, rhs) => Ok(eval(lhs, env)? * eval(rhs, env)?),
         Expression::Div(lhs, rhs) => Ok(eval(lhs, env)? / eval(rhs, env)?),
         Expression::Var(name) => match env.get(name) {
-            Some(&value) => Ok(value),
+            Some(EnvValue::CInt(value)) => Ok(*value),
+            Some(EnvValue::Func(_)) => Err(format!("{} is not a variable", name)),
             None => Err(format!("Variable {} not found", name)),
         },
     }
@@ -28,7 +35,7 @@ pub fn execute(stmt: &Statement, env: Environment) -> Result<Environment, ErrorM
         Statement::Assignment(name, exp) => {
             let value = eval(exp, &env)?;
             let mut new_env = env;
-            new_env.insert(*name.clone(), value);
+            new_env.insert(*name.clone(), EnvValue::CInt(value));
             Ok(new_env.clone())
         }
         Statement::IfThenElse(cond, stmt_then, stmt_else) => {
@@ -54,7 +61,7 @@ pub fn execute(stmt: &Statement, env: Environment) -> Result<Environment, ErrorM
             let end_value = eval(exp2, &new_env)?;
             let incr_value = eval(incr, &new_env)?;
 
-            new_env.insert(*var.clone(), srt_value);
+            new_env.insert(*var.clone(), EnvValue::CInt(srt_value));
 
             let mut loop_value = srt_value;
 
@@ -73,7 +80,7 @@ pub fn execute(stmt: &Statement, env: Environment) -> Result<Environment, ErrorM
                             );
 
                             let new_var_value = eval(&increment, &new_env)?;
-                            new_env.insert(*var.clone(), new_var_value);
+                            new_env.insert(*var.clone(), EnvValue::CInt(new_var_value));
 
                             loop_value = new_var_value;
                         }
@@ -98,7 +105,7 @@ pub fn execute(stmt: &Statement, env: Environment) -> Result<Environment, ErrorM
                             );
 
                             let new_var_value = eval(&increment, &new_env)?;
-                            new_env.insert(*var.clone(), new_var_value);
+                            new_env.insert(*var.clone(), EnvValue::CInt(new_var_value));
 
                             loop_value = new_var_value;
                         }
@@ -160,7 +167,7 @@ mod tests {
 
     #[test]
     fn eval_variable() {
-        let env = HashMap::from([(String::from("x"), 10), (String::from("y"), 20)]);
+        let env = HashMap::from([(String::from("x"), EnvValue::CInt(10)), (String::from("y"), EnvValue::CInt(20))]);
         let v1 = Expression::Var(String::from("x"));
         let v2 = Expression::Var(String::from("y"));
         assert_eq!(eval(&v1, &env), Ok(10));
@@ -205,19 +212,25 @@ mod tests {
 
     #[test]
     fn execute_assignment() {
-        let env = HashMap::new();
-        let assign_stmt =
-            Statement::Assignment(Box::from(String::from("x")), Box::new(Expression::CInt(42)));
-
+        let env = HashMap::new(); 
+        let assign_stmt = 
+            Statement::Assignment(Box::new(String::from("x")), Box::new(Expression::CInt(42)));
+    
         match execute(&assign_stmt, env) {
-            Ok(new_env) => assert_eq!(new_env.get("x"), Some(&42)),
+            Ok(new_env) => {
+                match new_env.get("x") {
+                    Some(EnvValue::CInt(42)) => {},
+                    Some(value) => assert!(false, "Expected 42, got {:?}", value),
+                    None => assert!(false, "Variable x not found"),
+                }
+            },
             Err(s) => assert!(false, "{}", s),
         }
     }
 
     #[test]
     fn eval_expression_with_variables() {
-        let env = HashMap::from([(String::from("a"), 5), (String::from("b"), 3)]);
+        let env = HashMap::from([(String::from("a"), EnvValue::CInt(5)), (String::from("b"), EnvValue::CInt(3))]);
         let expr = Expression::Mul(
             Box::new(Expression::Var(String::from("a"))),
             Box::new(Expression::Add(
@@ -298,8 +311,16 @@ mod tests {
 
         match execute(&program, env) {
             Ok(new_env) => {
-                assert_eq!(new_env.get("y"), Some(&55));
-                assert_eq!(new_env.get("x"), Some(&0));
+                match new_env.get("y") {
+                    Some(EnvValue::CInt(55)) => {}, 
+                    Some(val) => assert!(false, "Expected 55, got {:?}", val),
+                    None => assert!(false, "Variable y not found"),
+                }
+                match new_env.get("x") {
+                    Some(EnvValue::CInt(0)) => {}, 
+                    Some(val) => assert!(false, "Expected 0, got {:?}", val),
+                    None => assert!(false, "Variable x not found"),
+                }
             }
             Err(s) => assert!(false, "{}", s),
         }
@@ -337,7 +358,13 @@ mod tests {
         let program = Statement::Sequence(Box::new(setup_stmt), Box::new(if_statement));
 
         match execute(&program, env) {
-            Ok(new_env) => assert_eq!(new_env.get("y"), Some(&1)),
+            Ok(new_env) => {
+                match new_env.get("y") {
+                    Some(EnvValue::CInt(1)) => {},
+                    Some(val) => assert!(false, "Expected 1, got {:?}", val),
+                    None => assert!(false, "Variable y not found"),
+                }
+            }
             Err(s) => assert!(false, "{}", s),
         }
     }
@@ -384,8 +411,16 @@ mod tests {
 
         match execute(&program, env) {
             Ok(new_env) => {
-                assert_eq!(new_env.get("y"), Some(&7));
-                assert_eq!(new_env.get("x"), Some(&0));
+                match new_env.get("y") {
+                    Some(EnvValue::CInt(7)) => {}, 
+                    Some(val) => assert!(false, "Expected 7, got {:?}", val),
+                    None => assert!(false, "Variable y not found"),
+                }
+                match new_env.get("x") {
+                    Some(EnvValue::CInt(0)) => {},
+                    Some(val) => assert!(false, "Expected 0, got {:?}", val),
+                    None => assert!(false, "Variable x not found"),
+                }
             }
             Err(s) => assert!(false, "{}", s),
         }
@@ -429,8 +464,15 @@ mod tests {
 
         match execute(&program, env) {
             Ok(new_env) => {
-                assert_eq!(new_env.get("y"), Some(&6));
-                assert_eq!(new_env.get("i"), None);
+                match new_env.get("y") {
+                    Some(EnvValue::CInt(6)) => {},
+                    Some(val) => assert!(false, "Expected 6, got {:?}", val),
+                    None => assert!(false, "Variable y not found"),
+                }
+                match new_env.get("i") {
+                    None => {},
+                    Some(val) => assert!(false, "Expected None, got {:?}", val),
+                }
             }
             Err(s) => assert!(false, "{}", s),
         }
@@ -474,8 +516,15 @@ mod tests {
 
         match execute(&program, env) {
             Ok(new_env) => {
-                assert_eq!(new_env.get("y"), Some(&49));
-                assert_eq!(new_env.get("i"), None);
+                match new_env.get("y") {
+                    Some(EnvValue::CInt(49)) => {},
+                    Some(val) => assert!(false, "Expected 49, got {:?}", val),
+                    None => assert!(false, "Variable y not found"),
+                }
+                match new_env.get("i") {
+                    None => {},
+                    Some(val) => assert!(false, "Expected None, got {:?}", val),
+                }
             }
             Err(s) => assert!(false, "{}", s),
         }
@@ -565,7 +614,13 @@ mod tests {
         let program = Statement::Sequence(Box::new(setup_stmt), Box::new(outer_if_statement));
 
         match execute(&program, env) {
-            Ok(new_env) => assert_eq!(new_env.get("y"), Some(&1)),
+            Ok(new_env) => {
+                match new_env.get("y") {
+                    Some(EnvValue::CInt(1)) => {},
+                    Some(val) => assert!(false, "Expected 1, got {:?}", val),
+                    None => assert!(false, "Variable y not found"),
+                }
+            }
             Err(s) => assert!(false, "{}", s),
         }
     }
@@ -603,9 +658,21 @@ mod tests {
 
         match execute(&program, env) {
             Ok(new_env) => {
-                assert_eq!(new_env.get("x"), Some(&5));
-                assert_eq!(new_env.get("y"), Some(&0));
-                assert_eq!(new_env.get("z"), Some(&13));
+                match new_env.get("x") {
+                    Some(EnvValue::CInt(5)) => {},
+                    Some(val) => assert!(false, "Expected 5, got {:?}", val),
+                    None => assert!(false, "Variable x not found"),
+                }
+                match new_env.get("y") {
+                    Some(EnvValue::CInt(0)) => {}, 
+                    Some(val) => assert!(false, "Expected 0, got {:?}", val),
+                    None => assert!(false, "Variable y not found"),
+                }
+                match new_env.get("z") {
+                    Some(EnvValue::CInt(13)) => {}, 
+                    Some(val) => assert!(false, "Expected 13, got {:?}", val),
+                    None => assert!(false, "Variable z not found"),
+                }
             }
             Err(s) => assert!(false, "{}", s),
         }

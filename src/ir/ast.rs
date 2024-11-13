@@ -1,5 +1,6 @@
 pub type Name = String;
 
+#[derive(Debug, Clone)]
 pub enum Expression {
     CInt(i32),
     Var(String),
@@ -9,6 +10,7 @@ pub enum Expression {
     Div(Box<Expression>, Box<Expression>),
 }
 
+#[derive(Debug, Clone)]
 pub enum Statement {
     VarDeclaration(Box<Name>),
     ValDeclaration(Box<Name>),
@@ -18,3 +20,5 @@ pub enum Statement {
     For(Box<Name>, Box<Expression>, Box<Expression>, Box<Expression>, Box<Statement>),
     Sequence(Box<Statement>, Box<Statement>),
 }
+
+
