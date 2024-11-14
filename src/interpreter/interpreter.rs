@@ -4,26 +4,197 @@ use crate::ir::ast::Expression;
 use crate::ir::ast::Name;
 use crate::ir::ast::Statement;
 
-type IntValue = i32;
 type ErrorMessage = String;
 
 #[derive(Debug, Clone)]
 pub enum EnvValue {
     CInt(i32),
+    CReal(f32),
+    Bool(bool),
     Func(Vec<Name>, Option<Box<Statement>>, Box<Expression>),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum EvalResult {
+    CInt(i32),
+    CReal(f32),
+    Bool(bool),
+}
+
+impl From<EvalResult> for i32 {
+    fn from(value: EvalResult) -> Self {
+        match value {
+            EvalResult::CInt(v) => v,
+            EvalResult::CReal(v) => v as i32,
+            EvalResult::Bool(v) => v as i32,
+        }
+    }
+}
+
+impl From<EvalResult> for f32 {
+    fn from(value: EvalResult) -> Self {
+        match value {
+            EvalResult::CInt(v) => v as f32,
+            EvalResult::CReal(v) => v,
+            EvalResult::Bool(v) => (v as i32) as f32,
+        }
+    }
+}
+
+fn to_i32(value: &EvalResult) -> i32 {
+    (*value).clone().into()
+}
+
+fn to_f32(value: &EvalResult) -> f32 {
+    (*value).clone().into()
 }
 
 type Environment = HashMap<Name, EnvValue>;
 
-pub fn eval(exp: &Expression, env: &Environment) -> Result<IntValue, ErrorMessage> {
+pub fn eval(exp: &Expression, env: &Environment) -> Result<EvalResult, ErrorMessage> {
     match exp {
-        Expression::CInt(v) => Ok(*v),
-        Expression::Add(lhs, rhs) => Ok(eval(lhs, env)? + eval(rhs, env)?),
-        Expression::Sub(lhs, rhs) => Ok(eval(lhs, env)? - eval(rhs, env)?),
-        Expression::Mul(lhs, rhs) => Ok(eval(lhs, env)? * eval(rhs, env)?),
-        Expression::Div(lhs, rhs) => Ok(eval(lhs, env)? / eval(rhs, env)?),
+        Expression::CInt(v) => Ok(EvalResult::CInt(*v)),
+        Expression::CReal(v) => Ok(EvalResult::CReal(*v)),
+        Expression::Bool(b) => Ok(EvalResult::Bool(*b)),
+        Expression::Add(lhs, rhs) => {
+            let lhs_value = eval(lhs, env)?;
+            let rhs_value = eval(rhs, env)?;
+            match (lhs_value, rhs_value) {
+                (EvalResult::CInt(lhs), EvalResult::CInt(rhs)) => Ok(EvalResult::CInt(lhs + rhs)),
+                (EvalResult::CReal(lhs), EvalResult::CReal(rhs)) => {
+                    Ok(EvalResult::CReal(lhs + rhs))
+                }
+                (EvalResult::CInt(lhs), EvalResult::CReal(rhs)) => {
+                    Ok(EvalResult::CReal(lhs as f32 + rhs))
+                }
+                (EvalResult::CReal(lhs), EvalResult::CInt(rhs)) => {
+                    Ok(EvalResult::CReal(lhs + rhs as f32))
+                }
+                (EvalResult::CInt(lhs), EvalResult::Bool(rhs)) => {
+                    Ok(EvalResult::CInt(lhs + rhs as i32))
+                }
+                (EvalResult::CReal(lhs), EvalResult::Bool(rhs)) => {
+                    Ok(EvalResult::CReal(lhs + (rhs as i32) as f32))
+                }
+                (EvalResult::Bool(lhs), EvalResult::CInt(rhs)) => {
+                    Ok(EvalResult::CInt(lhs as i32 + rhs))
+                }
+                (EvalResult::Bool(lhs), EvalResult::CReal(rhs)) => {
+                    Ok(EvalResult::CReal((lhs as i32) as f32 + rhs))
+                }
+                (EvalResult::Bool(lhs), EvalResult::Bool(rhs)) => {
+                    Ok(EvalResult::CInt(lhs as i32 + rhs as i32))
+                }
+            }
+        }
+        Expression::Sub(lhs, rhs) => {
+            let lhs_value = eval(lhs, env)?;
+            let rhs_value = eval(rhs, env)?;
+            match (lhs_value, rhs_value) {
+                (EvalResult::CInt(lhs), EvalResult::CInt(rhs)) => Ok(EvalResult::CInt(lhs - rhs)),
+                (EvalResult::CReal(lhs), EvalResult::CReal(rhs)) => {
+                    Ok(EvalResult::CReal(lhs - rhs))
+                }
+                (EvalResult::CInt(lhs), EvalResult::CReal(rhs)) => {
+                    Ok(EvalResult::CReal(lhs as f32 - rhs))
+                }
+                (EvalResult::CReal(lhs), EvalResult::CInt(rhs)) => {
+                    Ok(EvalResult::CReal(lhs - rhs as f32))
+                }
+                (EvalResult::CInt(lhs), EvalResult::Bool(rhs)) => {
+                    Ok(EvalResult::CInt(lhs - rhs as i32))
+                }
+                (EvalResult::CReal(lhs), EvalResult::Bool(rhs)) => {
+                    Ok(EvalResult::CReal(lhs - (rhs as i32) as f32))
+                }
+                (EvalResult::Bool(lhs), EvalResult::CInt(rhs)) => {
+                    Ok(EvalResult::CInt(lhs as i32 - rhs))
+                }
+                (EvalResult::Bool(lhs), EvalResult::CReal(rhs)) => {
+                    Ok(EvalResult::CReal((lhs as i32) as f32 - rhs))
+                }
+                (EvalResult::Bool(lhs), EvalResult::Bool(rhs)) => {
+                    Ok(EvalResult::CInt(lhs as i32 - rhs as i32))
+                }
+            }
+        }
+        Expression::Mul(lhs, rhs) => {
+            let lhs_value = eval(lhs, env)?;
+            let rhs_value = eval(rhs, env)?;
+            match (lhs_value, rhs_value) {
+                (EvalResult::CInt(lhs), EvalResult::CInt(rhs)) => Ok(EvalResult::CInt(lhs * rhs)),
+                (EvalResult::CReal(lhs), EvalResult::CReal(rhs)) => {
+                    Ok(EvalResult::CReal(lhs * rhs))
+                }
+                (EvalResult::CInt(lhs), EvalResult::CReal(rhs)) => {
+                    Ok(EvalResult::CReal(lhs as f32 * rhs))
+                }
+                (EvalResult::CReal(lhs), EvalResult::CInt(rhs)) => {
+                    Ok(EvalResult::CReal(lhs * rhs as f32))
+                }
+                (EvalResult::CInt(lhs), EvalResult::Bool(rhs)) => {
+                    Ok(EvalResult::CInt(lhs * rhs as i32))
+                }
+                (EvalResult::CReal(lhs), EvalResult::Bool(rhs)) => {
+                    Ok(EvalResult::CReal(lhs * (rhs as i32) as f32))
+                }
+                (EvalResult::Bool(lhs), EvalResult::CInt(rhs)) => {
+                    Ok(EvalResult::CInt(lhs as i32 * rhs))
+                }
+                (EvalResult::Bool(lhs), EvalResult::CReal(rhs)) => {
+                    Ok(EvalResult::CReal((lhs as i32) as f32 * rhs))
+                }
+                (EvalResult::Bool(lhs), EvalResult::Bool(rhs)) => {
+                    Ok(EvalResult::CInt(lhs as i32 * rhs as i32))
+                }
+            }
+        }
+        Expression::Div(lhs, rhs) => {
+            let lhs_value = eval(lhs, env)?;
+            let rhs_value = eval(rhs, env)?;
+            match (lhs_value, rhs_value) {
+                (EvalResult::CInt(lhs), EvalResult::CInt(rhs)) => match rhs {
+                    0 => Err(String::from("Division by zero")),
+                    _ => Ok(EvalResult::CInt(lhs / rhs)),
+                },
+                (EvalResult::CReal(lhs), EvalResult::CReal(rhs)) => match rhs {
+                    0.0 => Err(String::from("Division by zero")),
+                    _ => Ok(EvalResult::CReal(lhs / rhs)),
+                },
+                (EvalResult::CInt(lhs), EvalResult::CReal(rhs)) => match rhs {
+                    0.0 => Err(String::from("Division by zero")),
+                    _ => Ok(EvalResult::CReal(lhs as f32 / rhs)),
+                },
+                (EvalResult::CReal(lhs), EvalResult::CInt(rhs)) => match rhs {
+                    0 => Err(String::from("Division by zero")),
+                    _ => Ok(EvalResult::CReal(lhs / rhs as f32)),
+                },
+                (EvalResult::CInt(lhs), EvalResult::Bool(rhs)) => match rhs {
+                    false => Err(String::from("Division by zero")),
+                    _ => Ok(EvalResult::CInt(lhs / rhs as i32)),
+                },
+                (EvalResult::CReal(lhs), EvalResult::Bool(rhs)) => match rhs {
+                    false => Err(String::from("Division by zero")),
+                    _ => Ok(EvalResult::CReal(lhs / (rhs as i32) as f32)),
+                },
+                (EvalResult::Bool(lhs), EvalResult::CInt(rhs)) => match rhs {
+                    0 => Err(String::from("Division by zero")),
+                    _ => Ok(EvalResult::CInt(lhs as i32 / rhs)),
+                },
+                (EvalResult::Bool(lhs), EvalResult::CReal(rhs)) => match rhs {
+                    0.0 => Err(String::from("Division by zero")),
+                    _ => Ok(EvalResult::CReal((lhs as i32) as f32 / rhs)),
+                },
+                (EvalResult::Bool(lhs), EvalResult::Bool(rhs)) => match rhs {
+                    false => Err(String::from("Division by zero")),
+                    _ => Ok(EvalResult::CInt(lhs as i32 / rhs as i32)),
+                },
+            }
+        }
         Expression::Var(name) => match env.get(name) {
-            Some(EnvValue::CInt(value)) => Ok(*value),
+            Some(EnvValue::CInt(value)) => Ok(EvalResult::CInt(*value)),
+            Some(EnvValue::CReal(value)) => Ok(EvalResult::CReal(*value)),
+            Some(EnvValue::Bool(value)) => Ok(EvalResult::Bool(*value)),
             _ => Err(format!("Variable {} not found", name)),
         },
         Expression::FuncCall(name, args) => match env.get(name) {
@@ -41,7 +212,14 @@ pub fn eval(exp: &Expression, env: &Environment) -> Result<IntValue, ErrorMessag
 
                 for (param, arg) in params.iter().zip(args.iter()) {
                     let value = eval(arg, env)?;
-                    func_env.insert(param.clone(), EnvValue::CInt(value));
+                    func_env.insert(
+                        param.clone(),
+                        match value {
+                            EvalResult::CInt(val) => EnvValue::CInt(val),
+                            EvalResult::CReal(val) => EnvValue::CReal(val),
+                            EvalResult::Bool(val) => EnvValue::Bool(val),
+                        },
+                    );
                 }
 
                 if let Some(body_stmt) = stmt {
@@ -63,85 +241,35 @@ pub fn execute(stmt: &Statement, env: Environment) -> Result<Environment, ErrorM
         Statement::Assignment(name, exp) => {
             let value = eval(exp, &env)?;
             let mut new_env = env;
-            new_env.insert(*name.clone(), EnvValue::CInt(value));
-            Ok(new_env.clone())
+            match value {
+                EvalResult::CInt(val) => {
+                    new_env.insert(*name.clone(), EnvValue::CInt(val));
+                }
+                EvalResult::CReal(val) => {
+                    new_env.insert(*name.clone(), EnvValue::CReal(val));
+                }
+                EvalResult::Bool(val) => {
+                    new_env.insert(*name.clone(), EnvValue::Bool(val));
+                }
+            }
+            Ok(new_env)
         }
         Statement::IfThenElse(cond, stmt_then, stmt_else) => {
-            let value = eval(cond, &env)?;
-            if value > 0 {
+            let value = to_f32(&eval(cond, &env)?);
+            if value != 0.0 {
                 execute(stmt_then, env)
             } else {
                 execute(stmt_else, env)
             }
         }
         Statement::While(cond, stmt) => {
-            let mut value = eval(cond, &env)?;
+            let mut value = to_f32(&eval(cond, &env)?);
             let mut new_env = env;
-            while value > 0 {
+            while value != 0.0 {
                 new_env = execute(stmt, new_env.clone())?;
-                value = eval(cond, &new_env.clone())?;
+                value = to_f32(&eval(cond, &new_env.clone())?);
             }
             Ok(new_env)
-        }
-        Statement::For(var, exp1, exp2, incr, stmt) => {
-            let mut new_env = env.clone();
-            let srt_value = eval(exp1, &new_env)?;
-            let end_value = eval(exp2, &new_env)?;
-            let incr_value = eval(incr, &new_env)?;
-
-            new_env.insert(*var.clone(), EnvValue::CInt(srt_value));
-
-            let mut loop_value = srt_value;
-
-            // This could benefit from a refactor...
-            match incr_value.signum() {
-                -1 => {
-                    if srt_value < end_value {
-                        Err(String::from("For condition never reached"))
-                    } else {
-                        while loop_value > end_value {
-                            new_env = execute(stmt, new_env.clone())?;
-
-                            let increment = Expression::Add(
-                                Box::new(Expression::Var(*var.clone())),
-                                Box::new(Expression::CInt(incr_value)),
-                            );
-
-                            let new_var_value = eval(&increment, &new_env)?;
-                            new_env.insert(*var.clone(), EnvValue::CInt(new_var_value));
-
-                            loop_value = new_var_value;
-                        }
-                        new_env.remove(&var as &str);
-
-                        Ok(new_env)
-                    }
-                }
-                0 => Err(String::from("Increment cannot be zero")),
-                1 => {
-                    if srt_value > end_value {
-                        Err(String::from("For condition never reached"))
-                    } else {
-                        while loop_value < end_value {
-                            new_env = execute(stmt, new_env.clone())?;
-
-                            let increment = Expression::Add(
-                                Box::new(Expression::Var(*var.clone())),
-                                Box::new(Expression::CInt(incr_value)),
-                            );
-
-                            let new_var_value = eval(&increment, &new_env)?;
-                            new_env.insert(*var.clone(), EnvValue::CInt(new_var_value));
-
-                            loop_value = new_var_value;
-                        }
-                        new_env.remove(&var as &str);
-
-                        Ok(new_env)
-                    }
-                }
-                _ => Ok(new_env),
-            }
         }
         Statement::Func(name, params, stmt, retrn) => {
             let mut new_env = env.clone();
@@ -150,6 +278,81 @@ pub fn execute(stmt: &Statement, env: Environment) -> Result<Environment, ErrorM
                 EnvValue::Func(params.clone(), stmt.clone(), retrn.clone()),
             );
             Ok(new_env)
+        }
+        Statement::For(var, exp1, exp2, incr, stmt) => {
+            let mut new_env = env.clone();
+
+            let srt_value = eval(exp1, &new_env)?;
+            let end_value = eval(exp2, &new_env)?;
+            let incr_value = eval(incr, &new_env)?;
+            let srt_int = to_i32(&srt_value);
+            let end_int = to_i32(&end_value);
+            let incr_int = to_i32(&incr_value);
+
+            match (srt_value, end_value, incr_value) {
+                (EvalResult::CReal(_), _, _) => {
+                    return Err(String::from(
+                        "'Real' object cannot be interpreted as an integer",
+                    ))
+                }
+                (_, EvalResult::CReal(_), _) => {
+                    return Err(String::from(
+                        "'Real' object cannot be interpreted as an integer",
+                    ))
+                }
+                (_, _, EvalResult::CReal(_)) => {
+                    return Err(String::from(
+                        "'Real' object cannot be interpreted as an integer",
+                    ))
+                }
+                _ => (),
+            }
+
+            new_env.insert(*var.clone(), EnvValue::CInt(srt_int));
+
+            let mut loop_value = srt_int;
+
+            match incr_int.signum() {
+                0 => Err(String::from("Increment cannot be zero")),
+                -1 => {
+                    while loop_value > end_int {
+                        new_env = execute(stmt, new_env.clone())?;
+
+                        let increment = Expression::Add(
+                            Box::new(Expression::Var(*var.clone())),
+                            Box::new(Expression::CInt(incr_int)),
+                        );
+
+                        let new_var_value = to_i32(&eval(&increment, &new_env)?);
+                        new_env.insert(*var.clone(), EnvValue::CInt(new_var_value));
+
+                        loop_value = new_var_value;
+                    }
+                    new_env.remove(&var as &str);
+                    Ok(new_env)
+                }
+                1 => {
+                    while loop_value < end_int {
+                        new_env = execute(stmt, new_env.clone())?;
+
+                        let increment = Expression::Add(
+                            Box::new(Expression::Var(*var.clone())),
+                            Box::new(Expression::CInt(incr_int)),
+                        );
+
+                        let new_var_value = to_i32(&eval(&increment, &new_env)?);
+                        new_env.insert(*var.clone(), EnvValue::CInt(new_var_value));
+
+                        loop_value = new_var_value;
+                    }
+                    new_env.remove(&var as &str);
+                    Ok(new_env)
+                }
+                _ => {
+                    new_env.remove(&var as &str);
+                    Ok(new_env)
+                }
+            }
         }
         Statement::Sequence(s1, s2) => execute(s1, env).and_then(|new_env| execute(s2, new_env)),
         _ => Err(String::from("not implemented yet")),
@@ -161,90 +364,124 @@ mod tests {
     use super::*;
 
     #[test]
-    fn eval_constant() {
+    fn eval_constant_integer() {
         let env = HashMap::new();
         let c10 = Expression::CInt(10);
         let c20 = Expression::CInt(20);
 
-        assert_eq!(eval(&c10, &env), Ok(10));
-        assert_eq!(eval(&c20, &env), Ok(20));
+        assert_eq!(eval(&c10, &env), Ok(EvalResult::CInt(10)));
+        assert_eq!(eval(&c20, &env), Ok(EvalResult::CInt(20)));
     }
 
     #[test]
-    fn eval_add_expression1() {
+    fn eval_constant_real() {
+        let env = HashMap::new();
+        let c10_5 = Expression::CReal(10.5);
+        let c20_3 = Expression::CReal(20.3);
+
+        assert_eq!(eval(&c10_5, &env), Ok(EvalResult::CReal(10.5)));
+        assert_eq!(eval(&c20_3, &env), Ok(EvalResult::CReal(20.3)))
+    }
+
+    #[test]
+    fn eval_constant_bool() {
+        let env = HashMap::new();
+        let ctrue = Expression::Bool(true);
+        let cfalse = Expression::Bool(false);
+
+        assert_eq!(eval(&ctrue, &env), Ok(EvalResult::Bool(true)));
+        assert_eq!(eval(&cfalse, &env), Ok(EvalResult::Bool(false)))
+    }
+
+    #[test]
+    fn eval_add_integers_1() {
         let env = HashMap::new();
         let c10 = Expression::CInt(10);
         let c20 = Expression::CInt(20);
         let add1 = Expression::Add(Box::new(c10), Box::new(c20));
-        assert_eq!(eval(&add1, &env), Ok(30));
+        assert_eq!(eval(&add1, &env), Ok(EvalResult::CInt(30)));
     }
 
     #[test]
-    fn eval_add_expression2() {
+    fn eval_add_integers_2() {
         let env = HashMap::new();
         let c10 = Expression::CInt(10);
         let c20 = Expression::CInt(20);
         let c30 = Expression::CInt(30);
         let add1 = Expression::Add(Box::new(c10), Box::new(c20));
         let add2 = Expression::Add(Box::new(add1), Box::new(c30));
-        assert_eq!(eval(&add2, &env), Ok(60));
+        assert_eq!(eval(&add2, &env), Ok(EvalResult::CInt(60)));
     }
 
     #[test]
-    fn eval_mul_expression() {
+    fn eval_add_reals_1() {
+        let env = HashMap::new();
+        let c10_5 = Expression::CReal(10.5);
+        let c20_3 = Expression::CReal(20.3);
+        let add1 = Expression::Add(Box::new(c10_5), Box::new(c20_3));
+        assert_eq!(eval(&add1, &env), Ok(EvalResult::CReal(30.8)));
+    }
+
+    #[test]
+    fn eval_add_reals_2() {
+        let env = HashMap::new();
+        let c10_5 = Expression::CReal(10.5);
+        let c20_3 = Expression::CReal(20.3);
+        let c30_1 = Expression::CReal(30.1);
+        let add1 = Expression::Add(Box::new(c10_5), Box::new(c20_3));
+        let add2 = Expression::Add(Box::new(add1), Box::new(c30_1));
+        assert_eq!(eval(&add2, &env), Ok(EvalResult::CReal(60.9)));
+    }
+
+    #[test]
+    fn eval_add_integer_real() {
         let env = HashMap::new();
         let c10 = Expression::CInt(10);
-        let c20 = Expression::CInt(20);
-        let mul1 = Expression::Mul(Box::new(c10), Box::new(c20));
-        assert_eq!(eval(&mul1, &env), Ok(200));
+        let c20_3 = Expression::CReal(20.3);
+        let add1 = Expression::Add(Box::new(c10), Box::new(c20_3));
+        assert_eq!(eval(&add1, &env), Ok(EvalResult::CReal(30.3)));
+    }
+
+    #[test]
+    fn eval_add_bools_1() {
+        let env = HashMap::new();
+        let ctrue = Expression::Bool(true);
+        let cfalse = Expression::Bool(false);
+        let add1 = Expression::Add(Box::new(ctrue), Box::new(cfalse));
+        assert_eq!(eval(&add1, &env), Ok(EvalResult::CInt(1)));
+    }
+
+    #[test]
+    fn eval_add_bools_2() {
+        let env = HashMap::new();
+        let ctrue1 = Expression::Bool(true);
+        let ctrue2 = Expression::Bool(true);
+        let add1 = Expression::Add(Box::new(ctrue1), Box::new(ctrue2));
+        assert_eq!(eval(&add1, &env), Ok(EvalResult::CInt(2)));
+    }
+
+    #[test]
+    fn eval_add_num_bool() {
+        let env = HashMap::new();
+        let c10 = Expression::CInt(10);
+        let ctrue2 = Expression::Bool(true);
+        let add1 = Expression::Add(Box::new(c10), Box::new(ctrue2));
+        assert_eq!(eval(&add1, &env), Ok(EvalResult::CInt(11)));
     }
 
     #[test]
     fn eval_variable() {
         let env = HashMap::from([
             (String::from("x"), EnvValue::CInt(10)),
-            (String::from("y"), EnvValue::CInt(20)),
+            (String::from("y"), EnvValue::CReal(20.7)),
+            (String::from("z"), EnvValue::Bool(true)),
         ]);
         let v1 = Expression::Var(String::from("x"));
         let v2 = Expression::Var(String::from("y"));
-        assert_eq!(eval(&v1, &env), Ok(10));
-        assert_eq!(eval(&v2, &env), Ok(20));
-    }
-
-    #[test]
-    fn eval_sub_expression1() {
-        let env = HashMap::new();
-        let c10 = Expression::CInt(10);
-        let c20 = Expression::CInt(20);
-        let mul1 = Expression::Sub(Box::new(c20), Box::new(c10));
-        assert_eq!(eval(&mul1, &env), Ok(10));
-    }
-
-    #[test]
-    fn eval_sub_expression2() {
-        let env = HashMap::new();
-        let c10 = Expression::CInt(100);
-        let c20 = Expression::CInt(300);
-        let mul1 = Expression::Sub(Box::new(c20), Box::new(c10));
-        assert_eq!(eval(&mul1, &env), Ok(200));
-    }
-
-    #[test]
-    fn eval_div_expression1() {
-        let env = HashMap::new();
-        let c10 = Expression::CInt(10);
-        let c20 = Expression::CInt(20);
-        let mul1 = Expression::Div(Box::new(c20), Box::new(c10));
-        assert_eq!(eval(&mul1, &env), Ok(2));
-    }
-
-    #[test]
-    fn eval_div_expression2() {
-        let env = HashMap::new();
-        let c10 = Expression::CInt(3);
-        let c20 = Expression::CInt(21);
-        let mul1 = Expression::Div(Box::new(c20), Box::new(c10));
-        assert_eq!(eval(&mul1, &env), Ok(7));
+        let v3 = Expression::Var(String::from("z"));
+        assert_eq!(eval(&v1, &env), Ok(EvalResult::CInt(10)));
+        assert_eq!(eval(&v2, &env), Ok(EvalResult::CReal(20.7)));
+        assert_eq!(eval(&v3, &env), Ok(EvalResult::Bool(true)));
     }
 
     #[test]
@@ -276,7 +513,7 @@ mod tests {
                 Box::new(Expression::CInt(2)),
             )),
         );
-        assert_eq!(eval(&expr, &env), Ok(25));
+        assert_eq!(eval(&expr, &env), Ok(EvalResult::CInt(25)));
     }
 
     #[test]
@@ -292,7 +529,7 @@ mod tests {
                 Box::new(Expression::CInt(4)),
             )),
         );
-        assert_eq!(eval(&expr, &env), Ok(12));
+        assert_eq!(eval(&expr, &env), Ok(EvalResult::CInt(12)));
     }
 
     #[test]
@@ -561,7 +798,7 @@ mod tests {
     }
 
     #[test]
-    fn eval_for_loop_error() {
+    fn eval_for_loop_no_range() {
         /*
          * For loop test for condition never reached
          *
@@ -593,10 +830,12 @@ mod tests {
         let program = Statement::Sequence(Box::new(a1), Box::new(for_stmt));
 
         match execute(&program, env) {
-            Ok(_new_env) => {
-                assert!(false, "For loop not supposed to execute");
-            }
-            Err(s) => assert_eq!(s, "For condition never reached"),
+            Ok(new_env) => match new_env.get("y") {
+                Some(EnvValue::CInt(0)) => (),
+                Some(val) => assert!(false, "Expected 0, got {:?}", val),
+                None => assert!(false, "Variable y not found"),
+            },
+            Err(s) => assert!(false, "{}", s),
         }
     }
 

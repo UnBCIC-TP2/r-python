@@ -3,6 +3,8 @@ pub type Name = String;
 #[derive(Debug, Clone)]
 pub enum Expression {
     CInt(i32),
+    CReal(f32),
+    Bool(bool),
     Var(String),
     Add(Box<Expression>, Box<Expression>),
     Sub(Box<Expression>, Box<Expression>),
