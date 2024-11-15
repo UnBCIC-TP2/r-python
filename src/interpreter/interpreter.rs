@@ -281,10 +281,27 @@ pub fn execute(stmt: &Statement, env: Environment) -> Result<Environment, ErrorM
         }
         Statement::For(var, exp1, exp2, incr, stmt) => {
             let mut new_env = env.clone();
-
-            let srt_value = eval(exp1, &new_env)?;
             let end_value = eval(exp2, &new_env)?;
-            let incr_value = eval(incr, &new_env)?;
+
+            let mut srt_value = eval(&Expression::CInt(0), &new_env)?;
+            let mut incr_value = eval(&Expression::CInt(1), &new_env)?;
+
+            match (exp1, incr) {
+                (None, None) => (),
+                (None, Some(incr_stp)) => {
+                    srt_value = eval(&Expression::CInt(0), &new_env)?;
+                    incr_value = eval(&incr_stp, &new_env)?;
+                }
+                (Some(srt_step), None) => {
+                    srt_value = eval(&srt_step, &new_env)?;
+                    incr_value = eval(&Expression::CInt(1), &new_env)?;
+                }
+                (Some(srt_step), Some(incr_step)) => {
+                    srt_value = eval(&srt_step, &new_env)?;
+                    incr_value = eval(&incr_step, &new_env)?;
+                }
+            }
+
             let srt_int = to_i32(&srt_value);
             let end_int = to_i32(&end_value);
             let incr_int = to_i32(&incr_value);
@@ -724,9 +741,9 @@ mod tests {
 
         let for_stmt = Statement::For(
             Box::new(String::from("i")),
-            Box::new(Expression::CInt(0)),
+            Some(Box::new(Expression::CInt(0))),
             Box::new(Expression::CInt(5)),
-            Box::new(Expression::CInt(2)),
+            Some(Box::new(Expression::CInt(2))),
             Box::new(for_exec),
         );
 
@@ -773,9 +790,9 @@ mod tests {
 
         let for_stmt = Statement::For(
             Box::new(String::from("i")),
-            Box::new(Expression::CInt(10)),
+            Some(Box::new(Expression::CInt(10))),
             Box::new(Expression::CInt(3)),
-            Box::new(Expression::CInt(-1)),
+            Some(Box::new(Expression::CInt(-1))),
             Box::new(for_exec),
         );
 
@@ -786,6 +803,55 @@ mod tests {
                 match new_env.get("y") {
                     Some(EnvValue::CInt(49)) => {}
                     Some(val) => assert!(false, "Expected 49, got {:?}", val),
+                    None => assert!(false, "Variable y not found"),
+                }
+                match new_env.get("i") {
+                    None => {}
+                    Some(val) => assert!(false, "Expected None, got {:?}", val),
+                }
+            }
+            Err(s) => assert!(false, "{}", s),
+        }
+    }
+
+    #[test]
+    fn eval_for_loop_no_values() {
+        /*
+         * For loop test for a loop specified by stop only
+         *
+         * > y = 0
+         *
+         * > for i in range(5):
+         * >    y = y + i
+         *
+         * After executing, 'y' should be 10 and 'i' should not be accessible.
+         */
+        let env = HashMap::new();
+
+        let a1 = Statement::Assignment(Box::new(String::from("y")), Box::new(Expression::CInt(0)));
+        let for_exec = Statement::Assignment(
+            Box::new(String::from("y")),
+            Box::new(Expression::Add(
+                Box::new(Expression::Var(String::from("y"))),
+                Box::new(Expression::Var(String::from("i"))),
+            )),
+        );
+
+        let for_stmt = Statement::For(
+            Box::new(String::from("i")),
+            None,
+            Box::new(Expression::CInt(5)),
+            None,
+            Box::new(for_exec),
+        );
+
+        let program = Statement::Sequence(Box::new(a1), Box::new(for_stmt));
+
+        match execute(&program, env) {
+            Ok(new_env) => {
+                match new_env.get("y") {
+                    Some(EnvValue::CInt(10)) => {}
+                    Some(val) => assert!(false, "Expected 10, got {:?}", val),
                     None => assert!(false, "Variable y not found"),
                 }
                 match new_env.get("i") {
@@ -821,9 +887,9 @@ mod tests {
 
         let for_stmt = Statement::For(
             Box::new(String::from("i")),
-            Box::new(Expression::CInt(0)),
+            Some(Box::new(Expression::CInt(0))),
             Box::new(Expression::CInt(1)),
-            Box::new(Expression::CInt(-1)),
+            Some(Box::new(Expression::CInt(-1))),
             Box::new(for_exec),
         );
 
