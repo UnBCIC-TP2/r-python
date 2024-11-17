@@ -1,6 +1,6 @@
 pub type Name = String;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Expression {
     CInt(i32),
     CReal(f32),
@@ -11,9 +11,10 @@ pub enum Expression {
     Mul(Box<Expression>, Box<Expression>),
     Div(Box<Expression>, Box<Expression>),
     FuncCall(String, Vec<Expression>),
+    List(Vec<Expression>)
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Statement {
     VarDeclaration(Box<Name>),
     ValDeclaration(Box<Name>),

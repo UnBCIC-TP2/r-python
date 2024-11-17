@@ -6,11 +6,12 @@ use crate::ir::ast::Statement;
 
 type ErrorMessage = String;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum EnvValue {
     CInt(i32),
     CReal(f32),
     Bool(bool),
+    List(Vec<EvalResult>),
     Func(Vec<Name>, Option<Box<Statement>>, Box<Expression>),
 }
 
@@ -19,34 +20,7 @@ pub enum EvalResult {
     CInt(i32),
     CReal(f32),
     Bool(bool),
-}
-
-impl From<EvalResult> for i32 {
-    fn from(value: EvalResult) -> Self {
-        match value {
-            EvalResult::CInt(v) => v,
-            EvalResult::CReal(v) => v as i32,
-            EvalResult::Bool(v) => v as i32,
-        }
-    }
-}
-
-impl From<EvalResult> for f32 {
-    fn from(value: EvalResult) -> Self {
-        match value {
-            EvalResult::CInt(v) => v as f32,
-            EvalResult::CReal(v) => v,
-            EvalResult::Bool(v) => (v as i32) as f32,
-        }
-    }
-}
-
-fn to_i32(value: &EvalResult) -> i32 {
-    (*value).clone().into()
-}
-
-fn to_f32(value: &EvalResult) -> f32 {
-    (*value).clone().into()
+    List(Vec<EvalResult>)
 }
 
 type Environment = HashMap<Name, EnvValue>;
@@ -55,7 +29,19 @@ pub fn eval(exp: &Expression, env: &Environment) -> Result<EvalResult, ErrorMess
     match exp {
         Expression::CInt(v) => Ok(EvalResult::CInt(*v)),
         Expression::CReal(v) => Ok(EvalResult::CReal(*v)),
-        Expression::Bool(b) => Ok(EvalResult::Bool(*b)),
+        Expression::Bool(v) => Ok(EvalResult::Bool(*v)),
+        Expression::List(items) => {
+            let mut list_vec: Vec<EvalResult> = Vec::new();
+            let list_env = env.clone();
+
+            for item in items {
+                match eval(item, &list_env) {
+                    Ok(value) => list_vec.push(value),
+                    Err(s) => return Err(s)
+                }
+            }
+            Ok(EvalResult::List(list_vec))            
+        }
         Expression::Add(lhs, rhs) => {
             let lhs_value = eval(lhs, env)?;
             let rhs_value = eval(rhs, env)?;
@@ -84,6 +70,17 @@ pub fn eval(exp: &Expression, env: &Environment) -> Result<EvalResult, ErrorMess
                 }
                 (EvalResult::Bool(lhs), EvalResult::Bool(rhs)) => {
                     Ok(EvalResult::CInt(lhs as i32 + rhs as i32))
+                }
+                (EvalResult::List(lhs), EvalResult::List(rhs)) => {
+                    let mut result_list = lhs.clone();
+                    result_list.extend(rhs);
+                    Ok(EvalResult::List(result_list))
+                }
+                (EvalResult::List(_), _) => {
+                    Err(String::from("Can only concatenate list to list"))
+                }
+                (_, EvalResult::List(_)) => {
+                    Err(String::from("Can only concatenate list to list"))
                 }
             }
         }
@@ -116,6 +113,12 @@ pub fn eval(exp: &Expression, env: &Environment) -> Result<EvalResult, ErrorMess
                 (EvalResult::Bool(lhs), EvalResult::Bool(rhs)) => {
                     Ok(EvalResult::CInt(lhs as i32 - rhs as i32))
                 }
+                (EvalResult::List(_), _) => {
+                    Err(String::from("Sub not supported for list"))
+                }
+                (_, EvalResult::List(_)) => {
+                    Err(String::from("Sub not supported for list"))
+                }
             }
         }
         Expression::Mul(lhs, rhs) => {
@@ -147,6 +150,40 @@ pub fn eval(exp: &Expression, env: &Environment) -> Result<EvalResult, ErrorMess
                 (EvalResult::Bool(lhs), EvalResult::Bool(rhs)) => {
                     Ok(EvalResult::CInt(lhs as i32 * rhs as i32))
                 }
+                (EvalResult::List(lhs), EvalResult::CInt(rhs)) => {
+                    let mut result_list = Vec::new();
+                    for _i in 0..rhs {
+                        result_list.extend(lhs.clone());
+                    }
+                    Ok(EvalResult::List(result_list))
+                }
+                (EvalResult::CInt(lhs), EvalResult::List(rhs)) => {
+                    let mut result_list = Vec::new();
+                    for _i in 0..lhs {
+                        result_list.extend(rhs.clone());
+                    }
+                    Ok(EvalResult::List(result_list))
+                }
+                (EvalResult::List(lhs), EvalResult::Bool(rhs)) => {
+                    let mut result_list = Vec::new();
+                    for _i in 0..rhs as i32 {
+                        result_list.extend(lhs.clone());
+                    }
+                    Ok(EvalResult::List(result_list))
+                }
+                (EvalResult::Bool(lhs), EvalResult::List(rhs)) => {
+                    let mut result_list = Vec::new();
+                    for _i in 0..lhs as i32 {
+                        result_list.extend(rhs.clone());
+                    }
+                    Ok(EvalResult::List(result_list))
+                }
+                (EvalResult::List(_), _) => {
+                    Err(String::from("Cannot multiply list by non-integer value"))
+                }
+                (_, EvalResult::List(_)) => {
+                    Err(String::from("Cannot multiply list by non-integer value"))
+                }
             }
         }
         Expression::Div(lhs, rhs) => {
@@ -156,45 +193,52 @@ pub fn eval(exp: &Expression, env: &Environment) -> Result<EvalResult, ErrorMess
                 (EvalResult::CInt(lhs), EvalResult::CInt(rhs)) => match rhs {
                     0 => Err(String::from("Division by zero")),
                     _ => Ok(EvalResult::CInt(lhs / rhs)),
-                },
+                }
                 (EvalResult::CReal(lhs), EvalResult::CReal(rhs)) => match rhs {
                     0.0 => Err(String::from("Division by zero")),
                     _ => Ok(EvalResult::CReal(lhs / rhs)),
-                },
+                }
                 (EvalResult::CInt(lhs), EvalResult::CReal(rhs)) => match rhs {
                     0.0 => Err(String::from("Division by zero")),
                     _ => Ok(EvalResult::CReal(lhs as f32 / rhs)),
-                },
+                }
                 (EvalResult::CReal(lhs), EvalResult::CInt(rhs)) => match rhs {
                     0 => Err(String::from("Division by zero")),
                     _ => Ok(EvalResult::CReal(lhs / rhs as f32)),
-                },
+                }
                 (EvalResult::CInt(lhs), EvalResult::Bool(rhs)) => match rhs {
                     false => Err(String::from("Division by zero")),
                     _ => Ok(EvalResult::CInt(lhs / rhs as i32)),
-                },
+                }
                 (EvalResult::CReal(lhs), EvalResult::Bool(rhs)) => match rhs {
                     false => Err(String::from("Division by zero")),
                     _ => Ok(EvalResult::CReal(lhs / (rhs as i32) as f32)),
-                },
+                }
                 (EvalResult::Bool(lhs), EvalResult::CInt(rhs)) => match rhs {
                     0 => Err(String::from("Division by zero")),
                     _ => Ok(EvalResult::CInt(lhs as i32 / rhs)),
-                },
+                }
                 (EvalResult::Bool(lhs), EvalResult::CReal(rhs)) => match rhs {
                     0.0 => Err(String::from("Division by zero")),
                     _ => Ok(EvalResult::CReal((lhs as i32) as f32 / rhs)),
-                },
+                }
                 (EvalResult::Bool(lhs), EvalResult::Bool(rhs)) => match rhs {
                     false => Err(String::from("Division by zero")),
                     _ => Ok(EvalResult::CInt(lhs as i32 / rhs as i32)),
-                },
+                }
+                (EvalResult::List(_), _) => {
+                    Err(String::from("Div not supported for list"))
+                }
+                (_, EvalResult::List(_)) => {
+                    Err(String::from("Div not supported for list"))
+                }
             }
         }
         Expression::Var(name) => match env.get(name) {
             Some(EnvValue::CInt(value)) => Ok(EvalResult::CInt(*value)),
             Some(EnvValue::CReal(value)) => Ok(EvalResult::CReal(*value)),
             Some(EnvValue::Bool(value)) => Ok(EvalResult::Bool(*value)),
+            Some(EnvValue::List(value)) => Ok(EvalResult::List(value.clone())),
             _ => Err(format!("Variable {} not found", name)),
         },
         Expression::FuncCall(name, args) => match env.get(name) {
@@ -218,6 +262,7 @@ pub fn eval(exp: &Expression, env: &Environment) -> Result<EvalResult, ErrorMess
                             EvalResult::CInt(val) => EnvValue::CInt(val),
                             EvalResult::CReal(val) => EnvValue::CReal(val),
                             EvalResult::Bool(val) => EnvValue::Bool(val),
+                            EvalResult::List(val) => EnvValue::List(val)
                         },
                     );
                 }
@@ -251,23 +296,55 @@ pub fn execute(stmt: &Statement, env: Environment) -> Result<Environment, ErrorM
                 EvalResult::Bool(val) => {
                     new_env.insert(*name.clone(), EnvValue::Bool(val));
                 }
+                EvalResult::List(val) => {
+                    new_env.insert(*name.clone(), EnvValue::List(val));
+                }
             }
             Ok(new_env)
         }
         Statement::IfThenElse(cond, stmt_then, stmt_else) => {
-            let value = to_f32(&eval(cond, &env)?);
-            if value != 0.0 {
+            let value = match eval(cond, &env) {
+                Ok(EvalResult::CInt(v)) => match v{
+                    0 => false,
+                    _ => true
+                }
+                Ok(EvalResult::CReal(v)) => match v{
+                    0.0 => false,
+                    _ => true
+                }
+                Ok(EvalResult::Bool(v)) => match v{
+                    false => false,
+                    _ => true
+                }
+                Ok(EvalResult::List(v)) => match v.len() {
+                    0 => false,
+                    _ => true
+                }
+                Err(s) => return Err(format!("Condition resulted in an error: {}", s))
+            };
+
+            if value{
                 execute(stmt_then, env)
             } else {
                 execute(stmt_else, env)
             }
         }
         Statement::While(cond, stmt) => {
-            let mut value = to_f32(&eval(cond, &env)?);
-            let mut new_env = env;
-            while value != 0.0 {
-                new_env = execute(stmt, new_env.clone())?;
-                value = to_f32(&eval(cond, &new_env.clone())?);
+            let mut new_env = env.clone();
+            loop {
+                let value = match eval(cond, &new_env) {
+                    Ok(EvalResult::CInt(v)) => v != 0,
+                    Ok(EvalResult::CReal(v)) => v != 0.0,
+                    Ok(EvalResult::Bool(v)) => v,
+                    Ok(EvalResult::List(v)) => !v.is_empty(),
+                    Err(s) => return Err(format!("Condition resulted in an error: {}", s))
+                };
+
+                if value {
+                    new_env = execute(stmt, new_env)?;
+                } else {
+                    break
+                }
             }
             Ok(new_env)
         }
@@ -289,12 +366,10 @@ pub fn execute(stmt: &Statement, env: Environment) -> Result<Environment, ErrorM
             match (exp1, incr) {
                 (None, None) => (),
                 (None, Some(incr_stp)) => {
-                    srt_value = eval(&Expression::CInt(0), &new_env)?;
                     incr_value = eval(&incr_stp, &new_env)?;
                 }
                 (Some(srt_step), None) => {
                     srt_value = eval(&srt_step, &new_env)?;
-                    incr_value = eval(&Expression::CInt(1), &new_env)?;
                 }
                 (Some(srt_step), Some(incr_step)) => {
                     srt_value = eval(&srt_step, &new_env)?;
@@ -302,27 +377,52 @@ pub fn execute(stmt: &Statement, env: Environment) -> Result<Environment, ErrorM
                 }
             }
 
-            let srt_int = to_i32(&srt_value);
-            let end_int = to_i32(&end_value);
-            let incr_int = to_i32(&incr_value);
+            let srt_int: i32;
+            let end_int: i32;
+            let incr_int: i32;
 
             match (srt_value, end_value, incr_value) {
-                (EvalResult::CReal(_), _, _) => {
-                    return Err(String::from(
-                        "'Real' object cannot be interpreted as an integer",
-                    ))
+                (EvalResult::CInt(i), EvalResult::CInt(j), EvalResult::CInt(k)) => {
+                    srt_int = i;
+                    end_int = j;
+                    incr_int = k;
                 }
-                (_, EvalResult::CReal(_), _) => {
-                    return Err(String::from(
-                        "'Real' object cannot be interpreted as an integer",
-                    ))
+                (EvalResult::CInt(i), EvalResult::CInt(j), EvalResult::Bool(k)) => {
+                    srt_int = i;
+                    end_int = j;
+                    incr_int = k as i32;
                 }
-                (_, _, EvalResult::CReal(_)) => {
-                    return Err(String::from(
-                        "'Real' object cannot be interpreted as an integer",
-                    ))
+                (EvalResult::CInt(i), EvalResult::Bool(j), EvalResult::CInt(k)) => {
+                    srt_int = i;
+                    end_int = j as i32;
+                    incr_int = k;
                 }
-                _ => (),
+                (EvalResult::CInt(i), EvalResult::Bool(j), EvalResult::Bool(k)) => {
+                    srt_int = i;
+                    end_int = j as i32;
+                    incr_int = k as i32;
+                }
+                (EvalResult::Bool(i), EvalResult::CInt(j), EvalResult::CInt(k)) => {
+                    srt_int = i as i32;
+                    end_int = j;
+                    incr_int = k;
+                }
+                (EvalResult::Bool(i), EvalResult::CInt(j), EvalResult::Bool(k)) => {
+                    srt_int = i as i32;
+                    end_int = j;
+                    incr_int = k as i32;
+                }
+                (EvalResult::Bool(i), EvalResult::Bool(j), EvalResult::CInt(k)) => {
+                    srt_int = i as i32;
+                    end_int = j as i32;
+                    incr_int = k;
+                }
+                (EvalResult::Bool(i), EvalResult::Bool(j), EvalResult::Bool(k)) => {
+                    srt_int = i as i32;
+                    end_int = j as i32;
+                    incr_int = k as i32;
+                }
+                _ => return Err(String::from("Parameters cannot be converted to integers"))
             }
 
             new_env.insert(*var.clone(), EnvValue::CInt(srt_int));
@@ -340,10 +440,14 @@ pub fn execute(stmt: &Statement, env: Environment) -> Result<Environment, ErrorM
                             Box::new(Expression::CInt(incr_int)),
                         );
 
-                        let new_var_value = to_i32(&eval(&increment, &new_env)?);
-                        new_env.insert(*var.clone(), EnvValue::CInt(new_var_value));
-
-                        loop_value = new_var_value;
+                        let new_var_value = &eval(&increment, &new_env)?;
+                        match new_var_value {
+                            EvalResult::CInt(s) =>  {
+                                new_env.insert(*var.clone(), EnvValue::CInt(*s));
+                                loop_value = *s;
+                            }
+                            _ => ()
+                        };
                     }
                     new_env.remove(&var as &str);
                     Ok(new_env)
@@ -357,10 +461,14 @@ pub fn execute(stmt: &Statement, env: Environment) -> Result<Environment, ErrorM
                             Box::new(Expression::CInt(incr_int)),
                         );
 
-                        let new_var_value = to_i32(&eval(&increment, &new_env)?);
-                        new_env.insert(*var.clone(), EnvValue::CInt(new_var_value));
-
-                        loop_value = new_var_value;
+                        let new_var_value = &eval(&increment, &new_env)?;
+                        match new_var_value {
+                            EvalResult::CInt(s) =>  {
+                                new_env.insert(*var.clone(), EnvValue::CInt(*s));
+                                loop_value = *s;
+                            }
+                            _ => ()
+                        };
                     }
                     new_env.remove(&var as &str);
                     Ok(new_env)
@@ -559,7 +667,7 @@ mod tests {
             Err(String::from("Variable z not found"))
         );
     }
-
+    
     #[test]
     fn eval_summation() {
         /*
