@@ -34,10 +34,19 @@ pub fn eval(exp: &Expression, env: &Environment) -> Result<EvalResult, ErrorMess
             let mut list_vec: Vec<EvalResult> = Vec::new();
             let list_env = env.clone();
 
-            for item in items {
-                match eval(item, &list_env) {
-                    Ok(value) => list_vec.push(value),
-                    Err(s) => return Err(s)
+            if items.len() < 1 {
+                return Err(String::from("List initialization must have at least one element"))
+            } else {
+                let first_item = eval(&items[0], &list_env)?;
+                for item in items{
+                    let value = eval(&item, &list_env)?;
+                    match (&first_item, &value) {
+                        (EvalResult::CInt(_), EvalResult::CInt(_)) => list_vec.push(value),
+                        (EvalResult::CReal(_), EvalResult::CReal(_)) => list_vec.push(value),
+                        (EvalResult::Bool(_), EvalResult::Bool(_)) => list_vec.push(value),
+                        (EvalResult::List(_), EvalResult::List(_)) => list_vec.push(value),
+                        _ => return Err(String::from("List must be homogeneous"))
+                    }
                 }
             }
             Ok(EvalResult::List(list_vec))            
@@ -519,6 +528,24 @@ mod tests {
     }
 
     #[test]
+    fn eval_constant_list() {
+        let env = HashMap::new();
+        let cl1 = Expression::List(vec![Expression::CInt(1), Expression::CInt(2)]);
+        let cl2 = Expression::List(vec![Expression::CReal(23.3), Expression::CReal(0.00)]);
+
+        assert_eq!(eval(&cl1, &env), Ok(EvalResult::List(vec![EvalResult::CInt(1), EvalResult::CInt(2)])));
+        assert_eq!(eval(&cl2, &env), Ok(EvalResult::List(vec![EvalResult::CReal(23.3), EvalResult::CReal(0.00)])));
+    }
+
+    #[test]
+    fn eval_list_of_list() {
+        let env = HashMap::new();
+        let cl1 = Expression::List(vec![Expression::List(vec![Expression::CInt(1)])]);
+
+        assert_eq!(eval(&cl1, &env), Ok(EvalResult::List(vec![EvalResult::List(vec![EvalResult::CInt(1)])])));
+    }
+
+    #[test]
     fn eval_add_integers_1() {
         let env = HashMap::new();
         let c10 = Expression::CInt(10);
@@ -595,18 +622,44 @@ mod tests {
     }
 
     #[test]
+    fn eval_add_lists() {
+        let env = HashMap::new();
+        let l1 = Expression::List(vec![Expression::CInt(0), Expression::CInt(1)]);
+        let l2 = Expression::List(vec![Expression::CInt(2), Expression::CInt(3)]);
+        let add = Expression::Add(Box::new(l1), Box::new(l2));
+        assert_eq!(eval(&add, &env), 
+        Ok(EvalResult::List(vec![EvalResult::CInt(0), EvalResult::CInt(1), EvalResult::CInt(2), EvalResult::CInt(3)])));
+    }
+
+    #[test]
+    fn eval_multiply_list() {
+        let env = HashMap::new();
+        let l1 = Expression::List(vec![Expression::CInt(0), Expression::CInt(1)]);
+        let l2 =Expression::List(vec![Expression::CInt(0), Expression::CInt(1)]);
+        let mul1 = Expression::Mul(Box::new(l1), Box::new(Expression::CInt(2)));
+        let mul2 = Expression::Mul(Box::new(l2), Box::new(Expression::CInt(0)));
+        assert_eq!(eval(&mul1, &env),
+        Ok(EvalResult::List(vec![EvalResult::CInt(0), EvalResult::CInt(1), EvalResult::CInt(0), EvalResult::CInt(1)])));
+        assert_eq!(eval(&mul2, &env),
+        Ok(EvalResult::List(vec![])));
+    }
+
+    #[test]
     fn eval_variable() {
         let env = HashMap::from([
-            (String::from("x"), EnvValue::CInt(10)),
-            (String::from("y"), EnvValue::CReal(20.7)),
-            (String::from("z"), EnvValue::Bool(true)),
+            (String::from("w"), EnvValue::CInt(10)),
+            (String::from("x"), EnvValue::CReal(20.7)),
+            (String::from("y"), EnvValue::Bool(true)),
+            (String::from("z"), EnvValue::List(vec![EvalResult::CInt(1), EvalResult::CInt(2)]))
         ]);
-        let v1 = Expression::Var(String::from("x"));
-        let v2 = Expression::Var(String::from("y"));
-        let v3 = Expression::Var(String::from("z"));
+        let v1 = Expression::Var(String::from("w"));
+        let v2 = Expression::Var(String::from("x"));
+        let v3 = Expression::Var(String::from("y"));
+        let v4 = Expression::Var(String::from("z"));
         assert_eq!(eval(&v1, &env), Ok(EvalResult::CInt(10)));
         assert_eq!(eval(&v2, &env), Ok(EvalResult::CReal(20.7)));
         assert_eq!(eval(&v3, &env), Ok(EvalResult::Bool(true)));
+        assert_eq!(eval(&v4, &env), Ok(EvalResult::List(vec![EvalResult::CInt(1), EvalResult::CInt(2)])));
     }
 
     #[test]
