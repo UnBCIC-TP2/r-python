@@ -4,6 +4,15 @@ use crate::interpreter::interpreter::EvalResult;
 
 pub type Name = String;
 
+pub enum Type {
+    TInteger,
+    TBool,
+    TReal,
+    TString,
+    TList(Box<Type>),
+    TTuple(Vec<Type>),
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expression {
     CInt(i32),
