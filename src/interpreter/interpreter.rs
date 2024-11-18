@@ -287,92 +287,14 @@ pub fn eval(exp: &Expression, env: &Environment) -> Result<EvalResult, ErrorMess
             }
             _ => Err(format!("{} is not defined", name)),
         },
-    }
-}
-
-pub fn execute(stmt: &Statement, env: Environment) -> Result<Environment, ErrorMessage> {
-    match stmt {
-        Statement::Assignment(name, exp) => {
-            let value = eval(exp, &env)?;
-            let mut new_env = env;
-            match value {
-                EvalResult::CInt(val) => {
-                    new_env.insert(*name.clone(), EnvValue::CInt(val));
-                }
-                EvalResult::CReal(val) => {
-                    new_env.insert(*name.clone(), EnvValue::CReal(val));
-                }
-                EvalResult::Bool(val) => {
-                    new_env.insert(*name.clone(), EnvValue::Bool(val));
-                }
-                EvalResult::List(val) => {
-                    new_env.insert(*name.clone(), EnvValue::List(val));
-                }
-            }
-            Ok(new_env)
-        }
-        Statement::IfThenElse(cond, stmt_then, stmt_else) => {
-            let value = match eval(cond, &env) {
-                Ok(EvalResult::CInt(v)) => match v{
-                    0 => false,
-                    _ => true
-                }
-                Ok(EvalResult::CReal(v)) => match v{
-                    0.0 => false,
-                    _ => true
-                }
-                Ok(EvalResult::Bool(v)) => match v{
-                    false => false,
-                    _ => true
-                }
-                Ok(EvalResult::List(v)) => match v.len() {
-                    0 => false,
-                    _ => true
-                }
-                Err(s) => return Err(format!("Condition resulted in an error: {}", s))
-            };
-
-            if value{
-                execute(stmt_then, env)
-            } else {
-                execute(stmt_else, env)
-            }
-        }
-        Statement::While(cond, stmt) => {
-            let mut new_env = env.clone();
-            loop {
-                let value = match eval(cond, &new_env) {
-                    Ok(EvalResult::CInt(v)) => v != 0,
-                    Ok(EvalResult::CReal(v)) => v != 0.0,
-                    Ok(EvalResult::Bool(v)) => v,
-                    Ok(EvalResult::List(v)) => !v.is_empty(),
-                    Err(s) => return Err(format!("Condition resulted in an error: {}", s))
-                };
-
-                if value {
-                    new_env = execute(stmt, new_env)?;
-                } else {
-                    break
-                }
-            }
-            Ok(new_env)
-        }
-        Statement::Func(name, params, stmt, retrn) => {
-            let mut new_env = env.clone();
-            new_env.insert(
-                *name.clone(),
-                EnvValue::Func(params.clone(), stmt.clone(), retrn.clone()),
-            );
-            Ok(new_env)
-        }
-        Statement::For(var, exp1, exp2, incr, stmt) => {
-            let mut new_env = env.clone();
+        Expression::Range(exp1, exp2, exp3) => {
+            let new_env = env.clone();
             let end_value = eval(exp2, &new_env)?;
 
             let mut srt_value = eval(&Expression::CInt(0), &new_env)?;
             let mut incr_value = eval(&Expression::CInt(1), &new_env)?;
 
-            match (exp1, incr) {
+            match (exp1, exp3) {
                 (None, None) => (),
                 (None, Some(incr_stp)) => {
                     incr_value = eval(&incr_stp, &new_env)?;
@@ -431,62 +353,121 @@ pub fn execute(stmt: &Statement, env: Environment) -> Result<Environment, ErrorM
                     end_int = j as i32;
                     incr_int = k as i32;
                 }
-                _ => return Err(String::from("Parameters cannot be converted to integers"))
+                _ => return Err(String::from("Parameters cannot be converted to integer"))
             }
 
-            new_env.insert(*var.clone(), EnvValue::CInt(srt_int));
-
-            let mut loop_value = srt_int;
+            let mut range_vec: Vec<EvalResult> = Vec::new();
 
             match incr_int.signum() {
                 0 => Err(String::from("Increment cannot be zero")),
                 -1 => {
-                    while loop_value > end_int {
-                        new_env = execute(stmt, new_env.clone())?;
-
-                        let increment = Expression::Add(
-                            Box::new(Expression::Var(*var.clone())),
-                            Box::new(Expression::CInt(incr_int)),
-                        );
-
-                        let new_var_value = &eval(&increment, &new_env)?;
-                        match new_var_value {
-                            EvalResult::CInt(s) =>  {
-                                new_env.insert(*var.clone(), EnvValue::CInt(*s));
-                                loop_value = *s;
-                            }
-                            _ => ()
-                        };
+                    for i in (end_int + incr_int.abs()..=srt_int).rev().step_by(incr_int.abs() as usize) {
+                        range_vec.push(EvalResult::CInt(i))
                     }
-                    new_env.remove(&var as &str);
-                    Ok(new_env)
+                    Ok(EvalResult::List(range_vec))
                 }
                 1 => {
-                    while loop_value < end_int {
-                        new_env = execute(stmt, new_env.clone())?;
-
-                        let increment = Expression::Add(
-                            Box::new(Expression::Var(*var.clone())),
-                            Box::new(Expression::CInt(incr_int)),
-                        );
-
-                        let new_var_value = &eval(&increment, &new_env)?;
-                        match new_var_value {
-                            EvalResult::CInt(s) =>  {
-                                new_env.insert(*var.clone(), EnvValue::CInt(*s));
-                                loop_value = *s;
-                            }
-                            _ => ()
-                        };
+                    for i in (srt_int..end_int).step_by(incr_int as usize) {
+                        range_vec.push(EvalResult::CInt(i));
                     }
-                    new_env.remove(&var as &str);
-                    Ok(new_env)
+                    Ok(EvalResult::List(range_vec))
                 }
-                _ => {
-                    new_env.remove(&var as &str);
-                    Ok(new_env)
+                _ => Ok(EvalResult::List(range_vec))
+            }
+        }
+    }
+}
+
+pub fn execute(stmt: &Statement, env: Environment) -> Result<Environment, ErrorMessage> {
+    match stmt {
+        Statement::Assignment(name, exp) => {
+            let value = eval(exp, &env)?;
+            let mut new_env = env;
+            match value {
+                EvalResult::CInt(val) => {
+                    new_env.insert(*name.clone(), EnvValue::CInt(val));
+                }
+                EvalResult::CReal(val) => {
+                    new_env.insert(*name.clone(),   EnvValue::CReal(val));
+                }
+                EvalResult::Bool(val) => {
+                    new_env.insert(*name.clone(), EnvValue::Bool(val));
+                }
+                EvalResult::List(val) => {
+                    new_env.insert(*name.clone(), EnvValue::List(val));
                 }
             }
+            Ok(new_env)
+        }
+        Statement::IfThenElse(cond, stmt_then, stmt_else) => {
+            let value = match eval(cond, &env) {
+                Ok(EvalResult::CInt(v)) => v != 0,
+                Ok(EvalResult::CReal(v)) => v != 0.0,
+                Ok(EvalResult::Bool(v)) => v,
+                Ok(EvalResult::List(v)) => !v.is_empty(),
+                Err(s) => return Err(format!("Condition resulted in an error: {}", s))
+            };
+
+            if value{
+                execute(stmt_then, env)
+            } else {
+                execute(stmt_else, env)
+            }
+        }
+        Statement::While(cond, stmt) => {
+            let mut new_env = env.clone();
+            loop {
+                let value = match eval(cond, &new_env) {
+                    Ok(EvalResult::CInt(v)) => v != 0,
+                    Ok(EvalResult::CReal(v)) => v != 0.0,
+                    Ok(EvalResult::Bool(v)) => v,
+                    Ok(EvalResult::List(v)) => !v.is_empty(),
+                    Err(s) => return Err(format!("Condition resulted in an error: {}", s))
+                };
+
+                if value {
+                    new_env = execute(stmt, new_env)?;
+                } else {
+                    break
+                }
+            }
+            Ok(new_env)
+        }
+        Statement::Func(name, params, stmt, retrn) => {
+            let mut new_env = env.clone();
+            new_env.insert(
+                *name.clone(),
+                EnvValue::Func(params.clone(), stmt.clone(), retrn.clone()),
+            );
+            Ok(new_env)
+        }
+        Statement::For(var, exp, stmt) => {
+            let mut new_env = env;
+            let exp_value = eval(&exp, &new_env)?;
+            match exp_value {
+                EvalResult::List(vec) => {
+                    for item in vec {
+                        match item {
+                            EvalResult::CInt(v) => {
+                                new_env.insert(*var.clone(), EnvValue::CInt(v));
+                            }
+                            EvalResult::CReal(v) => {
+                                new_env.insert(*var.clone(), EnvValue::CReal(v));
+                            }
+                            EvalResult::Bool(v) => {
+                                new_env.insert(*var.clone(), EnvValue::Bool(v));
+                            }
+                            EvalResult::List(v) => {
+                                new_env.insert(*var.clone(), EnvValue::List(v));
+                            }
+                        }
+                        new_env = execute(stmt, new_env)?;
+                    }
+                }
+                _ => return Err(String::from("Expression must be an iterable object"))
+            }
+            new_env.remove(&var as &str);
+            Ok(new_env)
         }
         Statement::Sequence(s1, s2) => execute(s1, env).and_then(|new_env| execute(s2, new_env)),
         _ => Err(String::from("not implemented yet")),
@@ -661,6 +642,23 @@ mod tests {
         assert_eq!(eval(&v3, &env), Ok(EvalResult::Bool(true)));
         assert_eq!(eval(&v4, &env), Ok(EvalResult::List(vec![EvalResult::CInt(1), EvalResult::CInt(2)])));
     }
+
+    #[test]
+    fn execute_assignment_same_variable() {
+        let env = HashMap::new();
+        let a1 = Statement::Assignment(Box::new(String::from("x")), Box::new(Expression::CInt(1)));
+        let a2 = Statement::Assignment(Box::new(String::from("x")), Box::new(Expression::CInt(2)));
+        let seq = Statement::Sequence(Box::new(a1), Box::new(a2));
+
+        match execute(&seq, env) {
+            Ok(new_env) => match new_env.get("x") {
+                Some(EnvValue::CInt(2)) => {},
+                Some(value) => assert!(false, "Expected 2, got {:?}", value),
+                None => assert!(false, "Variable x not found"),
+            }
+            Err(s) => assert!(false, "{}", s),
+        }
+    } 
 
     #[test]
     fn execute_assignment() {
@@ -900,11 +898,11 @@ mod tests {
             )),
         );
 
+        let range = Expression::Range(Some(Box::new(Expression::CInt(0))), Box::new(Expression::CInt(5)), Some(Box::new(Expression::CInt(2))));
+
         let for_stmt = Statement::For(
             Box::new(String::from("i")),
-            Some(Box::new(Expression::CInt(0))),
-            Box::new(Expression::CInt(5)),
-            Some(Box::new(Expression::CInt(2))),
+            Box::new(range),
             Box::new(for_exec),
         );
 
@@ -949,11 +947,11 @@ mod tests {
             )),
         );
 
+        let range = Expression::Range(Some(Box::new(Expression::CInt(10))), Box::new(Expression::CInt(3)), Some(Box::new(Expression::CInt(-1))));
+
         let for_stmt = Statement::For(
             Box::new(String::from("i")),
-            Some(Box::new(Expression::CInt(10))),
-            Box::new(Expression::CInt(3)),
-            Some(Box::new(Expression::CInt(-1))),
+            Box::new(range),
             Box::new(for_exec),
         );
 
@@ -998,11 +996,11 @@ mod tests {
             )),
         );
 
+        let range = Expression::Range(None, Box::new(Expression::CInt(5)), None);
+
         let for_stmt = Statement::For(
             Box::new(String::from("i")),
-            None,
-            Box::new(Expression::CInt(5)),
-            None,
+            Box::new(range),
             Box::new(for_exec),
         );
 
@@ -1046,11 +1044,11 @@ mod tests {
             )),
         );
 
+        let range = Expression::Range(Some(Box::new(Expression::CInt(0))), Box::new(Expression::CInt(1)), Some(Box::new(Expression::CInt(-1))));
+
         let for_stmt = Statement::For(
             Box::new(String::from("i")),
-            Some(Box::new(Expression::CInt(0))),
-            Box::new(Expression::CInt(1)),
-            Some(Box::new(Expression::CInt(-1))),
+            Box::new(range),
             Box::new(for_exec),
         );
 
@@ -1060,6 +1058,50 @@ mod tests {
             Ok(new_env) => match new_env.get("y") {
                 Some(EnvValue::CInt(0)) => (),
                 Some(val) => assert!(false, "Expected 0, got {:?}", val),
+                None => assert!(false, "Variable y not found"),
+            },
+            Err(s) => assert!(false, "{}", s),
+        }
+    }
+
+    #[test]
+    fn eval_for_loop_list() {
+        /*
+         * For loop test for a list of objects
+         *
+         * > y = 0
+         *
+         * > for i in [1, 3, 5]:
+         * >    y = y + i
+         *
+         * After executing, 'y' should be 9  and 'i' should not be accessible.
+         */
+        let env = HashMap::new();
+
+        let a1 = Statement::Assignment(Box::new(String::from("y")), Box::new(Expression::CInt(0)));
+
+        let for_exec = Statement::Assignment(
+            Box::new(String::from("y")),
+            Box::new(Expression::Add(
+                Box::new(Expression::Var(String::from("y"))),
+                Box::new(Expression::Var(String::from("i"))),
+            )),
+        );
+
+        let l1 = Expression::List(vec![Expression::CInt(1), Expression::CInt(3), Expression::CInt(5)]);
+
+        let for_stmt = Statement::For(
+            Box::new(String::from("i")),
+            Box::new(l1),
+            Box::new(for_exec),
+        );
+
+        let program = Statement::Sequence(Box::new(a1), Box::new(for_stmt));
+
+        match execute(&program, env) {
+            Ok(new_env) => match new_env.get("y") {
+                Some(EnvValue::CInt(9)) => (),
+                Some(val) => assert!(false, "Expected 9, got {:?}", val),
                 None => assert!(false, "Variable y not found"),
             },
             Err(s) => assert!(false, "{}", s),
