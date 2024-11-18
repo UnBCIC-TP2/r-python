@@ -12,7 +12,8 @@ pub enum EnvValue {
     CReal(f32),
     Bool(bool),
     List(Vec<EvalResult>),
-    Func(Vec<Name>, Option<Box<Statement>>, Box<Expression>),
+    Func(Box<EvalResult>, Option<HashMap<Name, Box<EvalResult>>>, Option<Box<Statement>>, Box<Expression>),
+    None
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -20,7 +21,8 @@ pub enum EvalResult {
     CInt(i32),
     CReal(f32),
     Bool(bool),
-    List(Vec<EvalResult>)
+    List(Vec<EvalResult>),
+    None
 }
 
 type Environment = HashMap<Name, EnvValue>;
@@ -30,6 +32,7 @@ pub fn eval(exp: &Expression, env: &Environment) -> Result<EvalResult, ErrorMess
         Expression::CInt(v) => Ok(EvalResult::CInt(*v)),
         Expression::CReal(v) => Ok(EvalResult::CReal(*v)),
         Expression::Bool(v) => Ok(EvalResult::Bool(*v)),
+        Expression::None => Ok(EvalResult::None),
         Expression::List(items) => {
             let mut list_vec: Vec<EvalResult> = Vec::new();
             let list_env = env.clone();
@@ -91,6 +94,12 @@ pub fn eval(exp: &Expression, env: &Environment) -> Result<EvalResult, ErrorMess
                 (_, EvalResult::List(_)) => {
                     Err(String::from("Can only concatenate list to list"))
                 }
+                (EvalResult::None, _) => {
+                    Err(String::from("Add is not supported for 'None'"))
+                }
+                (_, EvalResult::None) => {
+                    Err(String::from("Add is not supported for 'None'"))
+                }
             }
         }
         Expression::Sub(lhs, rhs) => {
@@ -127,6 +136,12 @@ pub fn eval(exp: &Expression, env: &Environment) -> Result<EvalResult, ErrorMess
                 }
                 (_, EvalResult::List(_)) => {
                     Err(String::from("Sub not supported for list"))
+                }
+                (EvalResult::None, _) => {
+                    Err(String::from("Sub is not supported for 'None'"))
+                }
+                (_, EvalResult::None) => {
+                    Err(String::from("Sub is not supported for 'None'"))
                 }
             }
         }
@@ -193,6 +208,12 @@ pub fn eval(exp: &Expression, env: &Environment) -> Result<EvalResult, ErrorMess
                 (_, EvalResult::List(_)) => {
                     Err(String::from("Cannot multiply list by non-integer value"))
                 }
+                (EvalResult::None, _) => {
+                    Err(String::from("Mul is not supported for 'None'"))
+                }
+                (_, EvalResult::None) => {
+                    Err(String::from("Mul is not supported for 'None'"))
+                }
             }
         }
         Expression::Div(lhs, rhs) => {
@@ -241,6 +262,12 @@ pub fn eval(exp: &Expression, env: &Environment) -> Result<EvalResult, ErrorMess
                 (_, EvalResult::List(_)) => {
                     Err(String::from("Div not supported for list"))
                 }
+                (EvalResult::None, _) => {
+                    Err(String::from("Div is not supported for 'None'"))
+                }
+                (_, EvalResult::None) => {
+                    Err(String::from("Div is not supported for 'None'"))
+                }
             }
         }
         Expression::Var(name) => match env.get(name) {
@@ -248,41 +275,79 @@ pub fn eval(exp: &Expression, env: &Environment) -> Result<EvalResult, ErrorMess
             Some(EnvValue::CReal(value)) => Ok(EvalResult::CReal(*value)),
             Some(EnvValue::Bool(value)) => Ok(EvalResult::Bool(*value)),
             Some(EnvValue::List(value)) => Ok(EvalResult::List(value.clone())),
+            Some(EnvValue::None) => Ok(EvalResult::None),
             _ => Err(format!("Variable {} not found", name)),
         },
         Expression::FuncCall(name, args) => match env.get(name) {
-            Some(EnvValue::Func(params, stmt, retrn)) => {
+            Some(EnvValue::Func(kind, params, stmt, retrn)) => {
                 let mut func_env = env.clone();
 
-                if args.len() != params.len() {
+                let new_params: HashMap<String, Box<EvalResult>> = match params {
+                    None => HashMap::new(),
+                    Some(s) => s.clone()
+                };
+
+                let new_args: Vec<Expression> = match args {
+                    None => Vec::new(),
+                    Some(s) => s.clone()
+                };
+
+                if new_args.len() != new_params.len() {
                     return Err(format!(
                         "{} requires {} arguments, got {}",
                         name,
-                        params.len(),
-                        args.len()
+                        new_params.len(),
+                        new_args.len()
                     ));
                 }
 
-                for (param, arg) in params.iter().zip(args.iter()) {
+                for (param, arg) in new_params.iter().zip(new_args.iter()) {
                     let value = eval(arg, env)?;
-                    func_env.insert(
-                        param.clone(),
-                        match value {
-                            EvalResult::CInt(val) => EnvValue::CInt(val),
-                            EvalResult::CReal(val) => EnvValue::CReal(val),
-                            EvalResult::Bool(val) => EnvValue::Bool(val),
-                            EvalResult::List(val) => EnvValue::List(val)
-                        },
-                    );
+
+                    match (*param.1.clone(), value) {
+                        (EvalResult::CInt(_), EvalResult::CInt(v)) => {
+                            func_env.insert(param.0.clone(), EnvValue::CInt(v));
+                        }
+                        (EvalResult::CReal(_), EvalResult::CReal(v)) => {
+                            func_env.insert(param.0.clone(), EnvValue::CReal(v));
+                        }
+                        (EvalResult::Bool(_), EvalResult::Bool(v)) => {
+                            func_env.insert(param.0.clone(), EnvValue::Bool(v));
+                        }
+                        (EvalResult::List(_), EvalResult::List(v)) => {
+                            func_env.insert(param.0.clone(), EnvValue::List(v));
+                        }
+                        _ => return Err(format!("Mismatched types for {:?}", param.1))
+                    }
                 }
 
                 if let Some(body_stmt) = stmt {
                     match execute(body_stmt, func_env.clone()) {
-                        Ok(result_env) => eval(retrn, &result_env),
+                        Ok(result_env) => {
+                            let result = eval(&retrn, &result_env)?;
+                            let kind_type = *kind.clone();
+                            match (kind_type, result) {
+                                (EvalResult::CInt(_), EvalResult::CInt(v)) => Ok(EvalResult::CInt(v)),
+                                (EvalResult::CReal(_), EvalResult::CReal(v)) => Ok(EvalResult::CReal(v)),
+                                (EvalResult::Bool(_), EvalResult::Bool(v)) => Ok(EvalResult::Bool(v)),
+                                (EvalResult::List(_), EvalResult::List(v)) => Ok(EvalResult::List(v)),
+                                (EvalResult::None, EvalResult::None) => Ok(EvalResult::None),
+                                _ => Err(format!("{} returned a value different from specified type", name))
+                            }
+                        }
                         Err(err) => Err(format!("{} generated an error: {}", name, err)),
                     }
                 } else {
-                    eval(retrn, &func_env)
+                    let result = eval(&retrn, &func_env)?;
+                    let kind_type = *kind.clone();
+                    match (kind_type, result) {
+                        (EvalResult::CInt(_), EvalResult::CInt(v)) => Ok(EvalResult::CInt(v)),
+                        (EvalResult::CReal(_), EvalResult::CReal(v)) => Ok(EvalResult::CReal(v)),
+                        (EvalResult::Bool(_), EvalResult::Bool(v)) => Ok(EvalResult::Bool(v)),
+                        (EvalResult::List(_), EvalResult::List(v)) => Ok(EvalResult::List(v)),
+                        (EvalResult::None, EvalResult::None) => Ok(EvalResult::None),
+                        _ => Err(format!("{} returned a value different from specified type", name))
+                    }
                 }
             }
             _ => Err(format!("{} is not defined", name)),
@@ -396,6 +461,9 @@ pub fn execute(stmt: &Statement, env: Environment) -> Result<Environment, ErrorM
                 EvalResult::List(val) => {
                     new_env.insert(*name.clone(), EnvValue::List(val));
                 }
+                EvalResult::None => {
+                    new_env.insert(*name.clone(), EnvValue::None);
+                }
             }
             Ok(new_env)
         }
@@ -405,6 +473,7 @@ pub fn execute(stmt: &Statement, env: Environment) -> Result<Environment, ErrorM
                 Ok(EvalResult::CReal(v)) => v != 0.0,
                 Ok(EvalResult::Bool(v)) => v,
                 Ok(EvalResult::List(v)) => !v.is_empty(),
+                Ok(EvalResult::None) => false,
                 Err(s) => return Err(format!("Condition resulted in an error: {}", s))
             };
 
@@ -422,6 +491,7 @@ pub fn execute(stmt: &Statement, env: Environment) -> Result<Environment, ErrorM
                     Ok(EvalResult::CReal(v)) => v != 0.0,
                     Ok(EvalResult::Bool(v)) => v,
                     Ok(EvalResult::List(v)) => !v.is_empty(),
+                    Ok(EvalResult::None) => false,
                     Err(s) => return Err(format!("Condition resulted in an error: {}", s))
                 };
 
@@ -433,11 +503,12 @@ pub fn execute(stmt: &Statement, env: Environment) -> Result<Environment, ErrorM
             }
             Ok(new_env)
         }
-        Statement::Func(name, params, stmt, retrn) => {
+        Statement::Func(name, kind, params, stmt, retrn) => {
             let mut new_env = env.clone();
+
             new_env.insert(
                 *name.clone(),
-                EnvValue::Func(params.clone(), stmt.clone(), retrn.clone()),
+                EnvValue::Func(kind.clone(), params.clone(), stmt.clone(), retrn.clone()),
             );
             Ok(new_env)
         }
@@ -459,6 +530,9 @@ pub fn execute(stmt: &Statement, env: Environment) -> Result<Environment, ErrorM
                             }
                             EvalResult::List(v) => {
                                 new_env.insert(*var.clone(), EnvValue::List(v));
+                            }
+                            EvalResult::None => {
+                                new_env.insert(*var.clone(), EnvValue::None);
                             }
                         }
                         new_env = execute(stmt, new_env)?;
@@ -1216,7 +1290,7 @@ mod tests {
         /*
          * Test for declaration and call of a function
          *
-         * > def add(a,b):
+         * > def add(a: CInt, b: CInt) -> CInt:
          * >    t = a + b
          * >    return t
          * >
@@ -1226,10 +1300,15 @@ mod tests {
          */
         let env = Environment::new();
 
+        let mut args = HashMap::new();
+        args.insert(String::from("a"), Box::new(EvalResult::CInt(0)));
+        args.insert(String::from("b"), Box::new(EvalResult::CInt(0)));
+
         let program = Statement::Sequence(
             Box::new(Statement::Func(
                 Box::new(String::from("add")),
-                vec![String::from("a"), String::from("b")],
+                Box::new(EvalResult::CInt(0)),
+                Some(args),
                 Some(Box::new(Statement::Assignment(
                     Box::new(String::from("t")),
                     Box::new(Expression::Add(
@@ -1243,7 +1322,7 @@ mod tests {
                 Box::new(String::from("sum")),
                 Box::new(Expression::FuncCall(
                     String::from("add"),
-                    vec![Expression::CInt(5), Expression::CInt(7)],
+                    Some(vec![Expression::CInt(5), Expression::CInt(7)]),
                 )),
             )),
         );
@@ -1263,7 +1342,7 @@ mod tests {
         /*
          * Test for declaration and call of a function with no statement
          *
-         * > def add(a,b):
+         * > def add(a: CInt, b: CInt) -> CInt:
          * >    return a + b
          * >
          * > sum = add(1, 2)
@@ -1272,10 +1351,15 @@ mod tests {
          */
         let env = Environment::new();
 
+        let mut args = HashMap::new();
+        args.insert(String::from("a"), Box::new(EvalResult::CInt(0)));
+        args.insert(String::from("b"), Box::new(EvalResult::CInt(0)));
+
         let program = Statement::Sequence(
             Box::new(Statement::Func(
                 Box::new(String::from("add")),
-                vec![String::from("a"), String::from("b")],
+                Box::new(EvalResult::CInt(0)),
+                Some(args),
                 None,
                 Box::new(Expression::Add(
                     Box::new(Expression::Var(String::from("a"))),
@@ -1286,7 +1370,7 @@ mod tests {
                 Box::new(String::from("sum")),
                 Box::new(Expression::FuncCall(
                     String::from("add"),
-                    vec![Expression::CInt(1), Expression::CInt(2)],
+                    Some(vec![Expression::CInt(1), Expression::CInt(2)]),
                 )),
             )),
         );
@@ -1302,6 +1386,179 @@ mod tests {
     }
 
     #[test]
+    fn func_decl_call_without_args() {
+        /*
+         * Test for declaration and call of a function with no arguments
+         *
+         * > def two_plus_two() -> CInt:
+         * >    return 4
+         * >
+         * > value = two_plus_two()
+         *
+         * After executing, 'sum' should be 4.
+         */
+        let env = Environment::new();
+
+        let program = Statement::Sequence(
+            Box::new(Statement::Func(
+                Box::new(String::from("two_plus_two")),
+                Box::new(EvalResult::CInt(0)),
+                None,
+                None,
+                Box::new(Expression::CInt(4)),
+            )),
+            Box::new(Statement::Assignment(
+                Box::new(String::from("value")),
+                Box::new(Expression::FuncCall(
+                    String::from("two_plus_two"),
+                    None,
+                )),
+            )),
+        );
+
+        match execute(&program, env) {
+            Ok(new_env) => match new_env.get("value") {
+                Some(EnvValue::CInt(4)) => {}
+                Some(val) => assert!(false, "Expected 4, got {:?}", val),
+                None => assert!(false, "Variable value not found"),
+            },
+            Err(s) => assert!(false, "{}", s),
+        }
+    }
+
+    #[test]
+    fn num_arguments_error_func_call() {
+        /*
+         * Test for declaration and call of a function where the passed
+         * arguments don't match the functions definition
+         * 
+         * > def add(a: CInt, b: CInt) -> CInt:
+         * >    return a + b
+         * >
+         * > sum = add(1, 2, 3)
+         *
+         */
+        let env = Environment::new();
+
+        let mut args = HashMap::new();
+        args.insert(String::from("a"), Box::new(EvalResult::CInt(0)));
+        args.insert(String::from("b"), Box::new(EvalResult::CInt(0)));
+
+        let program = Statement::Sequence(
+            Box::new(Statement::Func(
+                Box::new(String::from("add")),
+                Box::new(EvalResult::CInt(0)),
+                Some(args),
+                None,
+                Box::new(Expression::Add(
+                    Box::new(Expression::Var(String::from("a"))),
+                    Box::new(Expression::Var(String::from("b"))),
+                )),
+            )),
+            Box::new(Statement::Assignment(
+                Box::new(String::from("sum")),
+                Box::new(Expression::FuncCall(
+                    String::from("add"),
+                    Some(vec![Expression::CInt(1), Expression::CInt(2), Expression::CInt(3)]),
+                )),
+            )),
+        );
+
+        match execute(&program, env) {
+            Ok(_) => assert!(false, "Function should generate an error"),
+            Err(s) => assert_eq!(s, "add requires 2 arguments, got 3")
+        }
+    }
+
+    #[test]
+    fn arguments_type_error_func_call() {
+        /*
+         * Test for declaration and call of a function where the passed
+         * arguments don't match their defined types on the function
+         * 
+         * > def add(a: CInt, b: CReal) -> CReal:
+         * >    return a + b
+         * >
+         * > sum = add(1, 2)
+         *
+         */
+        let env = Environment::new();
+
+        let mut args = HashMap::new();
+        args.insert(String::from("a"), Box::new(EvalResult::CInt(0)));
+        args.insert(String::from("b"), Box::new(EvalResult::CReal(0.0)));
+
+        let program = Statement::Sequence(
+            Box::new(Statement::Func(
+                Box::new(String::from("add")),
+                Box::new(EvalResult::CReal(0.0)),
+                Some(args),
+                None,
+                Box::new(Expression::Add(
+                    Box::new(Expression::Var(String::from("a"))),
+                    Box::new(Expression::Var(String::from("b"))),
+                )),
+            )),
+            Box::new(Statement::Assignment(
+                Box::new(String::from("sum")),
+                Box::new(Expression::FuncCall(
+                    String::from("add"),
+                    Some(vec![Expression::CInt(1), Expression::CInt(2)]),
+                )),
+            )),
+        );
+
+        match execute(&program, env) {
+            Ok(_) => assert!(false, "Function should generate an error"),
+            Err(s) => assert_eq!(s, "Mismatched types for CReal(0.0)")
+        }
+    }
+
+    #[test]
+    fn func_return_type_error() {
+        /*
+         * Test for declaration and call of a function where the return type
+         * is different from the one defined by the function
+         * 
+         * > def add(a: CReal, b: CReal) -> CInt:
+         * >    return a + b
+         * >
+         * > sum = add(1.5, 2.5)
+         *
+         */
+        let env = Environment::new();
+
+        let mut args = HashMap::new();
+        args.insert(String::from("a"), Box::new(EvalResult::CReal(1.5)));
+        args.insert(String::from("b"), Box::new(EvalResult::CReal(2.5)));
+
+        let program = Statement::Sequence(
+            Box::new(Statement::Func(
+                Box::new(String::from("add")),
+                Box::new(EvalResult::CInt(0)),
+                Some(args),
+                None,
+                Box::new(Expression::Add(
+                    Box::new(Expression::Var(String::from("a"))),
+                    Box::new(Expression::Var(String::from("b"))),
+                )),
+            )),
+            Box::new(Statement::Assignment(
+                Box::new(String::from("sum")),
+                Box::new(Expression::FuncCall(
+                    String::from("add"),
+                    Some(vec![Expression::CReal(1.5), Expression::CReal(2.5)]),
+                )),
+            )),
+        );
+
+        match execute(&program, env) {
+            Ok(_) => assert!(false, "Function should generate an error"),
+            Err(s) => assert_eq!(s, "add returned a value different from specified type")
+        }
+    }
+
+    #[test]
     fn undefined_func_call() {
         let env = Environment::new();
 
@@ -1309,7 +1566,7 @@ mod tests {
             Box::new(String::from("sum")),
             Box::new(Expression::FuncCall(
                 String::from("add"),
-                vec![Expression::CInt(1), Expression::CInt(2)],
+                Some(vec![Expression::CInt(1), Expression::CInt(2)]),
             )),
         ));
 
