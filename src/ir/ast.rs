@@ -17,7 +17,11 @@ pub enum Expression {
     Div(Box<Expression>, Box<Expression>),
     FuncCall(String, Option<Vec<Expression>>),
     List(Vec<Expression>),
-    Range(Option<Box<Expression>>, Box<Expression>, Option<Box<Expression>>),
+    Range(
+        Option<Box<Expression>>,
+        Box<Expression>,
+        Option<Box<Expression>>,
+    ),
 }
 
 #[derive(Debug, Clone, PartialEq)]
