@@ -101,13 +101,17 @@ fn mul(lhs: Expression, rhs: Expression, env: &Environment) -> Result<Expression
 }
 
 fn div(lhs: Expression, rhs: Expression, env: &Environment) -> Result<Expression, ErrorMessage> {
-    eval_binary_arith_op(
-        lhs,
-        rhs,
-        env,
-        |a, b| a / b,
-        "division '(/)' is only defined for numbers (integers and real).",
-    )
+    match eval(rhs.clone() ,env)?{
+        Expression::CInt(0) => Err(String::from("division by zero is undefined.")),
+        Expression::CReal(0.0) => Err(String::from("division by zero is undefined.")),
+        _ => eval_binary_arith_op(
+            lhs, 
+            rhs, 
+            env, 
+            |a, b| a / b,
+            "division '(/)' is only defined for numbers (integers and real).",
+        )
+    }
 }
 
 /* Boolean Expressions */
@@ -186,6 +190,7 @@ where
 {
     let v1 = eval(lhs, env)?;
     let v2 = eval(rhs, env)?;
+    
     match (v1, v2) {
         (Expression::CInt(v1), Expression::CInt(v2)) => Ok(op(v1 as f64, v2 as f64)),
         (Expression::CInt(v1), Expression::CReal(v2)) => Ok(op(v1 as f64, v2)),
