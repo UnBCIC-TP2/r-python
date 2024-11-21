@@ -446,6 +446,46 @@ mod tests {
     }
 
     #[test]
+    fn eval_div_expression5_division_by_zero(){
+        let env = HashMap::new();
+        let c10 = CReal(10.0);
+        let c0 = CReal(0.0);
+        let div1 = Div(Box::new(c10), Box::new(c0));
+        
+        assert_eq!(eval(div1, &env), Err(String::from("division by zero is undefined.")));
+    }
+
+    #[test]
+    fn eval_div_expression6_division_by_zero(){
+        let env = HashMap::new();
+        let c10 = CInt(10);
+        let c0 = CReal(0.0);
+        let div1 = Div(Box::new(c10), Box::new(c0));
+        
+        assert_eq!(eval(div1, &env), Err(String::from("division by zero is undefined.")));
+    }
+
+    #[test]
+    fn eval_div_expression7_division_by_zero(){
+        let env = HashMap::new();
+        let c10 = CReal(10.0);
+        let c0 = CInt(0);
+        let div1 = Div(Box::new(c10), Box::new(c0));
+        
+        assert_eq!(eval(div1, &env), Err(String::from("division by zero is undefined.")));
+    }
+
+    #[test]
+    fn eval_div_expression8_division_by_zero(){
+        let env = HashMap::new();
+        let c10 = CInt(10);
+        let c0 = CInt(0);
+        let div1 = Div(Box::new(c10), Box::new(c0));
+        
+        assert_eq!(eval(div1, &env), Err(String::from("division by zero is undefined.")));
+    }
+
+    #[test]
     fn eval_variable() {
         let env = HashMap::from([(String::from("x"), CInt(10)), (String::from("y"), CInt(20))]);
         let v1 = Var(String::from("x"));
