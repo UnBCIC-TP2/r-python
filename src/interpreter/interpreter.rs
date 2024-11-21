@@ -101,16 +101,16 @@ fn mul(lhs: Expression, rhs: Expression, env: &Environment) -> Result<Expression
 }
 
 fn div(lhs: Expression, rhs: Expression, env: &Environment) -> Result<Expression, ErrorMessage> {
-    match eval(rhs.clone() ,env)?{
+    match eval(rhs.clone(), env)? {
         Expression::CInt(0) => Err(String::from("division by zero is undefined.")),
         Expression::CReal(0.0) => Err(String::from("division by zero is undefined.")),
         _ => eval_binary_arith_op(
-            lhs, 
-            rhs, 
-            env, 
+            lhs,
+            rhs,
+            env,
             |a, b| a / b,
             "division '(/)' is only defined for numbers (integers and real).",
-        )
+        ),
     }
 }
 
@@ -190,7 +190,7 @@ where
 {
     let v1 = eval(lhs, env)?;
     let v2 = eval(rhs, env)?;
-    
+
     match (v1, v2) {
         (Expression::CInt(v1), Expression::CInt(v2)) => Ok(op(v1 as f64, v2 as f64)),
         (Expression::CInt(v1), Expression::CReal(v2)) => Ok(op(v1 as f64, v2)),
@@ -446,43 +446,55 @@ mod tests {
     }
 
     #[test]
-    fn eval_div_expression5_division_by_zero(){
+    fn eval_div_expression5_division_by_zero() {
         let env = HashMap::new();
         let c10 = CReal(10.0);
         let c0 = CReal(0.0);
         let div1 = Div(Box::new(c10), Box::new(c0));
-        
-        assert_eq!(eval(div1, &env), Err(String::from("division by zero is undefined.")));
+
+        assert_eq!(
+            eval(div1, &env),
+            Err(String::from("division by zero is undefined."))
+        );
     }
 
     #[test]
-    fn eval_div_expression6_division_by_zero(){
+    fn eval_div_expression6_division_by_zero() {
         let env = HashMap::new();
         let c10 = CInt(10);
         let c0 = CReal(0.0);
         let div1 = Div(Box::new(c10), Box::new(c0));
-        
-        assert_eq!(eval(div1, &env), Err(String::from("division by zero is undefined.")));
+
+        assert_eq!(
+            eval(div1, &env),
+            Err(String::from("division by zero is undefined."))
+        );
     }
 
     #[test]
-    fn eval_div_expression7_division_by_zero(){
+    fn eval_div_expression7_division_by_zero() {
         let env = HashMap::new();
         let c10 = CReal(10.0);
         let c0 = CInt(0);
         let div1 = Div(Box::new(c10), Box::new(c0));
-        
-        assert_eq!(eval(div1, &env), Err(String::from("division by zero is undefined.")));
+
+        assert_eq!(
+            eval(div1, &env),
+            Err(String::from("division by zero is undefined."))
+        );
     }
 
     #[test]
-    fn eval_div_expression8_division_by_zero(){
+    fn eval_div_expression8_division_by_zero() {
         let env = HashMap::new();
         let c10 = CInt(10);
         let c0 = CInt(0);
         let div1 = Div(Box::new(c10), Box::new(c0));
-        
-        assert_eq!(eval(div1, &env), Err(String::from("division by zero is undefined.")));
+
+        assert_eq!(
+            eval(div1, &env),
+            Err(String::from("division by zero is undefined."))
+        );
     }
 
     #[test]
