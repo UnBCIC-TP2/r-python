@@ -5,3 +5,5 @@ edition = "2021"
 
 [dependencies]
 nom = "7.0"
+approx = "0.5.1"
+

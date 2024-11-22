@@ -8,6 +8,8 @@ use std::collections::HashMap;
 pub mod interpreter;
 pub mod ir;
 pub mod parser;
+pub mod tc;
+
 
 fn run_test(name: &str, program: &str) {
     println!("\n=== Running test: {} ===", name);
