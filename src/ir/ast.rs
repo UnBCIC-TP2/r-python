@@ -1,5 +1,7 @@
 pub type Name = String;
 
+use nom::IResult;
+
 #[derive(Debug, PartialEq)]
 pub enum Type {
     TInteger,
@@ -48,5 +50,23 @@ pub enum Statement {
     Assignment(Name, Box<Expression>),
     IfThenElse(Box<Expression>, Box<Statement>, Option<Box<Statement>>),
     While(Box<Expression>, Box<Statement>),
+    Block(Vec<Statement>), // For indented blocks
     Sequence(Box<Statement>, Box<Statement>),
+}
+
+#[derive(Debug)]
+pub enum ParseError {
+    IndentationError(usize),
+    UnexpectedToken(String),
+    InvalidExpression(String),
+}
+
+pub fn with_error_context<'a, T>(
+    parser: impl Fn(&'a str) -> IResult<&'a str, T>,
+    _context: &'a str,
+) -> impl Fn(&'a str) -> IResult<&'a str, T> {
+    move |input| {
+        parser(input)
+            .map_err(|_| nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Tag)))
+    }
 }

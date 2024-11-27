@@ -292,6 +292,13 @@ pub fn execute(stmt: Statement, env: Environment) -> Result<Environment, ErrorMe
                 _ => Err(String::from("expecting a boolean value.")),
             }
         }
+        Statement::Block(statements) => {
+            let mut current_env = env;
+            for stmt in statements {
+                current_env = execute(stmt, current_env)?;
+            }
+            Ok(current_env)
+        }
         Statement::While(cond, stmt) => {
             let mut value = eval(*cond.clone(), &env)?;
             let mut new_env = env;
@@ -639,7 +646,7 @@ mod tests {
     //      */
     //     let env = HashMap::new();
 
-    //     let a1 = Assignment(String::from("x")), Box:new(CInt(3)));
+    //     let a1 = Assignment(String::from("x"), Box::new(CInt(3))); -> corrigido parenteses extras.
     //     let a2 = Assignment(String::from("y")), Box:new(CInt(10)));
     //     let a3 = Assignment(
     //         String::from("y")),
