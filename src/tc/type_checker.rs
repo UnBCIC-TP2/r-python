@@ -1,8 +1,6 @@
 use std::collections::HashMap;
 
-use crate::ir::ast::Expression;
-use crate::ir::ast::Name;
-use crate::ir::ast::Type;
+use crate::ir::ast::{Expression, Expression::*, Name, Type, Type::*};
 
 type ErrorMessage = String;
 
@@ -10,23 +8,23 @@ type Environment = HashMap<Name, Type>;
 
 pub fn check(exp: Expression, env: &Environment) -> Result<Type, ErrorMessage> {
     match exp {
-        Expression::CTrue => Ok(Type::TBool),
-        Expression::CFalse => Ok(Type::TBool),
-        Expression::CInt(_) => Ok(Type::TInteger),
-        Expression::CReal(_) => Ok(Type::TReal),
-        Expression::CString(_) => Ok(Type::TString),
-        Expression::Add(l, r) => check_bin_arithmetic_expression(*l, *r, env),
-        Expression::Sub(l, r) => check_bin_arithmetic_expression(*l, *r, env),
-        Expression::Mul(l, r) => check_bin_arithmetic_expression(*l, *r, env),
-        Expression::Div(l, r) => check_bin_arithmetic_expression(*l, *r, env),
-        Expression::And(l, r) => check_bin_boolean_expression(*l, *r, env),
-        Expression::Or(l, r) => check_bin_boolean_expression(*l, *r, env),
-        Expression::Not(e) => check_not_expression(*e, env),
-        Expression::EQ(l, r) => check_bin_relational_expression(*l, *r, env),
-        Expression::GT(l, r) => check_bin_relational_expression(*l, *r, env),
-        Expression::LT(l, r) => check_bin_relational_expression(*l, *r, env),
-        Expression::GTE(l, r) => check_bin_relational_expression(*l, *r, env),
-        Expression::LTE(l, r) => check_bin_boolean_expression(*l, *r, env),
+        CTrue => Ok(TBool),
+        CFalse => Ok(TBool),
+        CInt(_) => Ok(TInteger),
+        CReal(_) => Ok(TReal),
+        CString(_) => Ok(TString),
+        Add(l, r) => check_bin_arithmetic_expression(*l, *r, env),
+        Sub(l, r) => check_bin_arithmetic_expression(*l, *r, env),
+        Mul(l, r) => check_bin_arithmetic_expression(*l, *r, env),
+        Div(l, r) => check_bin_arithmetic_expression(*l, *r, env),
+        And(l, r) => check_bin_boolean_expression(*l, *r, env),
+        Or(l, r) => check_bin_boolean_expression(*l, *r, env),
+        Not(e) => check_not_expression(*e, env),
+        EQ(l, r) => check_bin_relational_expression(*l, *r, env),
+        GT(l, r) => check_bin_relational_expression(*l, *r, env),
+        LT(l, r) => check_bin_relational_expression(*l, *r, env),
+        GTE(l, r) => check_bin_relational_expression(*l, *r, env),
+        LTE(l, r) => check_bin_boolean_expression(*l, *r, env),
         _ => Err(String::from("not implemented yet")),
     }
 }
@@ -40,10 +38,10 @@ fn check_bin_arithmetic_expression(
     let right_type = check(right, env)?;
 
     match (left_type, right_type) {
-        (Type::TInteger, Type::TInteger) => Ok(Type::TInteger),
-        (Type::TInteger, Type::TReal) => Ok(Type::TReal),
-        (Type::TReal, Type::TInteger) => Ok(Type::TReal),
-        (Type::TReal, Type::TReal) => Ok(Type::TReal),
+        (TInteger, TInteger) => Ok(TInteger),
+        (TInteger, TReal) => Ok(TReal),
+        (TReal, TInteger) => Ok(TReal),
+        (TReal, TReal) => Ok(TReal),
         _ => Err(String::from("[Type Error] expecting numeric type values.")),
     }
 }
@@ -57,7 +55,7 @@ fn check_bin_boolean_expression(
     let right_type = check(right, env)?;
 
     match (left_type, right_type) {
-        (Type::TBool, Type::TBool) => Ok(Type::TBool),
+        (TBool, TBool) => Ok(TBool),
         _ => Err(String::from("[Type Error] expecting boolean type values.")),
     }
 }
@@ -66,7 +64,7 @@ fn check_not_expression(exp: Expression, env: &Environment) -> Result<Type, Erro
     let exp_type = check(exp, env)?;
 
     match exp_type {
-        Type::TBool => Ok(Type::TBool),
+        TBool => Ok(TBool),
         _ => Err(String::from("[Type Error] expecting a boolean type value.")),
     }
 }
@@ -80,10 +78,10 @@ fn check_bin_relational_expression(
     let right_type = check(right, env)?;
 
     match (left_type, right_type) {
-        (Type::TInteger, Type::TInteger) => Ok(Type::TBool),
-        (Type::TInteger, Type::TReal) => Ok(Type::TBool),
-        (Type::TReal, Type::TInteger) => Ok(Type::TBool),
-        (Type::TReal, Type::TReal) => Ok(Type::TBool),
+        (TInteger, TInteger) => Ok(TBool),
+        (TInteger, TReal) => Ok(TBool),
+        (TReal, TInteger) => Ok(TBool),
+        (TReal, TReal) => Ok(TBool),
         _ => Err(String::from("[Type Error] expecting numeric type values.")),
     }
 }
@@ -91,9 +89,6 @@ fn check_bin_relational_expression(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    use crate::ir::ast::Expression::*;
-    use crate::ir::ast::Type::*;
 
     #[test]
     fn check_tlist_comparison() {

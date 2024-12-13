@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::ir::ast::{Expression, Name, Statement};
+use crate::ir::ast::{Expression, Expression::*, Name, Statement, Statement::*};
 
 type ErrorMessage = String;
 
@@ -8,20 +8,20 @@ type Environment = HashMap<Name, Expression>;
 
 pub fn eval(exp: Expression, env: &Environment) -> Result<Expression, ErrorMessage> {
     match exp {
-        Expression::Add(lhs, rhs) => add(*lhs, *rhs, env),
-        Expression::Sub(lhs, rhs) => sub(*lhs, *rhs, env),
-        Expression::Mul(lhs, rhs) => mul(*lhs, *rhs, env),
-        Expression::Div(lhs, rhs) => div(*lhs, *rhs, env),
-        Expression::Rmd(lhs, rhs) => rmd(*lhs, *rhs, env),
-        Expression::And(lhs, rhs) => and(*lhs, *rhs, env),
-        Expression::Or(lhs, rhs) => or(*lhs, *rhs, env),
-        Expression::Not(lhs) => not(*lhs, env),
-        Expression::EQ(lhs, rhs) => eq(*lhs, *rhs, env),
-        Expression::GT(lhs, rhs) => gt(*lhs, *rhs, env),
-        Expression::LT(lhs, rhs) => lt(*lhs, *rhs, env),
-        Expression::GTE(lhs, rhs) => gte(*lhs, *rhs, env),
-        Expression::LTE(lhs, rhs) => lte(*lhs, *rhs, env),
-        Expression::Var(name) => lookup(name, env),
+        Add(lhs, rhs) => add(*lhs, *rhs, env),
+        Sub(lhs, rhs) => sub(*lhs, *rhs, env),
+        Mul(lhs, rhs) => mul(*lhs, *rhs, env),
+        Div(lhs, rhs) => div(*lhs, *rhs, env),
+        Rmd(lhs, rhs) => rmd(*lhs, *rhs, env),
+        And(lhs, rhs) => and(*lhs, *rhs, env),
+        Or(lhs, rhs) => or(*lhs, *rhs, env),
+        Not(lhs) => not(*lhs, env),
+        EQ(lhs, rhs) => eq(*lhs, *rhs, env),
+        GT(lhs, rhs) => gt(*lhs, *rhs, env),
+        LT(lhs, rhs) => lt(*lhs, *rhs, env),
+        GTE(lhs, rhs) => gte(*lhs, *rhs, env),
+        LTE(lhs, rhs) => lte(*lhs, *rhs, env),
+        Var(name) => lookup(name, env),
         _ if is_constant(exp.clone()) => Ok(exp),
         _ => Err(String::from("Not implemented yet.")),
     }
@@ -29,11 +29,11 @@ pub fn eval(exp: Expression, env: &Environment) -> Result<Expression, ErrorMessa
 
 fn is_constant(exp: Expression) -> bool {
     match exp {
-        Expression::CTrue => true,
-        Expression::CFalse => true,
-        Expression::CInt(_) => true,
-        Expression::CReal(_) => true,
-        Expression::CString(_) => true,
+        CTrue => true,
+        CFalse => true,
+        CInt(_) => true,
+        CReal(_) => true,
+        CString(_) => true,
         _ => false,
     }
 }
@@ -59,12 +59,10 @@ where
     let v1 = eval(lhs, env)?;
     let v2 = eval(rhs, env)?;
     match (v1, v2) {
-        (Expression::CInt(v1), Expression::CInt(v2)) => {
-            Ok(Expression::CInt(op(v1 as f64, v2 as f64) as i32))
-        }
-        (Expression::CInt(v1), Expression::CReal(v2)) => Ok(Expression::CReal(op(v1 as f64, v2))),
-        (Expression::CReal(v1), Expression::CInt(v2)) => Ok(Expression::CReal(op(v1, v2 as f64))),
-        (Expression::CReal(v1), Expression::CReal(v2)) => Ok(Expression::CReal(op(v1, v2))),
+        (CInt(v1), CInt(v2)) => Ok(CInt(op(v1 as f64, v2 as f64) as i32)),
+        (CInt(v1), CReal(v2)) => Ok(CReal(op(v1 as f64, v2))),
+        (CReal(v1), CInt(v2)) => Ok(CReal(op(v1, v2 as f64))),
+        (CReal(v1), CReal(v2)) => Ok(CReal(op(v1, v2))),
         _ => Err(error_msg.to_string()),
     }
 }
@@ -132,10 +130,10 @@ where
     let v1 = eval(lhs, env)?;
     let v2 = eval(rhs, env)?;
     match (v1, v2) {
-        (Expression::CTrue, Expression::CTrue) => Ok(op(true, true)),
-        (Expression::CTrue, Expression::CFalse) => Ok(op(true, false)),
-        (Expression::CFalse, Expression::CTrue) => Ok(op(false, true)),
-        (Expression::CFalse, Expression::CFalse) => Ok(op(false, false)),
+        (CTrue, CTrue) => Ok(op(true, true)),
+        (CTrue, CFalse) => Ok(op(true, false)),
+        (CFalse, CTrue) => Ok(op(false, true)),
+        (CFalse, CFalse) => Ok(op(false, false)),
         _ => Err(error_msg.to_string()),
     }
 }
@@ -147,9 +145,9 @@ fn and(lhs: Expression, rhs: Expression, env: &Environment) -> Result<Expression
         env,
         |a, b| {
             if a && b {
-                Expression::CTrue
+                CTrue
             } else {
-                Expression::CFalse
+                CFalse
             }
         },
         "'and' is only defined for booleans.",
@@ -163,9 +161,9 @@ fn or(lhs: Expression, rhs: Expression, env: &Environment) -> Result<Expression,
         env,
         |a, b| {
             if a || b {
-                Expression::CTrue
+                CTrue
             } else {
-                Expression::CFalse
+                CFalse
             }
         },
         "'or' is only defined for booleans.",
@@ -175,8 +173,8 @@ fn or(lhs: Expression, rhs: Expression, env: &Environment) -> Result<Expression,
 fn not(lhs: Expression, env: &Environment) -> Result<Expression, ErrorMessage> {
     let v = eval(lhs, env)?;
     match v {
-        Expression::CTrue => Ok(Expression::CFalse),
-        Expression::CFalse => Ok(Expression::CTrue),
+        CTrue => Ok(CFalse),
+        CFalse => Ok(CTrue),
         _ => Err(String::from("'not' is only defined for booleans.")),
     }
 }
@@ -195,10 +193,10 @@ where
     let v1 = eval(lhs, env)?;
     let v2 = eval(rhs, env)?;
     match (v1, v2) {
-        (Expression::CInt(v1), Expression::CInt(v2)) => Ok(op(v1 as f64, v2 as f64)),
-        (Expression::CInt(v1), Expression::CReal(v2)) => Ok(op(v1 as f64, v2)),
-        (Expression::CReal(v1), Expression::CInt(v2)) => Ok(op(v1, v2 as f64)),
-        (Expression::CReal(v1), Expression::CReal(v2)) => Ok(op(v1, v2)),
+        (CInt(v1), CInt(v2)) => Ok(op(v1 as f64, v2 as f64)),
+        (CInt(v1), CReal(v2)) => Ok(op(v1 as f64, v2)),
+        (CReal(v1), CInt(v2)) => Ok(op(v1, v2 as f64)),
+        (CReal(v1), CReal(v2)) => Ok(op(v1, v2)),
         _ => Err(error_msg.to_string()),
     }
 }
@@ -210,9 +208,9 @@ fn eq(lhs: Expression, rhs: Expression, env: &Environment) -> Result<Expression,
         env,
         |a, b| {
             if a == b {
-                Expression::CTrue
+                CTrue
             } else {
-                Expression::CFalse
+                CFalse
             }
         },
         "(==) is only defined for numbers (integers and real).",
@@ -226,9 +224,9 @@ fn gt(lhs: Expression, rhs: Expression, env: &Environment) -> Result<Expression,
         env,
         |a, b| {
             if a > b {
-                Expression::CTrue
+                CTrue
             } else {
-                Expression::CFalse
+                CFalse
             }
         },
         "(>) is only defined for numbers (integers and real).",
@@ -242,9 +240,9 @@ fn lt(lhs: Expression, rhs: Expression, env: &Environment) -> Result<Expression,
         env,
         |a, b| {
             if a < b {
-                Expression::CTrue
+                CTrue
             } else {
-                Expression::CFalse
+                CFalse
             }
         },
         "(<) is only defined for numbers (integers and real).",
@@ -258,9 +256,9 @@ fn gte(lhs: Expression, rhs: Expression, env: &Environment) -> Result<Expression
         env,
         |a, b| {
             if a >= b {
-                Expression::CTrue
+                CTrue
             } else {
-                Expression::CFalse
+                CFalse
             }
         },
         "(>=) is only defined for numbers (integers and real).",
@@ -274,9 +272,9 @@ fn lte(lhs: Expression, rhs: Expression, env: &Environment) -> Result<Expression
         env,
         |a, b| {
             if a <= b {
-                Expression::CTrue
+                CTrue
             } else {
-                Expression::CFalse
+                CFalse
             }
         },
         "(<=) is only defined for numbers (integers and real).",
@@ -294,8 +292,8 @@ pub fn execute(stmt: Statement, env: Environment) -> Result<Environment, ErrorMe
         Statement::IfThenElse(cond, stmt_then, stmt_else) => {
             let value = eval(*cond, &env)?;
             match value {
-                Expression::CTrue => execute(*stmt_then, env),
-                Expression::CFalse => match stmt_else {
+                CTrue => execute(*stmt_then, env),
+                CFalse => match stmt_else {
                     Some(else_statement) => execute(*else_statement, env),
                     None => Ok(env),
                 },
@@ -305,7 +303,7 @@ pub fn execute(stmt: Statement, env: Environment) -> Result<Environment, ErrorMe
         Statement::While(cond, stmt) => {
             let mut value = eval(*cond.clone(), &env)?;
             let mut new_env = env;
-            while value == Expression::CTrue {
+            while value == CTrue {
                 new_env = execute(*stmt.clone(), new_env.clone())?;
                 value = eval(*cond.clone(), &new_env.clone())?;
             }
@@ -321,8 +319,6 @@ pub fn execute(stmt: Statement, env: Environment) -> Result<Environment, ErrorMe
 mod tests {
 
     use super::*;
-    use crate::ir::ast::Expression::*;
-    use crate::ir::ast::Statement::*;
     use approx::relative_eq;
 
     #[test]
