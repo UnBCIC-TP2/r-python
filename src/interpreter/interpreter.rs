@@ -23,18 +23,6 @@ pub fn eval(exp: Expression, env: &Environment) -> Result<Expression, ErrorMessa
         Expression::LTE(lhs, rhs) => lte(*lhs, *rhs, env),
         Expression::Var(name) => lookup(name, env),
 
-        Expression::Tuple(elements) => 
-        eval_create_tuple(elements, env),
-
-        Expression::AddTuple(tuple, new_element) => 
-        eval_add_tuple(*tuple, *new_element, env),
-
-        Expression::RemoveTuple(tuple, index) => 
-        eval_remove_tuple(*tuple, *index, env),
-
-        Expression::LengthTuple(tuple) => 
-        eval_length_tuple(*tuple, env),
-
         Expression::List(elements_list,type_list)=>
         eval_create_list(elements_list,type_list, env),
 
@@ -75,110 +63,6 @@ fn lookup(name: String, env: &Environment) -> Result<Expression, ErrorMessage> {
 }
 
 /* Data structure */
-fn eval_create_tuple(elements: Vec<Expression>, env: &Environment) -> Result<Expression, ErrorMessage> {
-    let mut evaluated_elements = Vec::new();
-    let mut type_list_eval: Option<Expression> = None;
-
-    for element in elements {
-        let eval_elem = eval(element, env)?;
-
-        if type_list_eval.is_none() {
-            type_list_eval = Some(eval_elem.clone());
-        }
-
-        match (&eval_elem, type_list_eval.as_ref().unwrap()) {
-            (Expression::CInt(_), Expression::CInt(_)) |
-            (Expression::CReal(_), Expression::CReal(_)) |
-            (Expression::CString(_), Expression::CString(_)) => {
-                evaluated_elements.push(eval_elem);
-            }
-            _ => {
-                return Err(format!(
-                    "Type {:?} does not match type {:?}",
-                    eval_elem, type_list_eval.unwrap()
-                ));
-            }
-        }
-    }
-
-    Ok(Expression::Tuple(evaluated_elements))
-}
-
-fn eval_add_tuple(tuple_expr: Expression, new_element: Expression, env: &Environment) -> Result<Expression, ErrorMessage> {
-    let eval_new_element = eval(new_element, env)?;
-
-    match tuple_expr {
-        Expression::Tuple(ref elements) => {
-            if elements.is_empty() {
-                return Ok(Expression::Tuple(vec![eval_new_element]));
-            }
-
-            let first_element = &elements[0];
-            match (first_element, &eval_new_element) {
-                (Expression::CInt(_), Expression::CInt(_)) |
-                (Expression::CReal(_), Expression::CReal(_)) |
-                (Expression::CString(_), Expression::CString(_)) => {
-                    let mut updated_elements = elements.clone();
-                    updated_elements.push(eval_new_element);
-                    return Ok(Expression::Tuple(updated_elements));
-                }
-                _ => {
-                    return Err(format!(
-                        "Type mismatch: Cannot add element {:?} to tuple with elements of type {:?}",
-                        eval_new_element, first_element
-                    ));
-                }
-            }
-        }
-        _ => {
-            return Err("Provided expression is not a tuple".to_string());
-        }
-    }
-}
-
-fn eval_remove_tuple(
-    tuple_expr: Expression,
-    index_expr: Expression,
-    env: &Environment,
-) -> Result<Expression, ErrorMessage> {
-    let tuple_eval = eval(tuple_expr, env)?;
-    let index_eval = eval(index_expr, env)?;
-
-    match (tuple_eval, index_eval) {
-        (Expression::Tuple(mut elements), Expression::CInt(index)) => {
-            if index < 0 || index >= elements.len() as i32 {
-                return Err(String::from("Index out of bounds"));
-            }
-
-            let idx = index as usize;
-            elements.remove(idx);
-
-            Ok(Expression::Tuple(elements))
-        },
-        (Expression::Tuple(_), _) => {
-            Err(String::from("Index must be an integer"))
-        },
-        _ => {
-            Err(String::from("First argument must be a tuple"))
-        }
-    }
-}
-
-fn eval_length_tuple(
-    tuple_expr: Expression,
-    env: &Environment,
-) -> Result<Expression, ErrorMessage> {
-    let tuple_eval = eval(tuple_expr, env)?;
-
-    match tuple_eval {
-        Expression::Tuple(elements) => {
-            Ok(Expression::CInt(elements.len() as i32))
-        }
-        _ => {
-            Err(String::from("Provided expression is not a tuple"))
-        }
-    }
-}
 
 fn eval_create_list(
     elements_list: Option<Vec<Expression>>, 
@@ -256,7 +140,7 @@ fn eval_pop_list(list: Expression, env: &Environment)
                 Err(String::from("Cannot pop from an empty list."))
             }
         }
-        _ => Err(String::from("Expected a list for pop operation.")),
+        _ => Err(String::from("Exepcted a list for pop operation.")),
     }
 }
 

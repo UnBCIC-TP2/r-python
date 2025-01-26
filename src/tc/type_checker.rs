@@ -27,19 +27,7 @@ pub fn check(exp: Expression, env: &Environment) -> Result<Type, ErrorMessage> {
         Expression::LT(l, r) => check_bin_relational_expression(*l, *r, env),
         Expression::GTE(l, r) => check_bin_relational_expression(*l, *r, env),
         Expression::LTE(l, r) => check_bin_boolean_expression(*l, *r, env),
-
-        Expression::Tuple(elements) => 
-        check_create_tuple(elements, env),   
-
-        Expression::AddTuple(tuple, new_element) => 
-        check_add_tuple(*tuple, *new_element, env),
         
-        Expression::RemoveTuple(tuple, index) => 
-        check_remove_tuple(*tuple, *index, env),
-
-        Expression::LengthTuple(tuple) => 
-        check_length_tuple(*tuple, env),
-
         Expression::List(elements,type_list)=>
         check_create_list(elements,type_list, env),
 
@@ -57,94 +45,6 @@ pub fn check(exp: Expression, env: &Environment) -> Result<Type, ErrorMessage> {
 
 
         _ => Err(String::from("not implemented yet")),
-    }
-}
-
-fn check_create_tuple(
-    maybe_tuple: Vec<Expression>,
-    env: &Environment,
-) -> Result<Type, ErrorMessage> {
-    match maybe_tuple {
-        vec => {
-            // Verifica o tipo do primeiro elemento da tupla
-            let first_type = check(vec[0].clone(), env)?;
-
-            // Verifica se todos os elementos têm o mesmo tipo
-            for item in vec.iter() {
-                let item_type = check(item.clone(), env)?;
-                if item_type != first_type {
-                    return Err(String::from("[Type error] Different types in tuple"));
-                }
-            }
-
-            // Retorna a tupla com o tipo homogêneo
-            Ok(Type::TTuple(Box::new(first_type)))
-        }
-    }
-}
-
-fn check_add_tuple(
-    tuple_expr: Expression,
-    new_element: Expression,
-    env: &Environment,
-) -> Result<Type, ErrorMessage> {
-    let new_element_type = check(new_element, env)?;
-
-    match tuple_expr {
-        Expression::Tuple(ref elements) => {
-            if elements.is_empty() {
-                return Ok(Type::TTuple(Box::new(new_element_type)));
-            }
-
-            let first_element_type = check(elements[0].clone(), env)?;
-
-            if new_element_type != first_element_type {
-                return Err(format!(
-                    "[Type error] Cannot add element of type {:?} to tuple with elements of type {:?}",
-                    new_element_type, first_element_type
-                ));
-            }
-
-            let tuple_type = Type::TTuple(Box::new(first_element_type));
-            Ok(tuple_type)
-        }
-        _ => {
-            return Err("Provided expression is not a tuple".to_string());
-        }
-    }
-}
-
-fn check_remove_tuple(
-    tuple_expr: Expression,
-    index_expr: Expression,
-    env: &Environment,
-) -> Result<Type, ErrorMessage> {
-    let tuple_type = check(tuple_expr.clone(), env)?;
-    match tuple_type {
-        Type::TTuple(inner_type) => {
-            let index_type = check(index_expr.clone(), env)?;
-            match index_type {
-                Type::TInteger => {
-                    Ok(Type::TTuple(inner_type))
-                }
-                _ => Err(String::from("[Type error] Index must be an integer")),
-            }
-        }
-        _ => Err(String::from("[Type error] First argument must be a tuple")),
-    }
-}
-
-fn check_length_tuple(
-    tuple_expr: Expression,
-    env: &Environment,
-) -> Result<Type, ErrorMessage> {
-    let tuple_type = check(tuple_expr.clone(), env)?;
-    
-    match tuple_type {
-        Type::TTuple(_inner_type) => {
-            Ok(Type::TInteger)
-        }
-        _ => Err(String::from("[Type error] Argument must be a tuple")),
     }
 }
 

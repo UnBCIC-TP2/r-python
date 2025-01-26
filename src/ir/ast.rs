@@ -7,7 +7,7 @@ pub enum Type {
     TReal,
     TString,
     TList(Box<Type>),
-    TTuple(Box<Type>),
+    TTuple(Vec<Type>),
     TDict(Box<Type>,Box<Type>),
 }
 
@@ -44,10 +44,6 @@ pub enum Expression {
     LTE(Box<Expression>, Box<Expression>),
 
     /* Data Structure */
-    Tuple(Vec<Expression>),
-    AddTuple(Box<Expression>, Box<Expression>),
-    RemoveTuple(Box<Expression>,Box<Expression>),
-    LengthTuple(Box<Expression>),
     List(Option<Vec<Expression>>,Option<Box<Expression>>),
     Push(Box<Expression>,Box<Expression>),
     Pop(Box<Expression>),
