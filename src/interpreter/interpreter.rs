@@ -907,7 +907,7 @@ mod tests {
     //      * After executing, 'y' should be 7 and 'x' should be 0.
     //      */
     //     let env = HashMap::new();
-  
+
     //     let a1 = Assignment(String::from("x"), Box::new(CInt(3))); -> corrigido parenteses extras.
     //     let a2 = Assignment(String::from("y")), Box:new(CInt(10)));
     //     let a3 = Assignment(

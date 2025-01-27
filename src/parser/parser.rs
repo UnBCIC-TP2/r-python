@@ -1,3 +1,6 @@
+use crate::ir::ast::{Expression, Name, Statement};
+use nom::character::complete::multispace0;
+use nom::sequence::separated_pair;
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_while1},
@@ -7,8 +10,6 @@ use nom::{
     sequence::{delimited, preceded, tuple},
     IResult,
 };
-
-use crate::ir::ast::{Expression, Name, Statement};
 
 // Parse identifier
 fn identifier(input: &str) -> IResult<&str, Name> {
@@ -45,6 +46,7 @@ fn expression(input: &str) -> IResult<&str, Expression> {
     alt((
         comparison_expression,
         arithmetic_expression,
+        dictionary_expression,
         integer,
         map(identifier, |name| Expression::Var(name)),
     ))(input)
@@ -106,6 +108,29 @@ fn arithmetic_expression(input: &str) -> IResult<&str, Expression> {
             }),
     ))
 }
+
+// Parse dictionary expressions
+fn dictionary_expression(input: &str) -> IResult<&str, Expression> {
+    let (input, _) = delimited(space0, char('{'), multispace0)(input)?;
+
+    let (input, key_value_pairs) = separated_list1(
+        delimited(space0, char(','), multispace0),
+        separated_pair(identifier, delimited(space0, char(':'), space0), expression),
+    )(input)?;
+
+    let (input, _) = preceded(multispace0, char('}'))(input)?;
+
+    Ok((
+        input,
+        Expression::Dict(
+            key_value_pairs
+                .iter()
+                .map(|(key, value)| (key.clone(), Box::new(value.clone())))
+                .collect(),
+        ),
+    ))
+}
+
 //indented block parser
 fn indented_block(input: &str) -> IResult<&str, Vec<Statement>> {
     let (input, _) = line_ending(input)?;
@@ -431,5 +456,127 @@ mod tests {
         let (rest, stmts) = parse(input).unwrap();
         assert_eq!(rest, "");
         assert_eq!(stmts.len(), 2);
+    }
+
+    #[test]
+    fn test_dictionary_expression() {
+        let input = "{x: 42, y: 10}";
+
+        let (rest, dict) = dictionary_expression(input).unwrap();
+        assert_eq!(rest, "");
+
+        let expected_pairs = vec![("x", 42), ("y", 10)];
+
+        match dict {
+            Expression::Dict(pairs) => {
+                assert_eq!(pairs.len(), 2, "Expected 2 pairs in dictionary");
+
+                for (i, pair) in pairs.iter().enumerate() {
+                    assert_eq!(
+                        pair.0, expected_pairs[i].0,
+                        "Expected key '{}'",
+                        expected_pairs[i].0
+                    );
+
+                    match *pair.1 {
+                        Expression::CInt(value) => assert_eq!(value, expected_pairs[i].1),
+                        _ => panic!(
+                            "Expected CInt for the value of key '{}'",
+                            expected_pairs[i].0
+                        ),
+                    }
+                }
+            }
+            _ => panic!("Expected Dictionary"),
+        }
+    }
+
+    #[test]
+    fn test_dictionary_exp_with_whitespace() {
+        let input = r#"{
+        w:    12,      x   : 42   ,
+            y :    11,
+        z:14
+               }"#;
+
+        let (rest, dict) = dictionary_expression(input).unwrap();
+        assert_eq!(rest, "");
+
+        let expected_pairs = vec![("w", 12), ("x", 42), ("y", 11), ("z", 14)];
+
+        match dict {
+            Expression::Dict(pairs) => {
+                assert_eq!(pairs.len(), 4, "Expected 4 pairs in dictionary");
+
+                for (i, pair) in pairs.iter().enumerate() {
+                    assert_eq!(
+                        pair.0, expected_pairs[i].0,
+                        "Expected key '{}'",
+                        expected_pairs[i].0
+                    );
+
+                    match *pair.1 {
+                        Expression::CInt(value) => assert_eq!(value, expected_pairs[i].1),
+                        _ => panic!(
+                            "Expected CInt for the value of key '{}'",
+                            expected_pairs[i].0
+                        ),
+                    }
+                }
+            }
+            _ => panic!("Expected Dictionary"),
+        }
+    }
+
+    #[test]
+    fn test_dictionary_with_complex_expressions() {
+        let input = "{x: 42 + 10 + var, y: 10 - 2 * 3}";
+
+        let (rest, dict) = dictionary_expression(input).unwrap();
+        assert_eq!(rest, "");
+
+        let expected_pairs = vec![
+            (
+                "x",
+                Box::new(Expression::Add(
+                    Box::new(Expression::Add(
+                        Box::new(Expression::CInt(42)),
+                        Box::new(Expression::CInt(10)),
+                    )),
+                    Box::new(Expression::Var(String::from("var"))),
+                )),
+            ),
+            (
+                "y",
+                Box::new(Expression::Mul(
+                    Box::new(Expression::Sub(
+                        Box::new(Expression::CInt(10)),
+                        Box::new(Expression::CInt(2)),
+                    )),
+                    Box::new(Expression::CInt(3)),
+                )),
+            ),
+        ];
+
+        match dict {
+            Expression::Dict(pairs) => {
+                assert_eq!(pairs.len(), 2, "Expected 2 pairs in dictionary");
+
+                for (i, pair) in pairs.iter().enumerate() {
+                    assert_eq!(
+                        pair.0, expected_pairs[i].0,
+                        "Expected key '{}'",
+                        expected_pairs[i].0
+                    );
+
+                    assert_eq!(
+                        pair.1, expected_pairs[i].1,
+                        "Key '{}' has a different type than expected",
+                        expected_pairs[i].0,
+                    );
+                }
+            }
+            _ => panic!("Expected Dictionary"),
+        }
     }
 }

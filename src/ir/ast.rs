@@ -10,6 +10,7 @@ pub enum Type {
     TString,
     TList(Box<Type>),
     TTuple(Vec<Type>),
+    TDict(Vec<(Name, Type)>),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -42,6 +43,9 @@ pub enum Expression {
     LT(Box<Expression>, Box<Expression>),
     GTE(Box<Expression>, Box<Expression>),
     LTE(Box<Expression>, Box<Expression>),
+
+    /* data structures */
+    Dict(Vec<(Name, Box<Expression>)>),
 }
 
 #[derive(Debug, PartialEq, Clone)]
