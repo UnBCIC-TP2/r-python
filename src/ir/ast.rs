@@ -53,11 +53,12 @@ pub enum Expression {
 pub enum Statement {
     VarDeclaration(Name),
     ValDeclaration(Name),
-    Assignment(Name, Box<Expression>),
+    VarAssignment(Name, Box<Expression>),
     IfThenElse(Box<Expression>, Box<Statement>, Option<Box<Statement>>),
     While(Box<Expression>, Box<Statement>),
     Block(Vec<Statement>), // For indented blocks
     Sequence(Box<Statement>, Box<Statement>),
+    DictAssigment(Name, Name, Box<Expression>),
 }
 
 #[derive(Debug)]

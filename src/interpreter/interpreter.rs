@@ -285,7 +285,7 @@ fn lte(lhs: Expression, rhs: Expression, env: &Environment) -> Result<Expression
 
 pub fn execute(stmt: Statement, env: Environment) -> Result<Environment, ErrorMessage> {
     match stmt {
-        Statement::Assignment(name, exp) => {
+        Statement::VarAssignment(name, exp) => {
             let value = eval(*exp, &env)?;
             let mut new_env = env;
             new_env.insert(name.clone(), value);
@@ -500,7 +500,7 @@ mod tests {
     #[test]
     fn execute_assignment() {
         let env = HashMap::new();
-        let assign_stmt = Assignment(String::from("x"), Box::new(CInt(42)));
+        let assign_stmt = VarAssignment(String::from("x"), Box::new(CInt(42)));
 
         match execute(assign_stmt, env) {
             Ok(new_env) => assert_eq!(new_env.get("x"), Some(&CInt(42))),
@@ -524,16 +524,16 @@ mod tests {
          */
         let env = HashMap::new();
 
-        let a1 = Assignment(String::from("x"), Box::new(CInt(10)));
-        let a2 = Assignment(String::from("y"), Box::new(CInt(0)));
-        let a3 = Assignment(
+        let a1 = VarAssignment(String::from("x"), Box::new(CInt(10)));
+        let a2 = VarAssignment(String::from("y"), Box::new(CInt(0)));
+        let a3 = VarAssignment(
             String::from("y"),
             Box::new(Add(
                 Box::new(Var(String::from("y"))),
                 Box::new(Var(String::from("x"))),
             )),
         );
-        let a4 = Assignment(
+        let a4 = VarAssignment(
             String::from("x"),
             Box::new(Sub(Box::new(Var(String::from("x"))), Box::new(CInt(1)))),
         );
@@ -573,8 +573,8 @@ mod tests {
         let env = HashMap::new();
 
         let condition = GT(Box::new(Var(String::from("x"))), Box::new(CInt(5)));
-        let then_stmt = Assignment(String::from("y"), Box::new(CInt(1)));
-        let else_stmt = Assignment(String::from("y"), Box::new(CInt(0)));
+        let then_stmt = VarAssignment(String::from("y"), Box::new(CInt(1)));
+        let else_stmt = VarAssignment(String::from("y"), Box::new(CInt(0)));
 
         let if_statement = IfThenElse(
             Box::new(condition),
@@ -582,7 +582,7 @@ mod tests {
             Some(Box::new(else_stmt)),
         );
 
-        let setup_stmt = Assignment(String::from("x"), Box::new(CInt(10)));
+        let setup_stmt = VarAssignment(String::from("x"), Box::new(CInt(10)));
         let program = Sequence(Box::new(setup_stmt), Box::new(if_statement));
 
         match execute(program, env) {
@@ -611,19 +611,19 @@ mod tests {
         let env = HashMap::new();
 
         let second_condition = LT(Box::new(Var(String::from("x"))), Box::new(CInt(0)));
-        let second_then_stmt = Assignment(String::from("y"), Box::new(CInt(5)));
+        let second_then_stmt = VarAssignment(String::from("y"), Box::new(CInt(5)));
 
         let second_if_stmt =
             IfThenElse(Box::new(second_condition), Box::new(second_then_stmt), None);
 
-        let else_setup_stmt = Assignment(String::from("y"), Box::new(CInt(2)));
+        let else_setup_stmt = VarAssignment(String::from("y"), Box::new(CInt(2)));
         let else_stmt = Sequence(Box::new(else_setup_stmt), Box::new(second_if_stmt));
 
         let first_condition = EQ(
             Box::new(Var(String::from("x"))),
             Box::new(Var(String::from("y"))),
         );
-        let first_then_stmt = Assignment(String::from("y"), Box::new(CInt(1)));
+        let first_then_stmt = VarAssignment(String::from("y"), Box::new(CInt(1)));
 
         let first_if_stmt = IfThenElse(
             Box::new(first_condition),
@@ -631,10 +631,10 @@ mod tests {
             Some(Box::new(else_stmt)),
         );
 
-        let second_assignment = Assignment(String::from("y"), Box::new(CInt(0)));
+        let second_assignment = VarAssignment(String::from("y"), Box::new(CInt(0)));
         let setup_stmt = Sequence(Box::new(second_assignment), Box::new(first_if_stmt));
 
-        let first_assignment = Assignment(String::from("x"), Box::new(CInt(1)));
+        let first_assignment = VarAssignment(String::from("x"), Box::new(CInt(1)));
         let program = Sequence(Box::new(first_assignment), Box::new(setup_stmt));
 
         match execute(program, env) {
@@ -664,18 +664,18 @@ mod tests {
          */
 
         let env = HashMap::new();
-        let a1 = Assignment(String::from("x"), Box::new(CInt(1)));
-        let a2 = Assignment(String::from("y"), Box::new(CInt(1800)));
-        let a3 = Assignment(String::from("z"), Box::new(CInt(0)));
-        let a4 = Assignment(
+        let a1 = VarAssignment(String::from("x"), Box::new(CInt(1)));
+        let a2 = VarAssignment(String::from("y"), Box::new(CInt(1800)));
+        let a3 = VarAssignment(String::from("z"), Box::new(CInt(0)));
+        let a4 = VarAssignment(
             String::from("z"),
             Box::new(Add(Box::new(Var(String::from("z"))), Box::new(CInt(1)))),
         );
-        let a5 = Assignment(
+        let a5 = VarAssignment(
             String::from("z"),
             Box::new(Add(Box::new(Var(String::from("z"))), Box::new(CInt(1)))),
         );
-        let a6 = Assignment(
+        let a6 = VarAssignment(
             String::from("x"),
             Box::new(Add(Box::new(Var(String::from("x"))), Box::new(CInt(1)))),
         );
@@ -765,11 +765,11 @@ mod tests {
 
         let env = HashMap::new();
 
-        let a1 = Assignment(String::from("x"), Box::new(CInt(1)));
-        let a2 = Assignment(String::from("y"), Box::new(CInt(16)));
-        let a3 = Assignment(String::from("z"), Box::new(CInt(16)));
-        let a4 = Assignment(String::from("a"), Box::new(CInt(0)));
-        let a5 = Assignment(
+        let a1 = VarAssignment(String::from("x"), Box::new(CInt(1)));
+        let a2 = VarAssignment(String::from("y"), Box::new(CInt(16)));
+        let a3 = VarAssignment(String::from("z"), Box::new(CInt(16)));
+        let a4 = VarAssignment(String::from("a"), Box::new(CInt(0)));
+        let a5 = VarAssignment(
             String::from("m"),
             Box::new(Div(
                 Box::new(Add(
@@ -779,12 +779,12 @@ mod tests {
                 Box::new(CInt(2)),
             )),
         );
-        let a6 = Assignment(String::from("a"), Box::new(Var(String::from("m"))));
-        let a7 = Assignment(
+        let a6 = VarAssignment(String::from("a"), Box::new(Var(String::from("m"))));
+        let a7 = VarAssignment(
             String::from("x"),
             Box::new(Add(Box::new(Var(String::from("m"))), Box::new(CInt(1)))),
         );
-        let a8 = Assignment(
+        let a8 = VarAssignment(
             String::from("y"),
             Box::new(Sub(Box::new(Var(String::from("m"))), Box::new(CInt(1)))),
         );
@@ -857,10 +857,10 @@ mod tests {
          */
 
         let env = HashMap::new();
-        let a1 = Assignment(String::from("x"), Box::new(CTrue));
-        let a2 = Assignment(String::from("y"), Box::new(CInt(1)));
-        let a3 = Assignment(String::from("x"), Box::new(CFalse));
-        let a4 = Assignment(
+        let a1 = VarAssignment(String::from("x"), Box::new(CTrue));
+        let a2 = VarAssignment(String::from("y"), Box::new(CInt(1)));
+        let a3 = VarAssignment(String::from("x"), Box::new(CFalse));
+        let a4 = VarAssignment(
             String::from("y"),
             Box::new(Mul(Box::new(Var(String::from("y"))), Box::new(CInt(2)))),
         );
@@ -1000,9 +1000,9 @@ mod tests {
          */
         let env = HashMap::new();
 
-        let a1 = Assignment(String::from("x"), Box::new(CInt(5)));
-        let a2 = Assignment(String::from("y"), Box::new(CInt(0)));
-        let a3 = Assignment(
+        let a1 = VarAssignment(String::from("x"), Box::new(CInt(5)));
+        let a2 = VarAssignment(String::from("y"), Box::new(CInt(0)));
+        let a3 = VarAssignment(
             String::from("z"),
             Box::new(Add(
                 Box::new(Mul(Box::new(CInt(2)), Box::new(Var(String::from("x"))))),

@@ -38,7 +38,7 @@ fn term(input: &str) -> IResult<&str, Expression> {
 //expression parser to include if statements
 fn statement(input: &str) -> IResult<&str, Statement> {
     let (input, _) = space0(input)?;
-    alt((if_statement, assignment, declaration))(input)
+    alt((if_statement, var_assignment, dict_assignment, declaration))(input)
 }
 
 // Parse basic expressions
@@ -110,7 +110,8 @@ fn arithmetic_expression(input: &str) -> IResult<&str, Expression> {
     ))
 }
 
-// Parse dictionary expressions
+/// Parses a dictionary expression.
+/// Example: `{key1: value1, key2: value2}`
 fn dictionary_expression(input: &str) -> IResult<&str, Expression> {
     let (input, _) = delimited(space0, char('{'), multispace0)(input)?;
 
@@ -132,6 +133,8 @@ fn dictionary_expression(input: &str) -> IResult<&str, Expression> {
     ))
 }
 
+/// Parses a dictionary access expression.
+/// Example: `dict.key`
 fn dictionary_access_expression(input: &str) -> IResult<&str, Expression> {
     let (input, (dict_name, key_name)) = separated_pair(identifier, char('.'), identifier)(input)?;
 
@@ -189,7 +192,7 @@ fn declaration(input: &str) -> IResult<&str, Statement> {
 }
 
 // Parse assignment statements
-fn assignment(input: &str) -> IResult<&str, Statement> {
+fn var_assignment(input: &str) -> IResult<&str, Statement> {
     let (input, _) = space0(input)?;
     let (input, name) = identifier(input)?;
     let (input, _) = delimited(space0, char('='), space0)(input)?;
@@ -198,12 +201,26 @@ fn assignment(input: &str) -> IResult<&str, Statement> {
 
     Ok((
         input,
-        Statement::Assignment(
+        Statement::VarAssignment(
             name, // No longer need to Box the name
             Box::new(expr),
         ),
     ))
 }
+
+/// Parses a dictionary assignment statement.
+/// Example: `dict.key = exp`
+fn dict_assignment(input: &str) -> IResult<&str, Statement> {
+    let (input, (dict_name, key_name)) = separated_pair(identifier, char('.'), identifier)(input)?;
+    let (input, _) = delimited(space0, char('='), space0)(input)?;
+    let (input, expr) = expression(input)?;
+
+    Ok((
+        input,
+        Statement::DictAssigment(dict_name, key_name, Box::new(expr)),
+    ))
+}
+
 // Parse multiple statements
 pub fn parse_statements(input: &str) -> IResult<&str, Vec<Statement>> {
     let (input, _) = space0(input)?; // Handle initial whitespace
@@ -230,10 +247,10 @@ mod tests {
     #[test]
     fn test_simple_assignment() {
         let input = "x = 42";
-        let (rest, stmt) = assignment(input).unwrap();
+        let (rest, stmt) = var_assignment(input).unwrap();
         assert_eq!(rest, "");
         match stmt {
-            Statement::Assignment(name, expr) => {
+            Statement::VarAssignment(name, expr) => {
                 assert_eq!(name, "x"); // Direct string comparison
                 match *expr {
                     Expression::CInt(val) => assert_eq!(val, 42),
@@ -259,7 +276,7 @@ mod tests {
         assert_eq!(rest, "");
 
         match &stmts[0] {
-            Statement::Assignment(name, expr) => {
+            Statement::VarAssignment(name, expr) => {
                 assert_eq!(name, "x");
                 match **expr {
                     Expression::Add(_, _) => (),
@@ -279,7 +296,7 @@ mod tests {
 
         // Verify first statement is assignment
         match &stmts[0] {
-            Statement::Assignment(name, expr) => {
+            Statement::VarAssignment(name, expr) => {
                 assert_eq!(name, "x");
                 assert!(matches!(**expr, Expression::CInt(10)));
             }
@@ -297,7 +314,7 @@ mod tests {
                     Statement::Block(ref stmts) => {
                         assert_eq!(stmts.len(), 1);
                         match &stmts[0] {
-                            Statement::Assignment(name, expr) => {
+                            Statement::VarAssignment(name, expr) => {
                                 assert_eq!(name, "y");
                                 assert!(matches!(**expr, Expression::CInt(1)));
                             }
@@ -313,7 +330,7 @@ mod tests {
                         Statement::Block(ref stmts) => {
                             assert_eq!(stmts.len(), 1);
                             match &stmts[0] {
-                                Statement::Assignment(name, expr) => {
+                                Statement::VarAssignment(name, expr) => {
                                     assert_eq!(name, "y");
                                     assert!(matches!(**expr, Expression::CInt(2)));
                                 }
@@ -345,7 +362,7 @@ mod tests {
                     Statement::Block(ref stmts) => {
                         assert_eq!(stmts.len(), 1);
                         match &stmts[0] {
-                            Statement::Assignment(name, expr) => {
+                            Statement::VarAssignment(name, expr) => {
                                 assert_eq!(name, "y");
                                 assert!(matches!(**expr, Expression::CInt(1)));
                             }
@@ -361,7 +378,7 @@ mod tests {
                         Statement::Block(ref stmts) => {
                             assert_eq!(stmts.len(), 1);
                             match &stmts[0] {
-                                Statement::Assignment(name, expr) => {
+                                Statement::VarAssignment(name, expr) => {
                                     assert_eq!(name, "y");
                                     assert!(matches!(**expr, Expression::CInt(2)));
                                 }
@@ -396,7 +413,7 @@ mod tests {
                     Statement::Block(ref stmts) => {
                         assert_eq!(stmts.len(), 1);
                         match &stmts[0] {
-                            Statement::Assignment(name, expr) => {
+                            Statement::VarAssignment(name, expr) => {
                                 assert_eq!(name, "y");
                                 assert!(matches!(**expr, Expression::CInt(1)));
                             }
@@ -412,7 +429,7 @@ mod tests {
                         Statement::Block(ref stmts) => {
                             assert_eq!(stmts.len(), 1);
                             match &stmts[0] {
-                                Statement::Assignment(name, expr) => {
+                                Statement::VarAssignment(name, expr) => {
                                     assert_eq!(name, "y");
                                     assert!(matches!(**expr, Expression::CInt(2)));
                                 }
@@ -436,7 +453,7 @@ mod tests {
         assert_eq!(stmts.len(), 2);
 
         match &stmts[0] {
-            Statement::Assignment(name, expr) => {
+            Statement::VarAssignment(name, expr) => {
                 assert_eq!(&**name, "x");
                 match **expr {
                     Expression::CInt(42) => (),
@@ -447,7 +464,7 @@ mod tests {
         }
 
         match &stmts[1] {
-            Statement::Assignment(name, expr) => {
+            Statement::VarAssignment(name, expr) => {
                 assert_eq!(&**name, "y");
                 match **expr {
                     Expression::CInt(10) => (),
@@ -600,6 +617,57 @@ mod tests {
                 assert_eq!(key_name, "key");
             }
             _ => panic!("Expected dictionary access expression"),
+        }
+    }
+
+    #[test]
+    fn test_dict_assignment() {
+        let input = "dict.key = 42";
+        let (rest, stmt) = dict_assignment(input).unwrap();
+        assert_eq!(rest, "");
+
+        match stmt {
+            Statement::DictAssigment(dict_name, key_name, exp) => {
+                assert_eq!(dict_name, "dict");
+                assert_eq!(key_name, "key");
+
+                match *exp {
+                    Expression::CInt(val) => assert_eq!(val, 42),
+                    _ => panic!("Expected CInt"),
+                }
+            }
+            _ => panic!("Expected dictionary key assignment"),
+        }
+    }
+
+    #[test]
+    fn test_dict_assignment_with_complex_expressions() {
+        let input = "dict.key = 42 * (10 - (2 / 1))";
+        let (rest, stmt) = dict_assignment(input).unwrap();
+        assert_eq!(rest, "");
+
+        match stmt {
+            Statement::DictAssigment(dict_name, key_name, exp) => {
+                assert_eq!(dict_name, "dict");
+                assert_eq!(key_name, "key");
+
+                let expected_exp = Box::new(Expression::Mul(
+                    Box::new(Expression::CInt(42)),
+                    Box::new(Expression::Sub(
+                        Box::new(Expression::CInt(10)),
+                        Box::new(Expression::Div(
+                            Box::new(Expression::CInt(2)),
+                            Box::new(Expression::CInt(1)),
+                        )),
+                    )),
+                ));
+
+                assert_eq!(
+                    exp, expected_exp,
+                    "Expression has a different type than expected"
+                );
+            }
+            _ => panic!("Expected dictionary key assignment"),
         }
     }
 }
