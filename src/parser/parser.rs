@@ -47,6 +47,7 @@ fn expression(input: &str) -> IResult<&str, Expression> {
         comparison_expression,
         arithmetic_expression,
         dictionary_expression,
+        dictionary_access_expression,
         integer,
         map(identifier, |name| Expression::Var(name)),
     ))(input)
@@ -129,6 +130,12 @@ fn dictionary_expression(input: &str) -> IResult<&str, Expression> {
                 .collect(),
         ),
     ))
+}
+
+fn dictionary_access_expression(input: &str) -> IResult<&str, Expression> {
+    let (input, (dict_name, key_name)) = separated_pair(identifier, char('.'), identifier)(input)?;
+
+    Ok((input, Expression::DictAccess(dict_name, key_name)))
 }
 
 //indented block parser
@@ -577,6 +584,22 @@ mod tests {
                 }
             }
             _ => panic!("Expected Dictionary"),
+        }
+    }
+
+    #[test]
+    fn test_dictionary_access_expression() {
+        let input = "dict.key";
+
+        let (rest, access_exp) = dictionary_access_expression(input).unwrap();
+        assert_eq!(rest, "");
+
+        match access_exp {
+            Expression::DictAccess(dict_name, key_name) => {
+                assert_eq!(dict_name, "dict");
+                assert_eq!(key_name, "key");
+            }
+            _ => panic!("Expected dictionary access expression"),
         }
     }
 }

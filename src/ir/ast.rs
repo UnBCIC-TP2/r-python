@@ -46,6 +46,7 @@ pub enum Expression {
 
     /* data structures */
     Dict(Vec<(Name, Box<Expression>)>),
+    DictAccess(Name, Name),
 }
 
 #[derive(Debug, PartialEq, Clone)]
