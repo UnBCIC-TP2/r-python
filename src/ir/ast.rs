@@ -46,13 +46,21 @@ pub enum Expression {
     /* Data Structure */
     Tuple(Vec<Expression>),
     AddTuple(Box<Expression>, Box<Expression>),
-    RemoveTuple(Box<Expression>,Box<Expression>),
+    GetTuple(Box<Expression>, Box<Expression>),
     LengthTuple(Box<Expression>),
     List(Option<Vec<Expression>>,Option<Box<Expression>>),
     Push(Box<Expression>,Box<Expression>),
     Pop(Box<Expression>),
     Get(Box<Expression>,Box<Expression>),
-    Len(Box<Expression>)
+    Len(Box<Expression>),
+    Dict(Option<Vec<(Expression, Expression)>>),
+    GetDict(Box<Expression>, Box<Expression>),
+    SetDict(Box<Expression>, Box<Expression>, Box<Expression>),
+    RemoveDict(Box<Expression>, Box<Expression>) 
+    //RemoveDict(Box<Expression>, Box<Expression>), 
+    //ContainsKey(Box<Expression>, Box<Expression>), 
+    //DictKeys(Box<Expression>),   
+    //DictValues(Box<Expression>)
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -63,4 +71,4 @@ pub enum Statement {
     IfThenElse(Box<Expression>, Box<Statement>, Option<Box<Statement>>),
     While(Box<Expression>, Box<Statement>),
     Sequence(Box<Statement>, Box<Statement>),
-}
+} 

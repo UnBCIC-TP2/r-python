@@ -33,12 +33,12 @@ pub fn check(exp: Expression, env: &Environment) -> Result<Type, ErrorMessage> {
 
         Expression::AddTuple(tuple, new_element) => 
         check_add_tuple(*tuple, *new_element, env),
-        
-        Expression::RemoveTuple(tuple, index) => 
-        check_remove_tuple(*tuple, *index, env),
 
         Expression::LengthTuple(tuple) => 
         check_length_tuple(*tuple, env),
+
+        Expression::GetTuple(tuple, index) => 
+        check_get_tuple(*tuple, *index, env),
 
         Expression::List(elements,type_list)=>
         check_create_list(elements,type_list, env),
@@ -49,14 +49,126 @@ pub fn check(exp: Expression, env: &Environment) -> Result<Type, ErrorMessage> {
         Expression::Pop(list)=>
         check_pop_list(*list,env),
 
-        Expression::Get(list,index ) =>
+        Expression::Get(list,index )=>
         check_get_list(*list,*index,env),
 
-        Expression::Len(list) =>
+        Expression::Len(list)=>
         check_len_list(*list,env),
 
+        Expression::Dict(elements)=> 
+        check_dict_creation(elements, env),
+
+        Expression::GetDict(dict, key)=> 
+        check_dict_get(*dict, *key, env),
+
+        Expression::SetDict(dict, key, value)=> 
+        check_dict_set(*dict, *key, *value, env),
+
+        Expression::RemoveDict(dict, key)=> 
+        check_dict_remove(*dict, *key, env),
 
         _ => Err(String::from("not implemented yet")),
+    }
+}
+
+//ED - Dictionary
+//Dict
+fn check_dict_creation(
+    elements: Option<Vec<(Expression, Expression)>>,
+    env: &Environment,
+) -> Result<Type, ErrorMessage> {
+    if let Some(pairs) = elements {
+        let mut key_type = None;
+        let mut value_type = None;
+
+        for (key, value) in pairs {
+            let current_key_type = check(key, env)?;
+            let current_value_type = check(value, env)?;
+
+            if let Some(expected_key_type) = &key_type {
+                if *expected_key_type != current_key_type {
+                    return Err(String::from("[Type Error] inconsistent key types in dictionary."));
+                }
+            } else {
+                key_type = Some(current_key_type);
+            }
+
+            if let Some(expected_value_type) = &value_type {
+                if *expected_value_type != current_value_type {
+                    return Err(String::from("[Type Error] inconsistent value types in dictionary."));
+                }
+            } else {
+                value_type = Some(current_value_type);
+            }
+        }
+
+        Ok(Type::TDict(
+            Box::new(key_type.unwrap()),
+            Box::new(value_type.unwrap()),
+        ))
+    } else {
+        Err(String::from("[Type Error] dictionary cannot be empty."))
+    }
+}
+//GetDict
+fn check_dict_get(
+    dict: Expression,
+    key: Expression,
+    env: &Environment,
+) -> Result<Type, ErrorMessage> {
+    let dict_type = check(dict, env)?;
+    let key_type = check(key, env)?;
+
+    if let Type::TDict(boxed_key_type, boxed_value_type) = dict_type {
+        if *boxed_key_type == key_type {
+            Ok(*boxed_value_type)
+        } else {
+            Err(String::from("[Type Error] key type does not match dictionary key type."))
+        }
+    } else {
+        Err(String::from("[Type Error] expected a dictionary type."))
+    }
+}
+//SetDict
+fn check_dict_set(
+    dict: Expression,
+    key: Expression,
+    value: Expression,
+    env: &Environment,
+) -> Result<Type, ErrorMessage> {
+    let dict_type = check(dict, env)?;
+    let key_type = check(key, env)?;
+    let value_type = check(value, env)?;
+
+    if let Type::TDict(boxed_key_type, boxed_value_type) = dict_type {
+        if *boxed_key_type == key_type && *boxed_value_type == value_type {
+            Ok(Type::TDict(boxed_key_type, boxed_value_type))
+        } else {
+            Err(String::from(
+                "[Type Error] key or value type does not match dictionary type.",
+            ))
+        }
+    } else {
+        Err(String::from("[Type Error] expected a dictionary type."))
+    }
+}
+//RemoveDict
+fn check_dict_remove(
+    dict: Expression,
+    key: Expression,
+    env: &Environment,
+) -> Result<Type, ErrorMessage> {
+    let dict_type = check(dict, env)?;
+    let key_type = check(key, env)?;
+
+    if let Type::TDict(ref boxed_key_type, _) = dict_type {
+        if boxed_key_type.as_ref() == &key_type {
+            Ok(dict_type)
+        } else {
+            Err(String::from("[Type Error] key type does not match dictionary key type."))
+        }
+    } else {
+        Err(String::from("[Type Error] expected a dictionary type."))
     }
 }
 
@@ -100,7 +212,7 @@ fn check_add_tuple(
 
             if new_element_type != first_element_type {
                 return Err(format!(
-                    "[Type error] Cannot add element of type {:?} to tuple with elements of type {:?}",
+                    "Type {:?} does not match type {:?}",
                     new_element_type, first_element_type
                 ));
             }
@@ -114,18 +226,21 @@ fn check_add_tuple(
     }
 }
 
-fn check_remove_tuple(
+fn check_get_tuple(
     tuple_expr: Expression,
     index_expr: Expression,
     env: &Environment,
 ) -> Result<Type, ErrorMessage> {
+    // Verifica o tipo da tupla
     let tuple_type = check(tuple_expr.clone(), env)?;
     match tuple_type {
         Type::TTuple(inner_type) => {
+            // Verifica o tipo do índice
             let index_type = check(index_expr.clone(), env)?;
             match index_type {
                 Type::TInteger => {
-                    Ok(Type::TTuple(inner_type))
+                    // Índice é válido, retorna o tipo dos elementos da tupla
+                    Ok(*inner_type)
                 }
                 _ => Err(String::from("[Type error] Index must be an integer")),
             }
@@ -302,12 +417,92 @@ fn check_bin_relational_expression(
 
 #[cfg(test)]
 mod tests {
-    use std::hash::Hash;
+    //use std::hash::Hash;
 
     use super::*;
 
     use crate::ir::ast::Expression::*;
     use crate::ir::ast::Type::*;
+
+    //Teste de criação do dicionário (check_dict_creation)
+    #[test]
+    fn test_check_dict_creation() {
+        let env = HashMap::new();
+    
+        let result = check_dict_creation(Some(vec![
+            (Expression::CString("key1".to_string()), Expression::CInt(1)),
+            (Expression::CString("key2".to_string()), Expression::CInt(2)),
+        ]), &env);
+    
+        assert!(result.is_ok());
+        if let Ok(typ) = result {
+            assert_eq!(typ, Type::TDict(Box::new(Type::TString), Box::new(Type::TInteger)));
+        }
+    }
+    //Teste de acesso a valor do dicionário (check_dict_get)
+    #[test]
+    fn test_check_dict_get() {
+        let env = HashMap::new();
+        
+        let dict = Expression::Dict(Some(vec![
+            (Expression::CString("key1".to_string()), Expression::CInt(1)),
+        ]));
+
+        let result = check_dict_get(dict, Expression::CString("key1".to_string()), &env);
+
+        assert!(result.is_ok());
+        if let Ok(typ) = result {
+            assert_eq!(typ, Type::TInteger);
+        }
+    }
+    //Teste de alteração ou inserção no dicionário (check_dict_set)
+    #[test]
+    fn test_check_dict_set() {
+        let env = HashMap::new();
+        
+        let dict = Expression::Dict(Some(vec![
+            (Expression::CString("key1".to_string()), Expression::CInt(1)),
+        ]));
+    
+        let result = check_dict_set(dict, Expression::CString("key2".to_string()), Expression::CInt(2), &env);
+    
+        assert!(result.is_ok());
+        if let Ok(typ) = result {
+            assert_eq!(typ, Type::TDict(Box::new(Type::TString), Box::new(Type::TInteger)));
+        }
+    }
+    //Teste de remoção de valor do dicionário (check_dict_remove)
+    #[test]
+    fn test_check_dict_remove() {
+        let env = HashMap::new();
+
+        let dict = Expression::Dict(Some(vec![
+            (Expression::CString("key1".to_string()), Expression::CInt(1)),
+            (Expression::CString("key2".to_string()), Expression::CInt(2)),
+        ]));
+
+        let result = check_dict_remove(dict, Expression::CString("key1".to_string()), &env);
+
+        assert!(result.is_ok());
+        if let Ok(typ) = result {
+            assert_eq!(typ, Type::TDict(Box::new(Type::TString), Box::new(Type::TInteger)));
+        }
+    }
+
+    #[test]
+    fn check_create_valid_tuple(){
+        let env = HashMap::new();
+        let tuple = Tuple(vec![CInt(1), CInt(2), CInt(3)]);
+        assert_eq!(check(tuple, &env), Ok(TTuple(Box::new(TInteger))));
+    }
+
+    #[test]
+    fn check_create_invalid_tuple(){
+        let env = HashMap::new();
+        let tuple = Tuple(vec![CInt(1), CString("Rust".to_string()), CInt(3)]);
+        assert_eq!(check(tuple, &env), 
+        Err(String::from("[Type error] Different types in tuple")));
+    }
 
     #[test]
     fn check_create_valid_list() {
@@ -386,16 +581,16 @@ mod tests {
 
     #[test]
     fn check_ttuple_comparison() {
-        let t_tuple1 = TTuple(vec![TInteger, TBool]);
-        let t_tuple2 = TTuple(vec![TInteger, TBool]);
+        let t_tuple1 = TTuple(Box::new(TInteger));
+        let t_tuple2 = TTuple(Box::new(TInteger));
 
         assert_eq!(t_tuple1 == t_tuple2, true);
     }
 
     #[test]
     fn check_ttuple_comparison_different_types() {
-        let t_tuple1 = TTuple(vec![TInteger, TBool]);
-        let t_tuple2 = TTuple(vec![TBool, TInteger]);
+        let t_tuple1 = TTuple(Box::new(TInteger));
+        let t_tuple2 = TTuple(Box::new(TBool));
 
         assert_eq!(t_tuple1 == t_tuple2, false);
     }

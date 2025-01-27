@@ -29,8 +29,8 @@ pub fn eval(exp: Expression, env: &Environment) -> Result<Expression, ErrorMessa
         Expression::AddTuple(tuple, new_element) => 
         eval_add_tuple(*tuple, *new_element, env),
 
-        Expression::RemoveTuple(tuple, index) => 
-        eval_remove_tuple(*tuple, *index, env),
+        Expression::GetTuple(tuple, index) => 
+        eval_get_tuple(*tuple, *index, env),
 
         Expression::LengthTuple(tuple) => 
         eval_length_tuple(*tuple, env),
@@ -49,7 +49,18 @@ pub fn eval(exp: Expression, env: &Environment) -> Result<Expression, ErrorMessa
 
         Expression::Len(list)=>
         eval_len_list(*list,env),
+
+        //Expression::Dict(elements)=> 
+        //eval_create_dict(elements, env),
         
+        //Expression::SetDict(dict, key, value)=> 
+        //eval_set_dict(*dict, *key, *value, env),
+        
+        //Expression::GetDict(dict, key)=> 
+        //eval_get_dict(*dict, *key, env),
+        
+        //Expression::RemoveDict(dict, key)=> 
+        //eval_remove_dict(*dict, *key, env),
 
         _ if is_constant(exp.clone()) => Ok(exp),
         _ => Err(String::from("Not implemented yet.")),
@@ -124,7 +135,7 @@ fn eval_add_tuple(tuple_expr: Expression, new_element: Expression, env: &Environ
                 }
                 _ => {
                     return Err(format!(
-                        "Type mismatch: Cannot add element {:?} to tuple with elements of type {:?}",
+                        "Type {:?} does not match type {:?}",
                         eval_new_element, first_element
                     ));
                 }
@@ -136,31 +147,27 @@ fn eval_add_tuple(tuple_expr: Expression, new_element: Expression, env: &Environ
     }
 }
 
-fn eval_remove_tuple(
+
+fn eval_get_tuple(
     tuple_expr: Expression,
     index_expr: Expression,
     env: &Environment,
 ) -> Result<Expression, ErrorMessage> {
+    // Avalia a expressão da tupla
     let tuple_eval = eval(tuple_expr, env)?;
+    // Avalia a expressão do índice
     let index_eval = eval(index_expr, env)?;
 
     match (tuple_eval, index_eval) {
-        (Expression::Tuple(mut elements), Expression::CInt(index)) => {
-            if index < 0 || index >= elements.len() as i32 {
-                return Err(String::from("Index out of bounds"));
+        (Expression::Tuple(elements), Expression::CInt(index)) => {
+            if index < 0 || index as usize >= elements.len() {
+                Err(String::from("Index out of bounds"))
+            } else {
+                Ok(elements[index as usize].clone())
             }
-
-            let idx = index as usize;
-            elements.remove(idx);
-
-            Ok(Expression::Tuple(elements))
-        },
-        (Expression::Tuple(_), _) => {
-            Err(String::from("Index must be an integer"))
-        },
-        _ => {
-            Err(String::from("First argument must be a tuple"))
         }
+        (Expression::Tuple(_), _) => Err(String::from("Index must be an integer")),
+        _ => Err(String::from("First argument must be a tuple")),
     }
 }
 
@@ -573,12 +580,49 @@ pub fn execute(stmt: Statement, env: Environment) -> Result<Environment, ErrorMe
 #[cfg(test)]
 mod tests {
 
-    use std::hash::Hash;
+    //use std::hash::Hash;
 
     use super::*;
     use crate::ir::ast::Expression::*;
     use crate::ir::ast::Statement::*;
     use approx::relative_eq;
+
+
+    #[test]
+    fn eval_add_valid_tuple(){
+        let env = HashMap::new();
+        let mut tuple = Expression::Tuple(vec![]);
+        tuple = eval(Expression::AddTuple(Box::new(tuple),Box::new(Expression::CInt(4))),&env).unwrap();
+
+        assert_eq!(tuple,Expression::Tuple(vec![Expression::CInt(4)]));
+    }
+
+    #[test]
+    fn eval_add_invalid_tuple(){
+        let env = HashMap::new();
+        let tuple = Expression::Tuple(vec![CInt(5)]);
+        let result = eval(Expression::AddTuple(Box::new(tuple),Box::new(Expression::CReal(4.5))),&env);
+
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err(),
+            "Type CReal(4.5) does not match type CInt(5)"
+        );
+
+    }
+
+
+    #[test]
+    fn eval_len_tuple(){
+        let env = HashMap::new();
+        let list = Expression::Tuple(vec![
+            Expression::CString("Rust".to_string()),
+            Expression::CString("Java".to_string()),
+            Expression::CString("Python".to_string())]);
+        let tam_list = eval(Expression::LengthTuple(Box::new(list)),&env).unwrap();
+
+        assert_eq!(tam_list,Expression::CInt(3));
+    }
 
     #[test]
     fn eval_push_list() {
