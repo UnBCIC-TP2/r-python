@@ -10,6 +10,7 @@ use nom::{
     sequence::{delimited, preceded, tuple},
     IResult,
 };
+use nom::multi::separated_list0;
 
 // Parse identifier
 fn identifier(input: &str) -> IResult<&str, Name> {
@@ -115,7 +116,7 @@ fn arithmetic_expression(input: &str) -> IResult<&str, Expression> {
 fn dictionary_expression(input: &str) -> IResult<&str, Expression> {
     let (input, _) = delimited(space0, char('{'), multispace0)(input)?;
 
-    let (input, key_value_pairs) = separated_list1(
+    let (input, key_value_pairs) = separated_list0(
         delimited(space0, char(','), multispace0),
         separated_pair(identifier, delimited(space0, char(':'), space0), expression),
     )(input)?;
@@ -510,6 +511,21 @@ mod tests {
                         ),
                     }
                 }
+            }
+            _ => panic!("Expected Dictionary"),
+        }
+    }
+
+    #[test]
+    fn test_empty_dictionary_expression() {
+        let input = "{}";
+
+        let (rest, dict) = dictionary_expression(input).unwrap();
+        assert_eq!(rest, "");
+
+        match dict {
+            Expression::Dict(pairs) => {
+                assert_eq!(pairs.len(), 0, "Expected 0 pairs in dictionary");
             }
             _ => panic!("Expected Dictionary"),
         }
