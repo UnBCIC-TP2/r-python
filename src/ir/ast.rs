@@ -2,7 +2,7 @@ pub type Name = String;
 
 use nom::IResult;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Type {
     TInteger,
     TBool,
@@ -47,6 +47,7 @@ pub enum Expression {
     /* data structures */
     Dict(Vec<(Name, Box<Expression>)>),
     DictAccess(Name, Name),
+    DictMerge(Name, Vec<(Name, Box<Expression>)>),
 
     /* membership checks over collections */
     In(Name, Name),

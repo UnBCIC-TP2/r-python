@@ -22,6 +22,10 @@ pub fn eval(exp: Expression, env: &Environment) -> Result<Expression, ErrorMessa
         Expression::GTE(lhs, rhs) => gte(*lhs, *rhs, env),
         Expression::LTE(lhs, rhs) => lte(*lhs, *rhs, env),
         Expression::Var(name) => lookup(name, env),
+        Expression::Dict(entries) => eval_dictionary(entries, env),
+        Expression::DictMerge(dict_name, new_entries) => {
+            eval_dictionary_merge(dict_name, new_entries, env)
+        }
         Expression::In(item_name, collection_name) => {
             eval_in_expression(item_name, collection_name, env)
         }
@@ -289,6 +293,66 @@ fn lte(lhs: Expression, rhs: Expression, env: &Environment) -> Result<Expression
     )
 }
 
+fn eval_dictionary(
+    dict_entries: Vec<(Name, Box<Expression>)>,
+    env: &Environment,
+) -> Result<Expression, ErrorMessage> {
+    let mut evaluated_dic: Vec<(Name, Box<Expression>)> = Vec::new();
+
+    for (key, value_exp) in dict_entries {
+        let evaluated_exp = eval(*value_exp, env)?;
+
+        evaluated_dic.push((key, Box::new(evaluated_exp)))
+    }
+
+    Ok(Expression::Dict(evaluated_dic))
+}
+
+fn eval_dictionary_merge(
+    dict_name: Name,
+    new_entries: Vec<(Name, Box<Expression>)>,
+    env: &Environment,
+) -> Result<Expression, ErrorMessage> {
+    let old_entries = match env.get(&dict_name) {
+        Some(Expression::Dict(entries)) => entries,
+        Some(_) => {
+            return Err(format!(
+                "operator (with) is not defined for '{}'.",
+                dict_name
+            ))
+        }
+        None => return Err(format!("Variable {} not found", dict_name)),
+    };
+
+    let new_entries = match eval_dictionary(new_entries, env) {
+        Ok(Expression::Dict(entries)) => entries,
+        Err(msg) => return Err(msg),
+        _ => unreachable!(),
+    };
+
+    let mut merged_keys: Vec<Name> = Vec::new();
+    let mut merged_exps: HashMap<Name, Box<Expression>> = HashMap::new();
+
+    for (key, exp) in old_entries {
+        merged_keys.push(key.clone());
+        merged_exps.insert(key.clone(), exp.clone());
+    }
+
+    for (key, exp) in &new_entries {
+        if !merged_keys.contains(key) {
+            merged_keys.push(key.clone());
+        }
+        merged_exps.insert(key.clone(), exp.clone());
+    }
+
+    let new_dict: Vec<(Name, Box<Expression>)> = merged_keys
+        .into_iter()
+        .map(|k| (k.clone(), merged_exps.get(&k).unwrap().clone()))
+        .collect();
+
+    Ok(Expression::Dict(new_dict))
+}
+
 fn eval_in_expression(
     item_name: Name,
     collection_name: Name,
@@ -393,7 +457,6 @@ pub fn execute(stmt: Statement, env: Environment) -> Result<Environment, ErrorMe
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
     use crate::ir::ast::Expression::*;
     use crate::ir::ast::Statement::*;
@@ -1087,6 +1150,146 @@ mod tests {
             }
             Err(s) => assert!(false, "{}", s),
         }
+    }
+
+    #[test]
+    fn eval_dictionary() {
+        /*
+         * Test for dictionary with expressions
+         *
+         * > var = 26
+         * > dict = {
+         * >    x: 10 + 12 + 20,
+         * >    y: true && false || true,
+         * >    z: var + 50
+         * > }
+         *
+         * After executing, 'dict' should be {
+         * > { x: 42, y: true,  z: 76 }
+         */
+
+        let env = HashMap::from([(String::from("var"), CInt(26))]);
+
+        let dict_exp = Dict(vec![
+            (
+                String::from("x"),
+                Box::new(Add(
+                    Box::new(Add(Box::new(CInt(10)), Box::new(CInt(12)))),
+                    Box::new(CInt(20)),
+                )),
+            ),
+            (
+                String::from("y"),
+                Box::new(Or(
+                    Box::new(And(Box::new(CTrue), Box::new(CFalse))),
+                    Box::new(CTrue),
+                )),
+            ),
+            (
+                String::from("z"),
+                Box::new(Add(Box::new(Var(String::from("var"))), Box::new(CInt(50)))),
+            ),
+        ]);
+
+        let evaluated_dict = eval(dict_exp, &env);
+
+        assert_eq!(
+            evaluated_dict,
+            Ok(Dict(vec![
+                (String::from("x"), Box::new(CInt(42))),
+                (String::from("y"), Box::new(CTrue)),
+                (String::from("z"), Box::new(CInt(76))),
+            ])),
+            "Dictionary not evaluated correctly"
+        );
+    }
+
+    #[test]
+    fn eval_nested_dictionaries() {
+        /*
+         * Test for nested dictionaries expressions
+         *
+         * > var = 10
+         * > dict = { x: 10 + 12, y: { y1: 12, y2: var + 20 } }
+         *
+         * After executing, 'dict' should be {
+         * > { x: 22, y: { y1: 12, y2: 30 } }
+         */
+
+        let env = HashMap::from([(String::from("var"), CInt(10))]);
+
+        let dict_exp = Dict(vec![
+            (
+                String::from("x"),
+                Box::new(Add(Box::new(CInt(10)), Box::new(CInt(12)))),
+            ),
+            (
+                String::from("y"),
+                Box::new(Dict(vec![
+                    (String::from("y1"), Box::new(CInt(12))),
+                    (
+                        String::from("y2"),
+                        Box::new(Add(Box::new(Var(String::from("var"))), Box::new(CInt(20)))),
+                    ),
+                ])),
+            ),
+        ]);
+
+        let evaluated_dict = eval(dict_exp, &env);
+
+        assert_eq!(
+            evaluated_dict,
+            Ok(Dict(vec![
+                (String::from("x"), Box::new(CInt(22))),
+                (
+                    String::from("y"),
+                    Box::new(Dict(vec![
+                        (String::from("y1"), Box::new(CInt(12))),
+                        (String::from("y2"), Box::new(CInt(30))),
+                    ])),
+                ),
+            ])),
+            "Dictionary not evaluated correctly"
+        );
+    }
+
+    #[test]
+    fn check_dictionary_merge_expression() {
+        /*
+         * Test for dictionary merge expression:
+         *
+         * > dict = {x: 10, y: 20}
+         * > new_dict = dict with {y: true, z: 30}
+         *
+         * 'new_dict' should be {x: 10, y: true, z: 30}
+         */
+
+        let env = HashMap::from([(
+            String::from("dict"),
+            Dict(vec![
+                (String::from("x"), Box::new(CInt(10))),
+                (String::from("y"), Box::new(CInt(20))),
+            ]),
+        )]);
+
+        let merge_exp = DictMerge(
+            String::from("dict"),
+            vec![
+                (String::from("y"), Box::new(CTrue)),
+                (String::from("z"), Box::new(CInt(30))),
+            ],
+        );
+
+        let new_dict = eval(merge_exp, &env);
+
+        assert_eq!(
+            new_dict,
+            Ok(Dict(vec![
+                (String::from("x"), Box::new(CInt(10))),
+                (String::from("y"), Box::new(CTrue)),
+                (String::from("z"), Box::new(CInt(30)))
+            ]))
+        );
     }
 
     #[test]

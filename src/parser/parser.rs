@@ -49,6 +49,7 @@ fn expression(input: &str) -> IResult<&str, Expression> {
         arithmetic_expression,
         dictionary_expression,
         dictionary_access_expression,
+        dict_merge_expression,
         in_expression,
         not_in_expression,
         integer,
@@ -144,7 +145,24 @@ fn dictionary_access_expression(input: &str) -> IResult<&str, Expression> {
     Ok((input, Expression::DictAccess(dict_name, key_name)))
 }
 
-/// Parses a 'in' expression.
+/// Parses a merge expression that creates a new updated dictionary.
+/// Example: `dict_name with { key1 = value1, key2 = value2 }`
+fn dict_merge_expression(input: &str) -> IResult<&str, Expression> {
+    let (input, (dict_name, new_dict)) = separated_pair(
+        identifier,
+        tuple((space0, tag("with"), space0)),
+        dictionary_expression,
+    )(input)?;
+
+    let new_entries = match new_dict {
+        Expression::Dict(entries) => entries,
+        _ => unreachable!(),
+    };
+
+    Ok((input, Expression::DictMerge(dict_name, new_entries)))
+}
+
+/// Parses a `in` expression.
 /// Example: `key in dict`
 fn in_expression(input: &str) -> IResult<&str, Expression> {
     let (input, (item_name, collection_name)) =
@@ -153,7 +171,7 @@ fn in_expression(input: &str) -> IResult<&str, Expression> {
     Ok((input, Expression::In(item_name, collection_name)))
 }
 
-/// Parses a 'not in' expression.
+/// Parses a `not in` expression.
 /// Example: `key not in dict`
 fn not_in_expression(input: &str) -> IResult<&str, Expression> {
     let (input, (item_name, collection_name)) = separated_pair(
@@ -739,6 +757,42 @@ mod tests {
                 assert_eq!(collection_name, "dict");
             }
             _ => panic!("Expected 'in' expression"),
+        }
+    }
+
+    #[test]
+    fn test_dictionary_merge_expression() {
+        let input = "dict with {x: 42, y: 10}";
+
+        let (rest, dict) = dict_merge_expression(input).unwrap();
+        assert_eq!(rest, "");
+
+        let expected_dict_name = "dict";
+        let expected_new_entries = vec![
+            ("x", Box::new(Expression::CInt(42))),
+            ("y", Box::new(Expression::CInt(10))),
+        ];
+
+        match dict {
+            Expression::DictMerge(dict_name, new_entries) => {
+                assert_eq!(dict_name, expected_dict_name);
+                assert_eq!(new_entries.len(), 2, "Expected 2 new entries");
+
+                for (i, pair) in expected_new_entries.iter().enumerate() {
+                    assert_eq!(
+                        pair.0, expected_new_entries[i].0,
+                        "Expected new key '{}'",
+                        expected_new_entries[i].0
+                    );
+
+                    assert_eq!(
+                        pair.1, expected_new_entries[i].1,
+                        "Key '{}' has a different type than expected",
+                        expected_new_entries[i].0,
+                    );
+                }
+            }
+            _ => panic!("Expected dictionary 'with' expression"),
         }
     }
 }
