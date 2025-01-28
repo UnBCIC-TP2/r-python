@@ -27,6 +27,8 @@ pub fn check(exp: Expression, env: &Environment) -> Result<Type, ErrorMessage> {
         Expression::LT(l, r) => check_bin_relational_expression(*l, *r, env),
         Expression::GTE(l, r) => check_bin_relational_expression(*l, *r, env),
         Expression::LTE(l, r) => check_bin_boolean_expression(*l, *r, env),
+        Expression::In(_, collection_name) => check_membership_expression(collection_name, env),
+        Expression::NotIn(_, collection_name) => check_membership_expression(collection_name, env),
         _ => Err(String::from("not implemented yet")),
     }
 }
@@ -59,6 +61,18 @@ fn check_bin_boolean_expression(
     match (left_type, right_type) {
         (Type::TBool, Type::TBool) => Ok(Type::TBool),
         _ => Err(String::from("[Type Error] expecting boolean type values.")),
+    }
+}
+
+fn check_membership_expression(
+    collection_name: Name,
+    env: &Environment,
+) -> Result<Type, ErrorMessage> {
+    match env.get(&collection_name) {
+        Some(Type::TDict(_)) => Ok(Type::TBool),
+        _ => Err(String::from(
+            "[Type Error] expecting a collection type on the right side.",
+        )),
     }
 }
 
@@ -222,6 +236,48 @@ mod tests {
         assert_eq!(
             check(or, &env),
             Err(String::from("[Type Error] expecting boolean type values."))
+        );
+    }
+
+    #[test]
+    fn check_in_expression() {
+        let env = HashMap::from([(String::from("dict"), TDict(vec![]))]);
+        let in_exp = In(String::from("key"), String::from("dict"));
+
+        assert_eq!(check(in_exp, &env), Ok(TBool));
+    }
+
+    #[test]
+    fn check_type_error_in_expression() {
+        let env = HashMap::from([(String::from("var"), TInteger)]);
+        let in_exp = In(String::from("key"), String::from("var"));
+
+        assert_eq!(
+            check(in_exp, &env),
+            Err(String::from(
+                "[Type Error] expecting a collection type on the right side."
+            ))
+        );
+    }
+
+    #[test]
+    fn check_not_in_expression() {
+        let env = HashMap::from([(String::from("dict"), TDict(vec![]))]);
+        let not_in_exp = NotIn(String::from("key"), String::from("dict"));
+
+        assert_eq!(check(not_in_exp, &env), Ok(TBool));
+    }
+
+    #[test]
+    fn check_type_error_not_in_expression() {
+        let env = HashMap::from([(String::from("var"), TInteger)]);
+        let not_in_exp = NotIn(String::from("key"), String::from("var"));
+
+        assert_eq!(
+            check(not_in_exp, &env),
+            Err(String::from(
+                "[Type Error] expecting a collection type on the right side."
+            ))
         );
     }
 }

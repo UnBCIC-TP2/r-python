@@ -1,5 +1,6 @@
 use crate::ir::ast::{Expression, Name, Statement};
 use nom::character::complete::multispace0;
+use nom::multi::separated_list0;
 use nom::sequence::separated_pair;
 use nom::{
     branch::alt,
@@ -10,7 +11,6 @@ use nom::{
     sequence::{delimited, preceded, tuple},
     IResult,
 };
-use nom::multi::separated_list0;
 
 // Parse identifier
 fn identifier(input: &str) -> IResult<&str, Name> {
@@ -49,6 +49,8 @@ fn expression(input: &str) -> IResult<&str, Expression> {
         arithmetic_expression,
         dictionary_expression,
         dictionary_access_expression,
+        in_expression,
+        not_in_expression,
         integer,
         map(identifier, |name| Expression::Var(name)),
     ))(input)
@@ -140,6 +142,27 @@ fn dictionary_access_expression(input: &str) -> IResult<&str, Expression> {
     let (input, (dict_name, key_name)) = separated_pair(identifier, char('.'), identifier)(input)?;
 
     Ok((input, Expression::DictAccess(dict_name, key_name)))
+}
+
+/// Parses a 'in' expression.
+/// Example: `key in dict`
+fn in_expression(input: &str) -> IResult<&str, Expression> {
+    let (input, (item_name, collection_name)) =
+        separated_pair(identifier, tuple((space0, tag("in"), space0)), identifier)(input)?;
+
+    Ok((input, Expression::In(item_name, collection_name)))
+}
+
+/// Parses a 'not in' expression.
+/// Example: `key not in dict`
+fn not_in_expression(input: &str) -> IResult<&str, Expression> {
+    let (input, (item_name, collection_name)) = separated_pair(
+        identifier,
+        tuple((space0, tag("not"), space0, tag("in"), space0)),
+        identifier,
+    )(input)?;
+
+    Ok((input, Expression::NotIn(item_name, collection_name)))
 }
 
 //indented block parser
@@ -684,6 +707,38 @@ mod tests {
                 );
             }
             _ => panic!("Expected dictionary key assignment"),
+        }
+    }
+
+    #[test]
+    fn test_in_expression() {
+        let input = "key in dict";
+
+        let (rest, access_exp) = in_expression(input).unwrap();
+        assert_eq!(rest, "");
+
+        match access_exp {
+            Expression::In(item_name, collection_name) => {
+                assert_eq!(item_name, "key");
+                assert_eq!(collection_name, "dict");
+            }
+            _ => panic!("Expected 'in' expression"),
+        }
+    }
+
+    #[test]
+    fn test_not_in_expression() {
+        let input = "key not in dict";
+
+        let (rest, access_exp) = not_in_expression(input).unwrap();
+        assert_eq!(rest, "");
+
+        match access_exp {
+            Expression::NotIn(item_name, collection_name) => {
+                assert_eq!(item_name, "key");
+                assert_eq!(collection_name, "dict");
+            }
+            _ => panic!("Expected 'in' expression"),
         }
     }
 }

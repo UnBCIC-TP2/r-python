@@ -22,6 +22,12 @@ pub fn eval(exp: Expression, env: &Environment) -> Result<Expression, ErrorMessa
         Expression::GTE(lhs, rhs) => gte(*lhs, *rhs, env),
         Expression::LTE(lhs, rhs) => lte(*lhs, *rhs, env),
         Expression::Var(name) => lookup(name, env),
+        Expression::In(item_name, collection_name) => {
+            eval_in_expression(item_name, collection_name, env)
+        }
+        Expression::NotIn(item_name, collection_name) => {
+            eval_not_in_expression(item_name, collection_name, env)
+        }
         _ if is_constant(exp.clone()) => Ok(exp),
         _ => Err(String::from("Not implemented yet.")),
     }
@@ -281,6 +287,67 @@ fn lte(lhs: Expression, rhs: Expression, env: &Environment) -> Result<Expression
         },
         "(<=) is only defined for numbers (integers and real).",
     )
+}
+
+fn eval_in_expression(
+    item_name: Name,
+    collection_name: Name,
+    env: &Environment,
+) -> Result<Expression, ErrorMessage> {
+    eval_membership_expression(
+        item_name,
+        collection_name,
+        "in",
+        |item_found| match item_found {
+            true => Expression::CTrue,
+            false => Expression::CFalse,
+        },
+        env,
+    )
+}
+
+fn eval_not_in_expression(
+    item_name: Name,
+    collection_name: Name,
+    env: &Environment,
+) -> Result<Expression, ErrorMessage> {
+    eval_membership_expression(
+        item_name,
+        collection_name,
+        "not in",
+        |item_found| match item_found {
+            true => Expression::CFalse,
+            false => Expression::CTrue,
+        },
+        env,
+    )
+}
+
+fn eval_membership_expression<F>(
+    item_name: Name,
+    collection_name: Name,
+    operator: &str,
+    check_membership: F,
+    env: &Environment,
+) -> Result<Expression, ErrorMessage>
+where
+    F: Fn(bool) -> Expression,
+{
+    let collection = match env.get(&collection_name) {
+        Some(value) => value,
+        None => return Err(format!("Variable {} not found", collection_name)),
+    };
+
+    match collection {
+        Expression::Dict(entries) => match entries.iter().find(|(item, _)| *item == item_name) {
+            Some(_) => Ok(check_membership(true)),
+            None => Ok(check_membership(false)),
+        },
+        _ => Err(format!(
+            "operator ({}) is not defined for {}.",
+            operator, collection_name
+        )),
+    }
 }
 
 pub fn execute(stmt: Statement, env: Environment) -> Result<Environment, ErrorMessage> {
@@ -1019,6 +1086,117 @@ mod tests {
                 assert_eq!(new_env.get("z"), Some(&CInt(13)));
             }
             Err(s) => assert!(false, "{}", s),
+        }
+    }
+
+    #[test]
+    fn eval_in_expression_item_found() {
+        /*
+         * Test for 'in' expression when the item is found
+         * > dict = {x: 10}
+         * After executing, 'x in dict' should return 'true'.
+         */
+        let env = HashMap::from([(
+            String::from("dict"),
+            Dict(vec![(String::from("x"), Box::new(CInt(10)))]),
+        )]);
+
+        let in_exp = In(String::from("x"), String::from("dict"));
+
+        match eval(in_exp, &env) {
+            Ok(CTrue) => assert!(true),
+            _ => assert!(false),
+        }
+    }
+
+    #[test]
+    fn eval_in_expression_item_not_found() {
+        /*
+         * Test for 'in' expression when the item is not found
+         * > dict = {}
+         * After executing, 'x in dict' should return 'false'.
+         */
+        let env = HashMap::from([(String::from("dict"), Dict(vec![]))]);
+
+        let in_exp = In(String::from("x"), String::from("dict"));
+
+        match eval(in_exp, &env) {
+            Ok(CFalse) => assert!(true),
+            _ => assert!(false),
+        }
+    }
+
+    #[test]
+    fn eval_in_expression_not_collection_error() {
+        /*
+         * Test for 'in' expression when the variable is not a collection
+         * > var = 10
+         * After executing, 'x in var' should return an error.
+         */
+        let env = HashMap::from([(String::from("var"), CInt(10))]);
+
+        let in_exp = In(String::from("x"), String::from("var"));
+
+        match eval(in_exp, &env) {
+            Err(msg) => assert_eq!(msg, String::from("operator (in) is not defined for var.")),
+            _ => assert!(false),
+        }
+    }
+
+    #[test]
+    fn eval_not_in_expression_item_found() {
+        /*
+         * Test for 'not in' expression when the item is found
+         * > dict = {x: 10}
+         * After executing, 'x not in dict' should return 'false'.
+         */
+        let env = HashMap::from([(
+            String::from("dict"),
+            Dict(vec![(String::from("x"), Box::new(CInt(10)))]),
+        )]);
+
+        let not_in_exp = NotIn(String::from("x"), String::from("dict"));
+
+        match eval(not_in_exp, &env) {
+            Ok(CFalse) => assert!(true),
+            _ => assert!(false),
+        }
+    }
+
+    #[test]
+    fn eval_not_in_expression_item_not_found() {
+        /*
+         * Test for 'not in' expression when the item is not found
+         * > dict = {}
+         * After executing, 'x not in dict' should return 'true'.
+         */
+        let env = HashMap::from([(String::from("dict"), Dict(vec![]))]);
+
+        let in_exp = NotIn(String::from("x"), String::from("dict"));
+
+        match eval(in_exp, &env) {
+            Ok(CTrue) => assert!(true),
+            _ => assert!(false),
+        }
+    }
+
+    #[test]
+    fn eval_not_in_expression_not_collection_error() {
+        /*
+         * Test for 'not in' expression when the variable is not a collection
+         * > var = 10
+         * After executing, 'x not in var' should return an error.
+         */
+        let env = HashMap::from([(String::from("var"), CInt(10))]);
+
+        let in_exp = NotIn(String::from("x"), String::from("var"));
+
+        match eval(in_exp, &env) {
+            Err(msg) => assert_eq!(
+                msg,
+                String::from("operator (not in) is not defined for var.")
+            ),
+            _ => assert!(false),
         }
     }
 }
