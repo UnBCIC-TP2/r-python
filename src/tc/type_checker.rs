@@ -71,7 +71,6 @@ pub fn check(exp: Expression, env: &Environment) -> Result<Type, ErrorMessage> {
     }
 }
 
-//ED - Dictionary
 //Dict
 fn check_dict_creation(
     elements: Option<Vec<(Expression, Expression)>>,

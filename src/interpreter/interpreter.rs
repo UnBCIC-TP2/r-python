@@ -50,17 +50,17 @@ pub fn eval(exp: Expression, env: &Environment) -> Result<Expression, ErrorMessa
         Expression::Len(list)=>
         eval_len_list(*list,env),
 
-        //Expression::Dict(elements)=> 
-        //eval_create_dict(elements, env),
+        Expression::Dict(elements)=> 
+        eval_create_dict(elements, env),
         
-        //Expression::SetDict(dict, key, value)=> 
-        //eval_set_dict(*dict, *key, *value, env),
+        Expression::SetDict(dict, key, value)=> 
+        eval_set_dict(*dict, *key, *value, env),
         
-        //Expression::GetDict(dict, key)=> 
-        //eval_get_dict(*dict, *key, env),
+        Expression::GetDict(dict, key)=> 
+        eval_get_dict(*dict, *key, env),
         
-        //Expression::RemoveDict(dict, key)=> 
-        //eval_remove_dict(*dict, *key, env),
+        Expression::RemoveDict(dict, key)=> 
+        eval_remove_dict(*dict, *key, env),
 
         _ if is_constant(exp.clone()) => Ok(exp),
         _ => Err(String::from("Not implemented yet.")),
@@ -86,6 +86,83 @@ fn lookup(name: String, env: &Environment) -> Result<Expression, ErrorMessage> {
 }
 
 /* Data structure */
+fn eval_create_dict(
+    elements: Option<Vec<(Expression, Expression)>>, 
+    _env: &Environment
+) -> Result<Expression, ErrorMessage> {
+    match elements {
+        Some(vec) => Ok(Expression::Dict(Some(vec))),
+        None => Ok(Expression::Dict(Some(Vec::new()))),
+    }
+}
+
+fn eval_set_dict(
+    dict: Expression, 
+    key: Expression, 
+    value: Expression, 
+    env: &Environment
+) -> Result<Expression, ErrorMessage> {
+    let mut dict_eval = eval(dict, env)?;
+    let key_eval = eval(key, env)?;
+    let value_eval = eval(value, env)?;
+
+    match dict_eval {
+        Expression::Dict(Some(ref mut entries)) => {
+            for (k, v) in entries.iter_mut() {
+                if *k == key_eval {
+                    *v = value_eval;
+                    return Ok(dict_eval); 
+                }
+            }
+            entries.push((key_eval, value_eval));
+            Ok(dict_eval)
+        }
+        _ => Err(String::from("First argument must be a dictionary")),
+    }
+}
+
+fn eval_get_dict(
+    dict: Expression, 
+    key: Expression, 
+    env: &Environment
+) -> Result<Expression, ErrorMessage> {
+    let dict_eval = eval(dict, env)?;
+    let key_eval = eval(key, env)?;
+
+    match dict_eval {
+        Expression::Dict(Some(entries)) => {
+            for (k, v) in entries.iter() {
+                if *k == key_eval {
+                    return Ok(v.clone());
+                }
+            }
+            Err(String::from("Key not found in dictionary"))
+        }
+        _ => Err(String::from("First argument must be a dictionary")),
+    }
+}
+
+fn eval_remove_dict(
+    dict: Expression, 
+    key: Expression, 
+    env: &Environment
+) -> Result<Expression, ErrorMessage> {
+    let mut dict_eval = eval(dict, env)?;
+    let key_eval = eval(key, env)?;
+
+    match dict_eval {
+        Expression::Dict(Some(ref mut entries)) => {
+            if let Some(pos) = entries.iter().position(|(k, _)| *k == key_eval) {
+                entries.remove(pos);
+                Ok(dict_eval)
+            } else {
+                Err(String::from("Key not found in dictionary"))
+            }
+        }
+        _ => Err(String::from("First argument must be a dictionary")),
+    }
+}
+
 fn eval_create_tuple(elements: Vec<Expression>, env: &Environment) -> Result<Expression, ErrorMessage> {
     let mut evaluated_elements = Vec::new();
     let mut type_list_eval: Option<Expression> = None;
@@ -587,6 +664,36 @@ mod tests {
     use crate::ir::ast::Statement::*;
     use approx::relative_eq;
 
+    #[test]
+    fn create_dict_test() {
+        let dict = eval_create_dict(Some(Vec::new()), &Environment::new()).unwrap();
+        assert_eq!(dict, Expression::Dict(Some(Vec::new())));
+    }
+
+    #[test]
+    fn set_dict_test() {
+        let dict = eval_create_dict(Some(Vec::new()), &Environment::new()).unwrap();
+        let dict = eval_set_dict(dict, Expression::CInt(1), Expression::CString("one".to_string()), &Environment::new()).unwrap();
+        let result = eval_get_dict(dict, Expression::CInt(1), &Environment::new());
+        assert_eq!(result.unwrap(), Expression::CString("one".to_string()));
+    }
+
+    #[test]
+    fn get_dict_test() {
+        let dict = eval_create_dict(Some(Vec::new()), &Environment::new()).unwrap();
+        let dict = eval_set_dict(dict, Expression::CInt(1), Expression::CString("one".to_string()), &Environment::new()).unwrap();
+        let result = eval_get_dict(dict, Expression::CInt(1), &Environment::new());
+        assert_eq!(result.unwrap(), Expression::CString("one".to_string()));
+    }
+
+    #[test]
+    fn remove_dict_test() {
+        let dict = eval_create_dict(Some(Vec::new()), &Environment::new()).unwrap();
+        let dict = eval_set_dict(dict, Expression::CInt(1), Expression::CString("one".to_string()), &Environment::new()).unwrap();
+        let dict = eval_remove_dict(dict, Expression::CInt(1), &Environment::new()).unwrap();
+        let result = eval_get_dict(dict, Expression::CInt(1), &Environment::new());
+        assert!(result.is_err());
+    }
 
     #[test]
     fn eval_add_valid_tuple(){
@@ -610,7 +717,6 @@ mod tests {
         );
 
     }
-
 
     #[test]
     fn eval_len_tuple(){
