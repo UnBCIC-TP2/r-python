@@ -375,9 +375,9 @@ fn check_create_list(
             Ok(Type::TList(Box::new(first_type)))
         }
         
-        _=>{
-            Err(String::from("[Type error] expected list as argument"))
-        }
+        // _=>{
+        //     Err(String::from("[Type error] expected list as argument"))
+        // }
     }
 }
 
@@ -514,7 +514,7 @@ mod tests {
     use crate::ir::ast::Type::*;
 
     #[test]
-    fn test_check_dict_creation_valid() {
+    fn check_dict_creation_t() {
         let env = Environment::new();
 
         let elements = Some(vec![
@@ -527,7 +527,7 @@ mod tests {
     }
     
     #[test]
-    fn test_check_hash_creation_valid() {
+    fn check_hash_creation_t() {
         let env = Environment::new();
 
         let mut map = HashMap::new();
@@ -539,7 +539,7 @@ mod tests {
     }
 
     #[test]
-    fn test_check_dict_get() {
+    fn check_dict_get_t() {
         let env = Environment::new();
 
         let dict = Expression::Dict(Some(vec![
@@ -554,7 +554,7 @@ mod tests {
     }
 
     #[test]
-    fn test_check_hash_get() {
+    fn check_hash_get_t() {
         let env = Environment::new();
     
         let mut hash_map = HashMap::new();
@@ -569,7 +569,7 @@ mod tests {
     }
 
     #[test]
-    fn test_check_dict_set() {
+    fn check_dict_set_t() {
         let env = Environment::new();
     
         let dict_elements = vec![
@@ -589,7 +589,7 @@ mod tests {
         assert_eq!(result, Ok(Type::TInteger));
     }
     #[test]
-    fn test_check_hash_set() {
+    fn check_hash_set_t() {
         let env = Environment::new();
 
         let mut hash_map = HashMap::new();
@@ -607,7 +607,7 @@ mod tests {
     }
 
     #[test]
-    fn test_check_dict_remove() {
+    fn check_dict_remove_t() {
         let env = Environment::new();
     
         let dict_elements = vec![
@@ -638,7 +638,7 @@ mod tests {
     }
     
     #[test]
-    fn test_check_hash_remove() {
+    fn check_hash_remove_t() {
         let env = Environment::new();
         
         let mut hash_elements = HashMap::new();

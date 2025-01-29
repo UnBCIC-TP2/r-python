@@ -64,13 +64,11 @@ pub enum Expression {
     GetDict(Box<Expression>, Box<Expression>),
     SetDict(Box<Expression>, Box<Expression>, Box<Expression>),
     RemoveDict(Box<Expression>, Box<Expression>),
-    ContainsKeyDict(Box<Expression>, Box<Expression>),
     
     Hash(Option<HashMap<Expression, Expression>>),
     GetHash(Box<Expression>, Box<Expression>),
     SetHash(Box<Expression>, Box<Expression>, Box<Expression>),
     RemoveHash(Box<Expression>, Box<Expression>),
-    ContainsKeyHash(Box<Expression>, Box<Expression>),
 }
 
 impl PartialEq for Expression {
@@ -109,7 +107,7 @@ impl PartialEq for Expression {
             (Expression::List(a1, b1), Expression::List(a2, b2)) => a1 == a2 && b1 == b2,
             (Expression::Tuple(a1), Expression::Tuple(a2)) => a1 == a2,
 
-            // Comparison of Dicts and HashMaps
+            // Comparison of data structures (Dict, Hash)
             (Expression::Dict(a1), Expression::Dict(a2)) => a1 == a2,
             (Expression::Hash(a1), Expression::Hash(a2)) => {
                 match (a1, a2) {
