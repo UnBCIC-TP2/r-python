@@ -28,148 +28,219 @@ pub fn check(exp: Expression, env: &Environment) -> Result<Type, ErrorMessage> {
         Expression::GTE(l, r) => check_bin_relational_expression(*l, *r, env),
         Expression::LTE(l, r) => check_bin_boolean_expression(*l, *r, env),
 
+        Expression::Dict(elements)=> 
+        check_dict_creation(elements, env),
+        Expression::GetDict(dict, key)=> 
+        check_dict_get(*dict, *key, env),
+        Expression::SetDict(dict, key, value)=> 
+        check_dict_set(*dict, *key, *value, env),
+        Expression::RemoveDict(dict, key)=> 
+        check_dict_remove(*dict, *key, env),
+
+        Expression::Hash(elements)=>
+        check_hash_creation(elements, env),
+        Expression::GetHash(hash, key)=>
+        check_hash_get(*hash, *key, env),
+        Expression::SetHash(hash, key, value)=>
+        check_hash_set(*hash, *key, *value, env),
+        Expression::RemoveHash(mut hash, key)=>
+        check_hash_remove(&mut *hash, *key, env),
+
         Expression::Tuple(elements) => 
         check_create_tuple(elements, env),   
-
         Expression::AddTuple(tuple, new_element) => 
         check_add_tuple(*tuple, *new_element, env),
-        
         Expression::LengthTuple(tuple) => 
         check_length_tuple(*tuple, env),
-
         Expression::GetTuple(tuple, index) => 
         check_get_tuple(*tuple, *index, env),
 
         Expression::List(elements,type_list)=>
         check_create_list(elements,type_list, env),
-
         Expression::Append(list,elem)=>
         check_append_list(*list,*elem,env),
-
         Expression::Pop(list)=>
         check_pop_list(*list,env),
-
         Expression::Get(list,index ) =>
         check_get_list(*list,*index,env),
-
         Expression::Len(list) =>
         check_len_list(*list,env),
-
-        Expression::Dict(elements)=> 
-        check_dict_creation(elements, env),
-
-        Expression::GetDict(dict, key)=> 
-        check_dict_get(*dict, *key, env),
-
-        Expression::SetDict(dict, key, value)=> 
-        check_dict_set(*dict, *key, *value, env),
-
-        Expression::RemoveDict(dict, key)=> 
-        check_dict_remove(*dict, *key, env),
-
-
 
         _ => Err(String::from("not implemented yet")),
     }
 }
-fn check_dict_creation(
-    elements: Option<Vec<(Expression, Expression)>>,
-    env: &Environment,
-) -> Result<Type, ErrorMessage> {
-    if let Some(pairs) = elements {
-        let mut key_type = None;
-        let mut value_type = None;
 
-        for (key, value) in pairs {
-            let current_key_type = check(key, env)?;
-            let current_value_type = check(value, env)?;
+fn check_dict_creation(elements: Option<Vec<(Expression, Expression)>>, env: &Environment) -> Result<Type, ErrorMessage> {
+    match elements {
+        Some(items) => {
+            let mut key_type: Option<Type> = None;
+            let mut value_type: Option<Type> = None;
 
-            if let Some(expected_key_type) = &key_type {
-                if *expected_key_type != current_key_type {
-                    return Err(String::from("[Type Error] inconsistent key types in dictionary."));
+            for (key, value) in items {
+                let key_type_check = check(key, env)?;
+                let value_type_check = check(value, env)?;
+
+                if key_type.is_none() {
+                    key_type = Some(key_type_check);
+                } else if key_type != Some(key_type_check) {
+                    return Err(String::from("Inconsistent key types in Dict"));
                 }
-            } else {
-                key_type = Some(current_key_type);
+
+                if value_type.is_none() {
+                    value_type = Some(value_type_check);
+                } else if value_type != Some(value_type_check) {
+                    return Err(String::from("Inconsistent value types in Dict"));
+                }
             }
 
-            if let Some(expected_value_type) = &value_type {
-                if *expected_value_type != current_value_type {
-                    return Err(String::from("[Type Error] inconsistent value types in dictionary."));
+            match (key_type, value_type) {
+                (Some(k), Some(v)) => Ok(Type::TDict(Box::new(k), Box::new(v))),
+                _ => Err(String::from("Dict must have consistent key and value types")),
+            }
+        },
+        None => Err(String::from("Dict creation requires elements")),
+    }
+}
+
+fn check_hash_creation(elements: Option<HashMap<Expression, Expression>>, env: &Environment) -> Result<Type, ErrorMessage> {
+    match elements {
+        Some(map) => {
+            let mut key_type: Option<Type> = None;
+            let mut value_type: Option<Type> = None;
+
+            for (key, value) in map {
+                let key_type_check = check(key, env)?;
+                let value_type_check = check(value, env)?;
+
+                if key_type.is_none() {
+                    key_type = Some(key_type_check);
+                } else if key_type != Some(key_type_check) {
+                    return Err(String::from("Inconsistent key types in Hash"));
+                }
+
+                if value_type.is_none() {
+                    value_type = Some(value_type_check);
+                } else if value_type != Some(value_type_check) {
+                    return Err(String::from("Inconsistent value types in Hash"));
+                }
+            }
+
+            match (key_type, value_type) {
+                (Some(k), Some(v)) => Ok(Type::THash(Box::new(k), Box::new(v))),
+                _ => Err(String::from("Hash must have consistent key and value types")),
+            }
+        },
+        None => Err(String::from("Hash creation requires elements")),
+    }
+}
+
+fn check_dict_get(dict: Expression, key: Expression, _env: &Environment) -> Result<Type, String> {
+    match dict {
+        Expression::Dict(Some(map)) => {
+            if let Some(value) = map.iter().find(|(k, _)| k == &key) {
+                match value {
+                    (Expression::CString(_), Expression::CInt(_)) => Ok(Type::TInteger),
+                    (Expression::CString(_), Expression::CString(_)) => Ok(Type::TString),
+                    _ => Err(String::from("Incompatible value type in Dict")),
                 }
             } else {
-                value_type = Some(current_value_type);
+                Err(String::from("Key not found in Dict"))
+            }
+        },
+        _ => Err(String::from("Expected a Dict expression")),
+    }
+}
+
+fn check_hash_get(hash: Expression, key: Expression, _env: &Environment) -> Result<Type, String> {
+    match hash {
+        Expression::Hash(Some(map)) => {
+            if let Some(value) = map.get(&key) {
+                return match value {
+                    Expression::CInt(_) => Ok(Type::TInteger),
+                    Expression::CString(_) => Ok(Type::TString),
+                    _ => Err(String::from("Incompatible value type in Hash")),
+                };
+            }
+            Err(String::from("Key not found in Hash"))
+        },
+        _ => Err(String::from("Expected a Hash expression")),
+    }
+}
+
+fn check_dict_set(mut dict: Expression, key: Expression, value: Expression, _env: &Environment) -> Result<Type, String> {
+    match dict {
+        Expression::Dict(Some(ref mut map)) => {
+            if let Some(existing_value) = map.iter_mut().find(|(k, _)| *k == key) {
+                match (&existing_value.1, &value) {
+                    (Expression::CInt(_), Expression::CInt(_)) => {
+                        existing_value.1 = value; 
+                        Ok(Type::TInteger)
+                    }
+                    (Expression::CString(_), Expression::CString(_)) => {
+                        existing_value.1 = value;
+                        Ok(Type::TString)
+                    }
+                    _ => Err(String::from("Incompatible value type for Dict")),
+                }
+            } else {
+                Err(String::from("Key not found in Dict"))
             }
         }
-
-        Ok(Type::TDict(
-            Box::new(key_type.unwrap()),
-            Box::new(value_type.unwrap()),
-        ))
-    } else {
-        Err(String::from("[Type Error] dictionary cannot be empty."))
+        _ => Err(String::from("Expected a Dict expression")),
     }
 }
-//GetDict
-fn check_dict_get(
-    dict: Expression,
-    key: Expression,
-    env: &Environment,
-) -> Result<Type, ErrorMessage> {
-    let dict_type = check(dict, env)?;
-    let key_type = check(key, env)?;
 
-    if let Type::TDict(boxed_key_type, boxed_value_type) = dict_type {
-        if *boxed_key_type == key_type {
-            Ok(*boxed_value_type)
+fn check_hash_set(hash: Expression, key: Expression, value: Expression, _env: &Environment) -> Result<Type, String> {
+    match hash {
+        Expression::Hash(Some(map)) => {
+            if let Some(existing_value) = map.iter().find(|(k, _)| **k == key) {
+                match (&existing_value.1, &value) {
+                    (Expression::CInt(_), Expression::CInt(_)) => Ok(Type::TInteger),
+                    (Expression::CString(_), Expression::CString(_)) => {
+                        Ok(Type::TString)
+                    },
+                    _ => Err(String::from("Incompatible value type for Hash")),
+                }
+            } else {
+                Err(String::from("Key not found in Hash"))
+            }
+        },
+        _ => Err(String::from("Expected a Hash expression")),
+    }
+}
+
+fn check_dict_remove(dict: Expression, key: Expression, _env: &Environment) -> Result<Type, String> {
+    if let Expression::Dict(Some(mut map)) = dict {
+        if let Some(pos) = map.iter().position(|(k, _)| {
+            match (k, &key) {
+                (Expression::CString(s1), Expression::CString(s2)) => s1 == s2,
+                (Expression::CInt(i1), Expression::CInt(i2)) => i1 == i2,
+                _ => false,
+            }
+        }) {
+            map.remove(pos);
+            return Ok(Type::TUnit);
         } else {
-            Err(String::from("[Type Error] key type does not match dictionary key type."))
+            return Err(String::from("Key not found in Dict"));
         }
-    } else {
-        Err(String::from("[Type Error] expected a dictionary type."))
     }
+    Err(String::from("Expected a Dict expression"))
 }
-//SetDict
-fn check_dict_set(
-    dict: Expression,
-    key: Expression,
-    value: Expression,
-    env: &Environment,
-) -> Result<Type, ErrorMessage> {
-    let dict_type = check(dict, env)?;
-    let key_type = check(key, env)?;
-    let value_type = check(value, env)?;
 
-    if let Type::TDict(boxed_key_type, boxed_value_type) = dict_type {
-        if *boxed_key_type == key_type && *boxed_value_type == value_type {
-            Ok(Type::TDict(boxed_key_type, boxed_value_type))
-        } else {
-            Err(String::from(
-                "[Type Error] key or value type does not match dictionary type.",
-            ))
-        }
-    } else {
-        Err(String::from("[Type Error] expected a dictionary type."))
+fn check_hash_remove(hash: &mut Expression, key: Expression, _env: &Environment) -> Result<Type, String> {
+    match hash {
+        Expression::Hash(Some(ref mut map)) => {
+            if map.contains_key(&key) {
+                map.remove(&key);
+                Ok(Type::TUnit)
+            } else {
+                Err(String::from("Key not found in Hash"))
+            }
+        },
+        _ => Err(String::from("Expected a Hash expression")),
     }
 }
-//RemoveDict
-fn check_dict_remove(
-    dict: Expression,
-    key: Expression,
-    env: &Environment,
-) -> Result<Type, ErrorMessage> {
-    let dict_type = check(dict, env)?;
-    let key_type = check(key, env)?;
 
-    if let Type::TDict(ref boxed_key_type, _) = dict_type {
-        if boxed_key_type.as_ref() == &key_type {
-            Ok(dict_type)
-        } else {
-            Err(String::from("[Type Error] key type does not match dictionary key type."))
-        }
-    } else {
-        Err(String::from("[Type Error] expected a dictionary type."))
-    }
-}
 
 fn check_create_tuple(
     maybe_tuple: Vec<Expression>,
@@ -435,78 +506,157 @@ fn check_bin_relational_expression(
 
 #[cfg(test)]
 mod tests {
-    use std::hash::Hash;
+    //use std::hash::Hash;
 
     use super::*;
 
     use crate::ir::ast::Expression::*;
     use crate::ir::ast::Type::*;
 
-    //Teste de criação do dicionário (check_dict_creation)
     #[test]
-    fn test_check_dict_creation() {
-        let env = HashMap::new();
-    
-        let result = check_dict_creation(Some(vec![
-            (Expression::CString("key1".to_string()), Expression::CInt(1)),
-            (Expression::CString("key2".to_string()), Expression::CInt(2)),
-        ]), &env);
-    
-        assert!(result.is_ok());
-        if let Ok(typ) = result {
-            assert_eq!(typ, Type::TDict(Box::new(Type::TString), Box::new(Type::TInteger)));
-        }
+    fn test_check_dict_creation_valid() {
+        let env = Environment::new();
+
+        let elements = Some(vec![
+            (Expression::CInt(1), Expression::CReal(3.14)),
+            (Expression::CInt(2), Expression::CReal(2.71)),
+        ]);
+
+        let result = check_dict_creation(elements, &env);
+        assert_eq!(result, Ok(Type::TDict(Box::new(Type::TInteger), Box::new(Type::TReal))));
     }
-    //Teste de acesso a valor do dicionário (check_dict_get)
+    
+    #[test]
+    fn test_check_hash_creation_valid() {
+        let env = Environment::new();
+
+        let mut map = HashMap::new();
+        map.insert(Expression::CInt(1), Expression::CReal(3.14));
+        map.insert(Expression::CInt(2), Expression::CReal(2.71));
+
+        let result = check_hash_creation(Some(map), &env);
+        assert_eq!(result, Ok(Type::THash(Box::new(Type::TInteger), Box::new(Type::TReal))));
+    }
+
     #[test]
     fn test_check_dict_get() {
-        let env = HashMap::new();
-        
+        let env = Environment::new();
+
         let dict = Expression::Dict(Some(vec![
-            (Expression::CString("key1".to_string()), Expression::CInt(1)),
+            (Expression::CString("chave1".to_string()), Expression::CInt(10)),
+            (Expression::CString("chave2".to_string()), Expression::CInt(20)),
         ]));
 
-        let result = check_dict_get(dict, Expression::CString("key1".to_string()), &env);
+        let key = Expression::CString("chave1".to_string());
 
-        assert!(result.is_ok());
-        if let Ok(typ) = result {
-            assert_eq!(typ, Type::TInteger);
-        }
+        let result = check_dict_get(dict, key, &env);
+        assert_eq!(result, Ok(Type::TInteger));
     }
-    //Teste de alteração ou inserção no dicionário (check_dict_set)
+
+    #[test]
+    fn test_check_hash_get() {
+        let env = Environment::new();
+    
+        let mut hash_map = HashMap::new();
+        hash_map.insert(Expression::CString("chave1".to_string()), Expression::CInt(10));
+        hash_map.insert(Expression::CString("chave2".to_string()), Expression::CInt(20));
+    
+        let hash = Expression::Hash(Some(hash_map));
+        let key = Expression::CString("chave1".to_string());
+    
+        let result = check_hash_get(hash, key, &env);
+        assert_eq!(result, Ok(Type::TInteger));
+    }
+
     #[test]
     fn test_check_dict_set() {
-        let env = HashMap::new();
-        
-        let dict = Expression::Dict(Some(vec![
-            (Expression::CString("key1".to_string()), Expression::CInt(1)),
-        ]));
+        let env = Environment::new();
     
-        let result = check_dict_set(dict, Expression::CString("key2".to_string()), Expression::CInt(2), &env);
+        let dict_elements = vec![
+            (Expression::CString("chave1".to_string()), Expression::CInt(10)),
+            (Expression::CString("chave2".to_string()), Expression::CInt(20)),
+        ];
+        let dict = Expression::Dict(Some(dict_elements.clone()));
     
-        assert!(result.is_ok());
-        if let Ok(typ) = result {
-            assert_eq!(typ, Type::TDict(Box::new(Type::TString), Box::new(Type::TInteger)));
-        }
+        let key = Expression::CString("chave1".to_string());
+        let value = Expression::CInt(30);
+    
+        let result = check_dict_set(dict, key.clone(), value, &env);
+        assert_eq!(result, Ok(Type::TInteger));
+    
+        let dict = Expression::Dict(Some(dict_elements));
+        let result = check_dict_get(dict, key, &env);
+        assert_eq!(result, Ok(Type::TInteger));
     }
-    //Teste de remoção de valor do dicionário (check_dict_remove)
+    #[test]
+    fn test_check_hash_set() {
+        let env = Environment::new();
+
+        let mut hash_map = HashMap::new();
+        hash_map.insert(Expression::CString("chave1".to_string()), Expression::CInt(10));
+        hash_map.insert(Expression::CString("chave2".to_string()), Expression::CInt(20));
+        let hash = Expression::Hash(Some(hash_map.clone()));
+        let key = Expression::CString("chave1".to_string());
+        let value = Expression::CInt(30);
+
+        let result = check_hash_set(hash.clone(), key.clone(), value.clone(), &env);
+        assert_eq!(result, Ok(Type::TInteger));
+
+        let result = check_hash_get(hash, key, &env);
+        assert_eq!(result, Ok(Type::TInteger));
+    }
+
     #[test]
     fn test_check_dict_remove() {
-        let env = HashMap::new();
-
-        let dict = Expression::Dict(Some(vec![
-            (Expression::CString("key1".to_string()), Expression::CInt(1)),
-            (Expression::CString("key2".to_string()), Expression::CInt(2)),
-        ]));
-
-        let result = check_dict_remove(dict, Expression::CString("key1".to_string()), &env);
-
-        assert!(result.is_ok());
-        if let Ok(typ) = result {
-            assert_eq!(typ, Type::TDict(Box::new(Type::TString), Box::new(Type::TInteger)));
+        let env = Environment::new();
+    
+        let dict_elements = vec![
+            (Expression::CString("chave1".to_string()), Expression::CInt(10)),
+            (Expression::CString("chave2".to_string()), Expression::CInt(20)),
+        ];
+        let dict = Expression::Dict(Some(dict_elements.clone()));
+        let key = Expression::CString("chave1".to_string());
+    
+        let result = check_dict_remove(dict.clone(), key.clone(), &env);
+        assert_eq!(result, Ok(Type::TUnit));
+    
+        let updated_dict_elements: Vec<(Expression, Expression)> = dict_elements
+            .into_iter()
+            .filter(|(k, _)| *k != key)
+            .collect();
+        let updated_dict = Expression::Dict(Some(updated_dict_elements));
+    
+        match updated_dict {
+            Expression::Dict(Some(ref map)) => {
+                assert!(!map.iter().any(|(k, _)| *k == key));
+            },
+            _ => panic!("Expected a Dict expression"),
         }
+    
+        let result = check_dict_get(updated_dict, key, &env);
+        assert_eq!(result, Err(String::from("Key not found in Dict")));
     }
-
+    
+    #[test]
+    fn test_check_hash_remove() {
+        let env = Environment::new();
+        
+        let mut hash_elements = HashMap::new();
+        hash_elements.insert(Expression::CString("chave1".to_string()), Expression::CInt(10));
+        hash_elements.insert(Expression::CString("chave2".to_string()), Expression::CInt(20));
+        
+        let mut hash_expr = Expression::Hash(Some(hash_elements));
+        
+        let key = Expression::CString("chave1".to_string());
+        
+        let result = check_hash_remove(&mut hash_expr, key.clone(), &env);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), Type::TUnit);
+        
+        let result = check_hash_get(hash_expr, key, &env);
+        assert_eq!(result, Err(String::from("Key not found in Hash")));
+    }
+        
     #[test]
     fn check_create_valid_tuple(){
         let env = HashMap::new();
