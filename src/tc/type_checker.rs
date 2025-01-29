@@ -33,26 +33,23 @@ pub fn check(exp: Expression, env: &Environment) -> Result<Type, ErrorMessage> {
 
         Expression::AddTuple(tuple, new_element) => 
         check_add_tuple(*tuple, *new_element, env),
-
+        
         Expression::LengthTuple(tuple) => 
         check_length_tuple(*tuple, env),
-
-        Expression::GetTuple(tuple, index) => 
-        check_get_tuple(*tuple, *index, env),
 
         Expression::List(elements,type_list)=>
         check_create_list(elements,type_list, env),
 
-        Expression::Push(list,elem)=>
-        check_push_list(*list,*elem,env),
+        Expression::Append(list,elem)=>
+        check_append_list(*list,*elem,env),
 
         Expression::Pop(list)=>
         check_pop_list(*list,env),
 
-        Expression::Get(list,index )=>
+        Expression::Get(list,index ) =>
         check_get_list(*list,*index,env),
 
-        Expression::Len(list)=>
+        Expression::Len(list) =>
         check_len_list(*list,env),
 
         Expression::Dict(elements)=> 
@@ -67,11 +64,11 @@ pub fn check(exp: Expression, env: &Environment) -> Result<Type, ErrorMessage> {
         Expression::RemoveDict(dict, key)=> 
         check_dict_remove(*dict, *key, env),
 
+
+
         _ => Err(String::from("not implemented yet")),
     }
 }
-
-//Dict
 fn check_dict_creation(
     elements: Option<Vec<(Expression, Expression)>>,
     env: &Environment,
@@ -225,29 +222,6 @@ fn check_add_tuple(
     }
 }
 
-fn check_get_tuple(
-    tuple_expr: Expression,
-    index_expr: Expression,
-    env: &Environment,
-) -> Result<Type, ErrorMessage> {
-    // Verifica o tipo da tupla
-    let tuple_type = check(tuple_expr.clone(), env)?;
-    match tuple_type {
-        Type::TTuple(inner_type) => {
-            // Verifica o tipo do índice
-            let index_type = check(index_expr.clone(), env)?;
-            match index_type {
-                Type::TInteger => {
-                    // Índice é válido, retorna o tipo dos elementos da tupla
-                    Ok(*inner_type)
-                }
-                _ => Err(String::from("[Type error] Index must be an integer")),
-            }
-        }
-        _ => Err(String::from("[Type error] First argument must be a tuple")),
-    }
-}
-
 fn check_length_tuple(
     tuple_expr: Expression,
     env: &Environment,
@@ -263,19 +237,23 @@ fn check_length_tuple(
 }
 
 fn check_create_list(
-    maybe_list: Option<Vec<Expression>>,
-    type_list: Option<Box<Expression>>,
+    maybe_list: Vec<Expression>,
+    type_list: Box<Expression>,
     env: &Environment,) 
 -> Result<Type,ErrorMessage>{
     match maybe_list{
-        Some(vec)=>{
+        vec=>{
             if vec.is_empty(){
-                if let Some(expected_type_box) = type_list{
-                    let expected_type = check(*expected_type_box,&env)?;
-                    return Ok(Type::TList(Box::new(expected_type)));
-                }
-                else{
-                    return Err(String::from("Can't create empty list without type"))
+                match *type_list{
+                    Expression::CInt(_) |
+                    Expression::CReal(_) |
+                    Expression::CString(_) =>{
+                        let expected_type = check(*type_list,&env)?;
+                        return Ok(Type::TList(Box::new(expected_type)))
+                    }
+                    _=>{
+                        return Err(String::from("Can't create empty list without type"))
+                    }
                 }
             }
 
@@ -288,30 +266,45 @@ fn check_create_list(
                 }
             }
 
-            if let Some(expected_type_box) = type_list{
-                let expected_type = check(*expected_type_box,&env)?;
-                if expected_type != first_type{
-                    return Err(format!(
-                        "Type {:?} does not match type {:?}",
-                        expected_type, first_type
-                    ));
-                }
-            }
+            let expected_type_box = type_list;
+            let expected_type = check(*expected_type_box,&env)?;
 
+            if expected_type != first_type{
+                return Err(format!(
+                    "Type {:?} does not match type {:?}",
+                    expected_type, first_type
+                ));
+            }
             Ok(Type::TList(Box::new(first_type)))
         }
-        None=>{
+        
+        _=>{
             Err(String::from("[Type error] expected list as argument"))
         }
     }
 }
 
-fn check_push_list(list: Expression, elem: Expression ,env: &Environment)
+fn check_append_list(list: Expression, elem: Expression ,env: &Environment)
 -> Result<Type,ErrorMessage>{
     let list_type = check(list,env)?;
     let elem_type = check(elem,env)?;
-    match list_type {
-        Type::TList(boxed_type) if *boxed_type == elem_type => Ok(Type::TBool),
+    match (list_type,elem_type) {
+        (Type::TList(boxed_type),Type::TList(boxed_type2))=>{
+            if *boxed_type == *boxed_type2{
+                Ok(Type::TBool)
+            }
+            else{
+                Err(String::from("[Type error] Both lists may have same type"))
+            }
+        } 
+        (Type::TList(boxed_type),type_elem)=>{
+            if *boxed_type == type_elem{
+                Ok(Type::TBool)
+            }
+            else{
+                Err(String::from("[Type error] element type does not match list type"))
+            }
+        }
         _ => Err(String::from("[Type error] element type does not match list type")),
     }
 }
@@ -326,7 +319,7 @@ fn check_pop_list(list: Expression, env: &Environment)
                 Type::TInteger | Type::TReal | Type::TString => {
                     Ok(*boxed_type)
                 },
-                _=> Err(String::from("cannot pop from a empty list"))
+                _=> Err(String::from("cannot pop from an non-typed list"))
             }
         }
         _ => Err(String::from("[Type error] cannot pop from a non-list type"))
@@ -416,7 +409,7 @@ fn check_bin_relational_expression(
 
 #[cfg(test)]
 mod tests {
-    //use std::hash::Hash;
+    use std::hash::Hash;
 
     use super::*;
 
@@ -507,8 +500,8 @@ mod tests {
     fn check_create_valid_list() {
         let env = HashMap::new();
         let type_list = Box::new(Expression::CInt(0));
-        let elements = Some(vec![CInt(1), CInt(2), CInt(3)]);
-        let list = List(elements,Some(type_list));
+        let elements = vec![CInt(1), CInt(2), CInt(3)];
+        let list = List(elements,type_list);
 
         assert_eq!(check(list, &env), Ok(TList(Box::new(TInteger))));
     }
@@ -517,8 +510,8 @@ mod tests {
     fn check_create_inconsistent_list() {
         let env = HashMap::new();
         let type_list = Box::new(Expression::CInt(0));
-        let elements = Some(vec![CInt(1), CReal(2.0)]);
-        let list = List(elements,Some(type_list));
+        let elements = vec![CInt(1), CReal(2.0)];
+        let list = List(elements,type_list);
     
         assert_eq!(
             check(list, &env),
@@ -527,39 +520,61 @@ mod tests {
     }
 
     #[test]
-    fn check_create_none_type_list(){
+    fn check_append_valid_elements_in_list(){
         let env = HashMap::new();
-        let list = List(Some(vec![]),None);
-        assert!(check(list,&env).is_err());
+        let type_list = Box::new(Expression::CInt(0));
+        let list = List(vec![],type_list);
+        let elem = Expression::CInt(5);
+        let push = Expression::Append(Box::new(list),Box::new(elem));
+        
+        assert!(check(push,&env).is_ok());
     }
 
     #[test]
-    fn check_push_valid_elements_in_list(){
+    fn check_append_valid_list_with_list(){
         let env = HashMap::new();
-        let type_list = Box::new(Expression::CInt(0));
-        let list = List(Some(vec![]),Some(type_list));
-        let elem = Expression::CInt(5);
-        let push = Expression::Push(Box::new(list),Box::new(elem));
-        
-        assert!(check(push,&env).is_ok());
+        let type_list = Box::new(CInt(0));
+        let list1 = List(vec![CInt(5)],type_list.clone());
+        let list2 = List(vec![CInt(10)],type_list.clone());
+        let list3 = Append(Box::new(list1),Box::new(list2));
+
+        assert!(check(list3,&env).is_ok());
+    }
+
+    #[test]
+    fn check_append_invalid_list_with_list(){
+        let env = HashMap::new();
+        let type_list = Box::new(CInt(0));
+        let type_list2 = Box::new(CReal(0.0));
+        let list1 = List(vec![CInt(5)],type_list.clone());
+        let list2 = List(vec![CReal(10.5)],type_list2.clone());
+        let list3 = Append(Box::new(list1),Box::new(list2));
+
+        assert!(check(list3.clone(),&env).is_err());
+        assert_eq!(
+            check(list3, &env),
+            Err(String::from("[Type error] Both lists may have same type"))
+        )
+    }
+
+    #[test]
+    fn check_append_valid_list_with_empty_list(){
+        let env = HashMap::new();
+        let type_list = Box::new(CInt(0));
+        let list1 = List(vec![CInt(5)],type_list.clone());
+        let list2 = List(vec![],type_list.clone());
+        let list3 = Append(Box::new(list1),Box::new(list2));
+
+        assert!(check(list3,&env).is_ok());
     }
 
     #[test]
     fn check_pop_valid(){
         let env = HashMap::new();
         let type_list = Box::new(Expression::CInt(0));
-        let list = List(Some(vec![Expression::CInt(5)]),Some(type_list));
+        let list = List(vec![Expression::CInt(5)],type_list);
         let pop = Expression::Pop(Box::new(list));
         assert!(check(pop,&env).is_ok());
-    }
-
-    #[test]
-    fn check_pop_in_non_list(){
-        let env = HashMap::new();
-        let type_list = Box::new(Expression::CInt(0));
-        let list = List(None,Some(type_list));
-        let pop = Expression::Pop(Box::new(list));
-        assert!(check(pop,&env).is_err());
     }
 
     #[test]
