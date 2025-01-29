@@ -833,7 +833,7 @@ mod tests {
     }
 
     #[test]
-    fn test_remove_hash() {
+    fn eval_remove_hash_t() {
         let mut map = HashMap::new();
         map.insert(Expression::CString("chave1".to_string()), Expression::CInt(10));
         map.insert(Expression::CString("chave2".to_string()), Expression::CInt(20));
