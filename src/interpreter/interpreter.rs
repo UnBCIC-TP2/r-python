@@ -450,6 +450,27 @@ pub fn execute(stmt: Statement, env: Environment) -> Result<Environment, ErrorMe
 
             Ok(new_env)
         }
+        Statement::DictDel(dict_name, key_name) => {
+            let mut new_env = env.clone();
+
+            let dict_entries = match new_env.get_mut(&dict_name) {
+                Some(Expression::Dict(entries)) => entries,
+                _ => {
+                    return Err(String::from(
+                        "cannot delete an item from a non-dictionary value",
+                    ))
+                }
+            };
+
+            let entry_index = dict_entries.iter().position(|(k, _)| *k == key_name);
+
+            match entry_index {
+                Some(index) => dict_entries.remove(index),
+                None => return Err(format!("key '{}' not found", key_name)),
+            };
+
+            Ok(new_env)
+        }
         Statement::Sequence(s1, s2) => execute(*s1, env).and_then(|new_env| execute(*s2, new_env)),
         _ => Err(String::from("not implemented yet")),
     }
@@ -1290,6 +1311,31 @@ mod tests {
                 (String::from("z"), Box::new(CInt(30)))
             ]))
         );
+    }
+
+    #[test]
+    fn eval_dictionary_delete_statement() {
+        /*
+         * Test for dictionary delete statement
+         * > dict = {x: 10}
+         * > del dict.x
+         * After executing, 'dict' should be equal to '{}'
+         */
+        let env = HashMap::from([(
+            String::from("dict"),
+            Dict(vec![(String::from("x"), Box::new(CInt(10)))]),
+        )]);
+
+        let del_stmts = DictDel(String::from("dict"), String::from("x"));
+
+        match execute(del_stmts, env) {
+            Ok(new_env) => {
+                let dict = new_env.get("dict").unwrap();
+
+                assert_eq!(*dict, Dict(vec![]));
+            }
+            Err(msg) => assert!(false, "{}", msg),
+        }
     }
 
     #[test]

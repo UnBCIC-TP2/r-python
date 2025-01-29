@@ -64,6 +64,7 @@ pub enum Statement {
     Block(Vec<Statement>), // For indented blocks
     Sequence(Box<Statement>, Box<Statement>),
     DictAssigment(Name, Name, Box<Expression>),
+    DictDel(Name, Name),
 }
 
 #[derive(Debug)]

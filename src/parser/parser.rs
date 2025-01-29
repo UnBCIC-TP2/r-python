@@ -39,7 +39,13 @@ fn term(input: &str) -> IResult<&str, Expression> {
 //expression parser to include if statements
 fn statement(input: &str) -> IResult<&str, Statement> {
     let (input, _) = space0(input)?;
-    alt((if_statement, var_assignment, dict_assignment, declaration))(input)
+    alt((
+        if_statement,
+        var_assignment,
+        dict_assignment,
+        dict_del_statement,
+        declaration,
+    ))(input)
 }
 
 // Parse basic expressions
@@ -47,8 +53,8 @@ fn expression(input: &str) -> IResult<&str, Expression> {
     alt((
         comparison_expression,
         arithmetic_expression,
-        dictionary_expression,
-        dictionary_access_expression,
+        dict_expression,
+        dict_access_expression,
         dict_merge_expression,
         in_expression,
         not_in_expression,
@@ -116,7 +122,7 @@ fn arithmetic_expression(input: &str) -> IResult<&str, Expression> {
 
 /// Parses a dictionary expression.
 /// Example: `{key1: value1, key2: value2}`
-fn dictionary_expression(input: &str) -> IResult<&str, Expression> {
+fn dict_expression(input: &str) -> IResult<&str, Expression> {
     let (input, _) = delimited(space0, char('{'), multispace0)(input)?;
 
     let (input, key_value_pairs) = separated_list0(
@@ -139,7 +145,7 @@ fn dictionary_expression(input: &str) -> IResult<&str, Expression> {
 
 /// Parses a dictionary access expression.
 /// Example: `dict.key`
-fn dictionary_access_expression(input: &str) -> IResult<&str, Expression> {
+fn dict_access_expression(input: &str) -> IResult<&str, Expression> {
     let (input, (dict_name, key_name)) = separated_pair(identifier, char('.'), identifier)(input)?;
 
     Ok((input, Expression::DictAccess(dict_name, key_name)))
@@ -151,7 +157,7 @@ fn dict_merge_expression(input: &str) -> IResult<&str, Expression> {
     let (input, (dict_name, new_dict)) = separated_pair(
         identifier,
         tuple((space0, tag("with"), space0)),
-        dictionary_expression,
+        dict_expression,
     )(input)?;
 
     let new_entries = match new_dict {
@@ -218,6 +224,16 @@ fn if_statement(input: &str) -> IResult<&str, Statement> {
         ),
     ))
 }
+
+/// Parses a delete statement for a dictionary.
+/// Example: `del dict.key`
+fn dict_del_statement(input: &str) -> IResult<&str, Statement> {
+    let (input, _) = tuple((tag("del"), space1))(input)?;
+    let (input, (dict_name, key_name)) = separated_pair(identifier, char('.'), identifier)(input)?;
+
+    Ok((input, Statement::DictDel(dict_name, key_name)))
+}
+
 fn declaration(input: &str) -> IResult<&str, Statement> {
     let (input, keyword) = alt((tag("var"), tag("val")))(input)?;
     let (input, _) = space1(input)?;
@@ -528,7 +544,7 @@ mod tests {
     fn test_dictionary_expression() {
         let input = "{x: 42, y: 10}";
 
-        let (rest, dict) = dictionary_expression(input).unwrap();
+        let (rest, dict) = dict_expression(input).unwrap();
         assert_eq!(rest, "");
 
         let expected_pairs = vec![("x", 42), ("y", 10)];
@@ -561,7 +577,7 @@ mod tests {
     fn test_empty_dictionary_expression() {
         let input = "{}";
 
-        let (rest, dict) = dictionary_expression(input).unwrap();
+        let (rest, dict) = dict_expression(input).unwrap();
         assert_eq!(rest, "");
 
         match dict {
@@ -580,7 +596,7 @@ mod tests {
         z:14
                }"#;
 
-        let (rest, dict) = dictionary_expression(input).unwrap();
+        let (rest, dict) = dict_expression(input).unwrap();
         assert_eq!(rest, "");
 
         let expected_pairs = vec![("w", 12), ("x", 42), ("y", 11), ("z", 14)];
@@ -613,7 +629,7 @@ mod tests {
     fn test_dictionary_with_complex_expressions() {
         let input = "{x: 42 + 10 + var, y: 10 - 2 * 3}";
 
-        let (rest, dict) = dictionary_expression(input).unwrap();
+        let (rest, dict) = dict_expression(input).unwrap();
         assert_eq!(rest, "");
 
         let expected_pairs = vec![
@@ -665,7 +681,7 @@ mod tests {
     fn test_dictionary_access_expression() {
         let input = "dict.key";
 
-        let (rest, access_exp) = dictionary_access_expression(input).unwrap();
+        let (rest, access_exp) = dict_access_expression(input).unwrap();
         assert_eq!(rest, "");
 
         match access_exp {
@@ -729,38 +745,6 @@ mod tests {
     }
 
     #[test]
-    fn test_in_expression() {
-        let input = "key in dict";
-
-        let (rest, access_exp) = in_expression(input).unwrap();
-        assert_eq!(rest, "");
-
-        match access_exp {
-            Expression::In(item_name, collection_name) => {
-                assert_eq!(item_name, "key");
-                assert_eq!(collection_name, "dict");
-            }
-            _ => panic!("Expected 'in' expression"),
-        }
-    }
-
-    #[test]
-    fn test_not_in_expression() {
-        let input = "key not in dict";
-
-        let (rest, access_exp) = not_in_expression(input).unwrap();
-        assert_eq!(rest, "");
-
-        match access_exp {
-            Expression::NotIn(item_name, collection_name) => {
-                assert_eq!(item_name, "key");
-                assert_eq!(collection_name, "dict");
-            }
-            _ => panic!("Expected 'in' expression"),
-        }
-    }
-
-    #[test]
     fn test_dictionary_merge_expression() {
         let input = "dict with {x: 42, y: 10}";
 
@@ -792,7 +776,55 @@ mod tests {
                     );
                 }
             }
-            _ => panic!("Expected dictionary 'with' expression"),
+            _ => panic!("Expected dictionary merge expression"),
+        }
+    }
+
+    #[test]
+    fn test_dictionary_del_expression() {
+        let input = "del dict.key";
+
+        let (rest, del_stmt) = dict_del_statement(input).unwrap();
+        assert_eq!(rest, "");
+
+        match del_stmt {
+            Statement::DictDel(dict_name, key_name) => {
+                assert_eq!(dict_name, "dict");
+                assert_eq!(key_name, "key");
+            }
+            _ => panic!("Expected dictionary del expression"),
+        }
+    }
+
+    #[test]
+    fn test_in_expression() {
+        let input = "key in dict";
+
+        let (rest, access_exp) = in_expression(input).unwrap();
+        assert_eq!(rest, "");
+
+        match access_exp {
+            Expression::In(item_name, collection_name) => {
+                assert_eq!(item_name, "key");
+                assert_eq!(collection_name, "dict");
+            }
+            _ => panic!("Expected 'in' expression"),
+        }
+    }
+
+    #[test]
+    fn test_not_in_expression() {
+        let input = "key not in dict";
+
+        let (rest, access_exp) = not_in_expression(input).unwrap();
+        assert_eq!(rest, "");
+
+        match access_exp {
+            Expression::NotIn(item_name, collection_name) => {
+                assert_eq!(item_name, "key");
+                assert_eq!(collection_name, "dict");
+            }
+            _ => panic!("Expected 'not in' expression"),
         }
     }
 }
