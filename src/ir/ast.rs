@@ -47,6 +47,7 @@ pub enum Expression {
     Tuple(Vec<Expression>),
     AddTuple(Box<Expression>, Box<Expression>),
     LengthTuple(Box<Expression>),
+    GetTuple(Box<Expression>,Box<Expression>),
     List(Vec<Expression>,Box<Expression>),
     Append(Box<Expression>,Box<Expression>),
     Pop(Box<Expression>),

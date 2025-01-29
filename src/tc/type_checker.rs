@@ -37,6 +37,9 @@ pub fn check(exp: Expression, env: &Environment) -> Result<Type, ErrorMessage> {
         Expression::LengthTuple(tuple) => 
         check_length_tuple(*tuple, env),
 
+        Expression::GetTuple(tuple, index) => 
+        check_get_tuple(*tuple, *index, env),
+
         Expression::List(elements,type_list)=>
         check_create_list(elements,type_list, env),
 
@@ -233,6 +236,29 @@ fn check_length_tuple(
             Ok(Type::TInteger)
         }
         _ => Err(String::from("[Type error] Argument must be a tuple")),
+    }
+}
+
+fn check_get_tuple(
+    tuple_expr: Expression,
+    index_expr: Expression,
+    env: &Environment,
+) -> Result<Type, ErrorMessage> {
+    // Verifica o tipo da tupla
+    let tuple_type = check(tuple_expr.clone(), env)?;
+    match tuple_type {
+        Type::TTuple(inner_type) => {
+            // Verifica o tipo do índice
+            let index_type = check(index_expr.clone(), env)?;
+            match index_type {
+                Type::TInteger => {
+                    // Índice é válido, retorna o tipo dos elementos da tupla
+                    Ok(*inner_type)
+                }
+                _ => Err(String::from("[Type error] Index must be an integer")),
+            }
+        }
+        _ => Err(String::from("[Type error] First argument must be a tuple")),
     }
 }
 
@@ -575,6 +601,18 @@ mod tests {
         let list = List(vec![Expression::CInt(5)],type_list);
         let pop = Expression::Pop(Box::new(list));
         assert!(check(pop,&env).is_ok());
+    }
+
+    #[test]
+    fn check_get_element_tuple(){
+        let env = HashMap::new();
+        let idx = Expression::CInt(1);
+        let tuple = Expression::Tuple(vec!
+            [Expression::CInt(5),Expression::CInt(8)]);
+
+        let elem = check(Expression::GetTuple(Box::new(tuple),Box::new(idx)),&env).unwrap();
+
+        assert_eq!(elem,TInteger);
     }
 
     #[test]

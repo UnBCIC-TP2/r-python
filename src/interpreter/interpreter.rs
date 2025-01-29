@@ -32,6 +32,9 @@ pub fn eval(exp: Expression, env: &Environment) -> Result<Expression, ErrorMessa
         Expression::LengthTuple(tuple) => 
         eval_length_tuple(*tuple, env),
 
+        Expression::GetTuple(tuple, index) => 
+        eval_get_tuple(*tuple, *index, env),
+
         Expression::List(elements_list,type_list)=>
         eval_create_list(elements_list,type_list, env),
 
@@ -236,6 +239,28 @@ fn eval_length_tuple(
         _ => {
             Err(String::from("Provided expression is not a tuple"))
         }
+    }
+}
+
+fn eval_get_tuple(
+    tuple_expr: Expression,
+    index_expr: Expression,
+    env: &Environment,
+) -> Result<Expression, ErrorMessage> {
+    // Avalia a expressão da tupla
+    let tuple_eval = eval(tuple_expr, env)?;
+    // Avalia a expressão do índice
+    let index_eval = eval(index_expr, env)?;
+    match (tuple_eval, index_eval) {
+        (Expression::Tuple(elements), Expression::CInt(index)) => {
+            if index < 0 || index as usize >= elements.len() {
+                Err(String::from("Index out of bounds"))
+            } else {
+                Ok(elements[index as usize].clone())
+            }
+        }
+        (Expression::Tuple(_), _) => Err(String::from("Index must be an integer")),
+        _ => Err(String::from("First argument must be a tuple")),
     }
 }
 
@@ -813,6 +838,18 @@ mod tests {
         let list3 = eval(Append(Box::new(list1),Box::new(list2)),&env).unwrap();
 
         assert_eq!(list3,List(vec![CInt(5)],type_list));
+    }
+
+    #[test]
+    fn eval_get_element_tuple(){
+        let env = HashMap::new();
+        let idx = Expression::CInt(1);
+        let tuple = Expression::Tuple(vec!
+            [Expression::CInt(5),Expression::CInt(8)]);
+
+        let elem = eval(Expression::GetTuple(Box::new(tuple),Box::new(idx)),&env).unwrap();
+
+        assert_eq!(elem,Expression::CInt(8));
     }
 
     #[test]
