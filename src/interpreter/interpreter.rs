@@ -379,7 +379,15 @@ fn eval_get_element_list(list: Expression, index: Expression, env: &Environment)
                 Ok(elements[index as usize].clone())
             }
         }
+        (Expression::Set(elements), Expression::CInt(index)) => {
+            if index < 0 || index as usize >= elements.len() {
+                Err(String::from("Index out of bounds"))
+            } else {
+                Ok(elements[index as usize].clone())
+            }
+        }
 
+        (Expression::Set(_), _) => Err(String::from("Index must be an integer")),
         (Expression::Tuple(_), _) => Err(String::from("Index must be an integer")),
         (Expression::List(_,_),_)=>Err(String::from("Index must be an integer")),
         _=> Err(String::from("First argument must be a list"))
@@ -853,6 +861,18 @@ mod tests {
             [Expression::CInt(5),Expression::CInt(8)]);
 
         let elem = eval(Expression::Get(Box::new(tuple),Box::new(idx)),&env).unwrap();
+
+        assert_eq!(elem,Expression::CInt(8));
+    }
+
+    #[test]
+    fn eval_get_element_set(){
+        let env = HashMap::new();
+        let idx = Expression::CInt(1);
+        let set = Expression::Set(vec!
+            [Expression::CInt(5),Expression::CInt(8)]);
+
+        let elem = eval(Expression::Get(Box::new(set),Box::new(idx)),&env).unwrap();
 
         assert_eq!(elem,Expression::CInt(8));
     }
