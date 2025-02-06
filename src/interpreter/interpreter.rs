@@ -677,7 +677,6 @@ pub fn execute(stmt: Statement, env: Environment) -> Result<Environment, ErrorMe
 mod tests {
 
     //use std::hash::Hash;
-
     use super::*;
     use crate::ir::ast::Expression::*;
     use crate::ir::ast::Statement::*;

@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
+use std::collections::HashSet;
 
 pub type Name = String;
 
@@ -116,6 +117,11 @@ impl PartialEq for Expression {
                     _ => false,
                 }
             },
+            (Expression::Set(a), Expression::Set(b)) => {
+                let set_a: HashSet<_> = a.iter().collect();
+                let set_b: HashSet<_> = b.iter().collect();
+                set_a == set_b
+            }
             // Other cases
             _ => false,
         }
