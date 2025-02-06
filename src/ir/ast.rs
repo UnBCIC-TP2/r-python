@@ -12,7 +12,7 @@ pub enum Type {
     TList(Box<Type>),
     TTuple(Vec<Type>),
     TSet(Box<Type>),
-    TDict(Box<Type>,Box<Type>),
+    // TDict(Box<Type>,Box<Type>),
     THash(Box<Type>, Box<Type>),
     TUnit,
 }
@@ -60,10 +60,10 @@ pub enum Expression {
     Get(Box<Expression>,Box<Expression>),
     Len(Box<Expression>),
     
-    Dict(Option<Vec<(Expression, Expression)>>),
-    GetDict(Box<Expression>, Box<Expression>),
-    SetDict(Box<Expression>, Box<Expression>, Box<Expression>),
-    RemoveDict(Box<Expression>, Box<Expression>),
+    // Dict(Option<Vec<(Expression, Expression)>>),
+    // GetDict(Box<Expression>, Box<Expression>),
+    // SetDict(Box<Expression>, Box<Expression>, Box<Expression>),
+    // RemoveDict(Box<Expression>, Box<Expression>),
     
     Hash(Option<HashMap<Expression, Expression>>),
     GetHash(Box<Expression>, Box<Expression>),
@@ -108,13 +108,17 @@ impl PartialEq for Expression {
             (Expression::Tuple(a1), Expression::Tuple(a2)) => a1 == a2,
 
             // Comparison of data structures (Dict, Hash)
-            (Expression::Dict(a1), Expression::Dict(a2)) => a1 == a2,
+            // (Expression::Dict(a1), Expression::Dict(a2)) => a1 == a2,
             (Expression::Hash(a1), Expression::Hash(a2)) => {
                 match (a1, a2) {
                     (Some(map1), Some(map2)) => map1 == map2,
                     (None, None) => true,
                     _ => false,
                 }
+            },
+            // Comparison of data structures (Set)
+            (Expression::Set(a), Expression::Set(b)) => {
+                a.len() == b.len() && a.iter().all(|e| b.contains(e))
             },
             // Other cases
             _ => false,
@@ -137,6 +141,11 @@ impl Hash for Expression {
             Expression::Add(a, b) => {
                 a.hash(state);
                 b.hash(state);
+            }
+            Expression::Set(elements) => {
+                for element in elements {
+                    element.hash(state);
+                }
             }
             _ => 0.hash(state),
         }
