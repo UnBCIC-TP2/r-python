@@ -397,6 +397,10 @@ fn eval_len_list(data_structure: Expression,env: &Environment)->Result<Expressio
             let elem = vec.len() as i32;
             Ok(Expression::CInt(elem))
         }
+        Expression::Set(vec)=>{
+            let elem = vec.len() as i32;
+            Ok(Expression::CInt(elem))
+        }
         _=> Err(String::from("First argument must be a list"))
     }
 }
@@ -827,6 +831,18 @@ mod tests {
         let tam_tuple = eval(Expression::Len(Box::new(tuple)),&env).unwrap();
 
         assert_eq!(tam_tuple,Expression::CInt(3));
+    }
+
+    #[test]
+    fn eval_len_set(){
+        let env = HashMap::new();
+        let set = Expression::Set(vec![
+            Expression::CString("Rust".to_string()),
+            Expression::CString("Java".to_string()),
+            Expression::CString("Python".to_string())]);
+        let tam_set = eval(Expression::Len(Box::new(set)),&env).unwrap();
+
+        assert_eq!(tam_set,Expression::CInt(3));
     }
 
     #[test]
