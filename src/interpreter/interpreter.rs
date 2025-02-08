@@ -770,6 +770,30 @@ mod tests {
         assert_eq!(result, Ok(set));
     }
 
+    #[test]
+    fn eval_len_set(){
+        let env = HashMap::new();
+        let set = Expression::Set(vec![
+            Expression::CString("Rust".to_string()),
+            Expression::CString("Java".to_string()),
+            Expression::CString("Python".to_string())]);
+        let tam_set = eval(Expression::Len(Box::new(set)),&env).unwrap();
+
+        assert_eq!(tam_set,Expression::CInt(3));
+    }
+
+    #[test]
+    fn eval_get_element_set(){
+        let env = HashMap::new();
+        let idx = Expression::CInt(1);
+        let set = Expression::Set(vec!
+            [Expression::CInt(5),Expression::CInt(8)]);
+
+        let elem = eval(Expression::Get(Box::new(set),Box::new(idx)),&env).unwrap();
+
+        assert_eq!(elem,Expression::CInt(8));
+    }
+
     // #[test]
     // fn eval_create_dict_t() {
     //     let elements = vec![
@@ -910,18 +934,6 @@ mod tests {
     }
 
     #[test]
-    fn eval_len_set(){
-        let env = HashMap::new();
-        let set = Expression::Set(vec![
-            Expression::CString("Rust".to_string()),
-            Expression::CString("Java".to_string()),
-            Expression::CString("Python".to_string())]);
-        let tam_set = eval(Expression::Len(Box::new(set)),&env).unwrap();
-
-        assert_eq!(tam_set,Expression::CInt(3));
-    }
-
-    #[test]
     fn eval_get_element_tuple(){
         let env = HashMap::new();
         let idx = Expression::CInt(1);
@@ -929,18 +941,6 @@ mod tests {
             [Expression::CInt(5),Expression::CInt(8)]);
 
         let elem = eval(Expression::Get(Box::new(tuple),Box::new(idx)),&env).unwrap();
-
-        assert_eq!(elem,Expression::CInt(8));
-    }
-
-    #[test]
-    fn eval_get_element_set(){
-        let env = HashMap::new();
-        let idx = Expression::CInt(1);
-        let set = Expression::Set(vec!
-            [Expression::CInt(5),Expression::CInt(8)]);
-
-        let elem = eval(Expression::Get(Box::new(set),Box::new(idx)),&env).unwrap();
 
         assert_eq!(elem,Expression::CInt(8));
     }
