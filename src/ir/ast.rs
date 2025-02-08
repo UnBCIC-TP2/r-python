@@ -4,12 +4,13 @@ use std::collections::HashSet;
 
 pub type Name = String;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq,Clone)]
 pub enum Type {
     TInteger,
     TBool,
     TReal,
     TString,
+    EmptyList,
     TList(Box<Type>),
     TTuple(Vec<Type>),
     TSet(Box<Type>),
@@ -52,14 +53,17 @@ pub enum Expression {
     LTE(Box<Expression>, Box<Expression>),
 
     /* Data Structure */
-    List(Vec<Expression>,Box<Expression>),
+    List(Vec<Expression>),
     Tuple(Vec<Expression>),
     Set(Vec<Expression>),
     
     Append(Box<Expression>,Box<Expression>),
-    Pop(Box<Expression>),
+    Concat(Box<Expression>,Box<Expression>),
+    PopBack(Box<Expression>),
+    PopFront(Box<Expression>),
     Get(Box<Expression>,Box<Expression>),
     Len(Box<Expression>),
+
     
     // Dict(Option<Vec<(Expression, Expression)>>),
     // GetDict(Box<Expression>, Box<Expression>),
@@ -105,7 +109,7 @@ impl PartialEq for Expression {
             (Expression::LTE(a1, b1), Expression::LTE(a2, b2)) => a1 == a2 && b1 == b2,
 
             // Comparison of data structures (List, Tuple)
-            (Expression::List(a1, b1), Expression::List(a2, b2)) => a1 == a2 && b1 == b2,
+            (Expression::List(a1 ), Expression::List(a2)) => a1 == a2,
             (Expression::Tuple(a1), Expression::Tuple(a2)) => a1 == a2,
 
             // Comparison of data structures (Dict, Hash)

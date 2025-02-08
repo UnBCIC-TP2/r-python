@@ -50,12 +50,19 @@ pub fn check(exp: Expression, env: &Environment) -> Result<Type, ErrorMessage> {
         check_hash_remove(&mut *hash, *key, env),
    
         Expression::Tuple(elements) => check_create_tuple(elements,env),
-        Expression::List(elements,type_list)=>
-        check_create_list(elements,type_list, env),
+        Expression::List(elements)=>
+        check_create_list(elements, env),
         Expression::Append(list,elem)=>
         check_append_list(*list,*elem,env),
-        Expression::Pop(list)=>
-        check_pop_list(*list,env),
+
+        Expression::Concat(list1, list2)=>
+        check_concat_list(*list1, *list2, env),
+
+        Expression::PopBack(list)=>
+        check_pop_back_list(*list,env),
+
+        Expression::PopFront(list)=>
+        check_pop_front_list(*list,env),
 
         Expression::Get(data_structure,index ) =>
         check_get(*data_structure,*index,env),
@@ -190,7 +197,7 @@ fn check_hash_get(hash: Expression, key: Expression, _env: &Environment) -> Resu
                     Expression::CString(_) => Ok(Type::TString),
                     Expression::CReal(_) => Ok(Type::TReal),
                     Expression::CTrue | Expression::CFalse => Ok(Type::TBool),
-                    Expression::List(_, _) => Ok(Type::TList(Box::new(Type::TInteger))),
+                    Expression::List(_) => Ok(Type::TList(Box::new(Type::TInteger))),
                     Expression::Tuple(_) => Ok(Type::TTuple(vec![Type::TInteger])),
                     // Expression::Dict(_) => Ok(Type::TDict(Box::new(Type::TInteger), Box::new(Type::TString))),
                     Expression::Hash(_) => Ok(Type::THash(Box::new(Type::TInteger), Box::new(Type::TString))),
@@ -291,7 +298,7 @@ fn check_hash_set(hash: Expression, key: Expression, value: Expression, _env: &E
                     (Expression::CString(_), Expression::CString(_)) => Ok(Type::TString),
                     (Expression::CReal(_), Expression::CReal(_)) => Ok(Type::TReal),
                     (Expression::CTrue | Expression::CFalse, Expression::CTrue | Expression::CFalse) => Ok(Type::TBool),
-                    (Expression::List(_, _), Expression::List(_, _)) => Ok(Type::TList(Box::new(Type::TInteger))),
+                    (Expression::List(_), Expression::List(_)) => Ok(Type::TList(Box::new(Type::TInteger))),
                     (Expression::Tuple(_), Expression::Tuple(_)) => Ok(Type::TTuple(vec![Type::TInteger])),
                     // (Expression::Dict(_), Expression::Dict(_)) => Ok(Type::TDict(Box::new(Type::TInteger), Box::new(Type::TString))),
                     (Expression::Hash(_), Expression::Hash(_)) => Ok(Type::THash(Box::new(Type::TInteger), Box::new(Type::TString))),
@@ -365,58 +372,54 @@ fn check_create_tuple(
             let tuple_type = Type::TTuple(vec_types);
             Ok(tuple_type)
         }
-        //_ => {
-            //return Err("Provided expression is not a tuple".to_string());
-        //}
     }
 }
 
 
 fn check_create_list(
     maybe_list: Vec<Expression>,
-    type_list: Box<Expression>,
     env: &Environment,) 
 -> Result<Type,ErrorMessage>{
+    
     match maybe_list{
-        vec=>{
-            if vec.is_empty(){
-                match *type_list{
-                    Expression::CInt(_) |
-                    Expression::CReal(_) |
-                    Expression::CString(_) =>{
-                        let expected_type = check(*type_list,&env)?;
-                        return Ok(Type::TList(Box::new(expected_type)))
-                    }
-                    _=>{
-                        return Err(String::from("Can't create empty list without type"))
-                    }
+        elements => {
+
+            if elements.is_empty(){
+                return Ok(Type::EmptyList);
+            }
+
+            let first_elem = elements[0].clone();
+            let type_list = check(first_elem,env)?;
+
+            for elem in elements{
+                let type_elem = check(elem.clone(),&env)?;
+                if type_elem != type_list{
+                    return Err(String::from("[Type error] Different types in list"))
                 }
             }
 
-            let first_type = check(vec[0].clone(),env)?;
-
-            for item in vec.iter(){
-                let item_type = check(item.clone(),env)?;
-                if item_type != first_type{
-                    return Err(String::from("[Type error] Differents types in list"));
-                }
-            }
-
-            let expected_type_box = type_list;
-            let expected_type = check(*expected_type_box,&env)?;
-
-            if expected_type != first_type{
-                return Err(format!(
-                    "Type {:?} does not match type {:?}",
-                    expected_type, first_type
-                ));
-            }
-            Ok(Type::TList(Box::new(first_type)))
+            Ok(Type::TList(Box::new(type_list)))
         }
-        
-        // _=>{
-        //     Err(String::from("[Type error] expected list as argument"))
-        // }
+    }
+}
+
+fn check_concat_list(list: Expression, list2: Expression, env: &Environment) 
+-> Result<Type, ErrorMessage> {
+    let list_type1 = check(list, env)?;
+    let list_type2 = check(list2, env)?;
+    
+    match (list_type1.clone(), list_type2.clone()) {
+        (Type::EmptyList, Type::TList(_)) => Ok(list_type2),
+        (Type::TList(_), Type::EmptyList) => Ok(list_type1),
+        (Type::EmptyList,Type::EmptyList)=> Ok(Type::EmptyList),
+        (Type::TList(boxed_type1), Type::TList(boxed_type2)) => {
+            if *boxed_type1 == *boxed_type2 {
+                Ok(Type::TList(boxed_type1.clone()))
+            } else {
+                Err(String::from("[Type error] Both lists must have the same type"))
+            }
+        }
+        _ => Err(String::from("[Type error] element type does not match list type")),
     }
 }
 
@@ -424,18 +427,11 @@ fn check_append_list(list: Expression, elem: Expression ,env: &Environment)
 -> Result<Type,ErrorMessage>{
     let list_type = check(list,env)?;
     let elem_type = check(elem,env)?;
-    match (list_type,elem_type) {
-        (Type::TList(boxed_type),Type::TList(boxed_type2))=>{
-            if *boxed_type == *boxed_type2{
-                Ok(Type::TBool)
-            }
-            else{
-                Err(String::from("[Type error] Both lists may have same type"))
-            }
-        } 
+    match (list_type.clone(),elem_type.clone()) {
+        (Type::EmptyList,type_elem)=> Ok(type_elem),
         (Type::TList(boxed_type),type_elem)=>{
             if *boxed_type == type_elem{
-                Ok(Type::TBool)
+                Ok(Type::TList(boxed_type.clone()))
             }
             else{
                 Err(String::from("[Type error] element type does not match list type"))
@@ -445,10 +441,28 @@ fn check_append_list(list: Expression, elem: Expression ,env: &Environment)
     }
 }
 
-fn check_pop_list(list: Expression, env: &Environment)
+fn check_pop_back_list(list: Expression, env: &Environment)
 ->Result<Type,ErrorMessage>{
     let list_type = check(list,env)?;
 
+    match list_type.clone(){
+        Type::TList(boxed_type) => {
+            match *boxed_type{
+                Type::TInteger | Type::TReal | Type::TString => {
+                    Ok(Type::TList(boxed_type.clone()))
+                },
+                _=> Err(String::from("cannot pop from an non-typed list"))
+            }
+        }
+        Type::EmptyList=> Err(String::from("cannot pop from an empty list")),
+
+        _ => Err(String::from("[Type error] cannot pop from a non-list type"))
+    }
+}
+
+fn check_pop_front_list(list: Expression, env: &Environment)
+->Result<Type,ErrorMessage>{
+    let list_type = check(list,&env)?;
     match list_type{
         Type::TList(boxed_type) => {
             match *boxed_type{
@@ -458,7 +472,8 @@ fn check_pop_list(list: Expression, env: &Environment)
                 _=> Err(String::from("cannot pop from an non-typed list"))
             }
         }
-        _ => Err(String::from("[Type error] cannot pop from a non-list type"))
+        Type::EmptyList=> Err(String::from("cannot pop from an empty list")),
+        _=>Err(String::from("[Type error] cannot pop from a non-list type"))
     }
 }
 
@@ -479,6 +494,7 @@ fn check_get(data_structure: Expression, index: Expression,env: &Environment)
                 _ => Err(String::from("[Type error] Index must be an integer")),
             }
         }
+        (Type::EmptyList,Type::TInteger)=>Err(String::from("cannot get element from an empty list")),
         _=> Err(String::from("[Type error] index must be integer"))
     }
 }
@@ -493,6 +509,9 @@ Result<Type, String>{
         Type::TTuple(_)=>{
             Ok(Type::TInteger)
         }
+        Type::EmptyList=>{
+            Ok(Type::TInteger)
+        },
         _=>Err(String::from("[Type error] first argument must be a list"))
     }
 }
@@ -729,9 +748,8 @@ mod tests {
     #[test]
     fn check_create_valid_list() {
         let env = HashMap::new();
-        let type_list = Box::new(Expression::CInt(0));
         let elements = vec![CInt(1), CInt(2), CInt(3)];
-        let list = List(elements,type_list);
+        let list = List(elements);
 
         assert_eq!(check(list, &env), Ok(TList(Box::new(TInteger))));
     }
@@ -739,71 +757,64 @@ mod tests {
     #[test]
     fn check_create_inconsistent_list() {
         let env = HashMap::new();
-        let type_list = Box::new(Expression::CInt(0));
         let elements = vec![CInt(1), CReal(2.0)];
-        let list = List(elements,type_list);
+        let list = List(elements);
     
         assert_eq!(
             check(list, &env),
-            Err(String::from("[Type error] Differents types in list"))
+            Err(String::from("[Type error] Different types in list"))
         ); 
     }
 
     #[test]
     fn check_append_valid_elements_in_list(){
         let env = HashMap::new();
-        let type_list = Box::new(Expression::CInt(0));
-        let list = List(vec![],type_list);
+        let list = List(vec![]);
         let elem = Expression::CInt(5);
-        let push = Expression::Append(Box::new(list),Box::new(elem));
+        let append = Expression::Append(Box::new(list),Box::new(elem));
         
-        assert!(check(push,&env).is_ok());
+        assert!(check(append,&env).is_ok());
     }
 
     #[test]
-    fn check_append_valid_list_with_list(){
+    fn check_concat_valid_list_with_list(){
         let env = HashMap::new();
-        let type_list = Box::new(CInt(0));
-        let list1 = List(vec![CInt(5)],type_list.clone());
-        let list2 = List(vec![CInt(10)],type_list.clone());
-        let list3 = Append(Box::new(list1),Box::new(list2));
+        let list1 = List(vec![CInt(5)]);
+        let list2 = List(vec![CInt(10)]);
+        let list3 = Concat(Box::new(list1),Box::new(list2));
 
         assert!(check(list3,&env).is_ok());
     }
 
     #[test]
-    fn check_append_invalid_list_with_list(){
+    fn check_concat_invalid_list_with_list(){
         let env = HashMap::new();
-        let type_list = Box::new(CInt(0));
-        let type_list2 = Box::new(CReal(0.0));
-        let list1 = List(vec![CInt(5)],type_list.clone());
-        let list2 = List(vec![CReal(10.5)],type_list2.clone());
-        let list3 = Append(Box::new(list1),Box::new(list2));
+        let list1 = List(vec![CInt(5)]);
+        let list2 = List(vec![CReal(10.5)]);
+        let list3 = Concat(Box::new(list1),Box::new(list2));
 
         assert!(check(list3.clone(),&env).is_err());
         assert_eq!(
             check(list3, &env),
-            Err(String::from("[Type error] Both lists may have same type"))
+            Err(String::from("[Type error] Both lists must have the same type"))
         )
     }
 
     #[test]
-    fn check_append_valid_list_with_empty_list(){
+    fn check_concat_valid_list_with_empty_list(){
         let env = HashMap::new();
-        let type_list = Box::new(CInt(0));
-        let list1 = List(vec![CInt(5)],type_list.clone());
-        let list2 = List(vec![],type_list.clone());
-        let list3 = Append(Box::new(list1),Box::new(list2));
+        let list1 = List(vec![CInt(5)]);
+        let list2 = List(vec![]);
+        let list3 = Concat(Box::new(list1),Box::new(list2));
 
-        assert!(check(list3,&env).is_ok());
+        assert_eq!(check(list3, &env), Ok(Type::TList(Box::new(TInteger))));
     }
 
     #[test]
     fn check_pop_valid(){
         let env = HashMap::new();
-        let type_list = Box::new(Expression::CInt(0));
-        let list = List(vec![Expression::CInt(5)],type_list);
-        let pop = Expression::Pop(Box::new(list));
+        let list = List(vec![Expression::CInt(5)]);
+        let pop = Expression::PopBack(Box::new(list));
         assert!(check(pop,&env).is_ok());
     }
 

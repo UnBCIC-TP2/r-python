@@ -29,14 +29,20 @@ pub fn eval(exp: Expression, env: &Environment) -> Result<Expression, ErrorMessa
         Expression::Tuple(elements) => 
         eval_create_tuple(elements, env),
 
-        Expression::List(elements_list,type_list)=>
-        eval_create_list(elements_list,type_list, env),
+        Expression::Concat(list1,list2)=>
+        eval_concat_list(*list1,*list2,env),
+
+        Expression::List(elements_list)=>
+        eval_create_list(elements_list, env),
 
         Expression::Append(list,elem)=>
         eval_append_list(*list,*elem,env),
 
-        Expression::Pop(list)=>
-        eval_pop_list(*list,env),
+        Expression::PopBack(list)=>
+        eval_pop_back_list(*list,env),
+
+        Expression::PopFront(list)=>
+        eval_pop_front_list(*list,env),
 
         Expression::Get(data_strucutre,index)=>
         eval_get_element_list(*data_strucutre,*index,env),
@@ -263,91 +269,149 @@ fn eval_create_tuple(elements: Vec<Expression>, env: &Environment) -> Result<Exp
 }
 
 fn eval_create_list(
-    elements_list: Vec<Expression>, 
-    type_list: Box<Expression>,
+    elements: Vec<Expression>, 
     env: &Environment
 ) -> Result<Expression, ErrorMessage> {
-    match elements_list {
-        vec => {
-            let mut eval_elements = Vec::new();
 
-            let type_list_eval = match *type_list {
-                type_aux => eval(type_aux, env)?, 
-            };
+    let mut eval_elements = Vec::new();
+    let mut type_list_eval: Option<Expression> = None;
 
-            for elem in vec {
-                let eval_elem = eval(elem, env)?;
-
-                    match (&eval_elem,&type_list_eval){
-                        (Expression::CInt(_), Expression::CInt(_)) |
-                        (Expression::CReal(_), Expression::CReal(_)) |
-                        (Expression::CString(_), Expression::CString(_)) => {
-                        eval_elements.push(eval_elem);
-                        }
-                    _=>{
-                        return Err(format!(
-                            "Type {:?} does not match type {:?}",
-                            eval_elem, type_list_eval
-                        ));
-                    }
-                }
-            }    
-            Ok(Expression::List(eval_elements, Box::new(type_list_eval)))
+    for element in elements {
+        let eval_elem = eval(element, env)?;
+        if type_list_eval.is_none() {
+            type_list_eval = Some(eval_elem.clone());
+        }
+        match (&eval_elem, type_list_eval.as_ref().unwrap()) {
+            (Expression::CInt(_), Expression::CInt(_)) |
+            (Expression::CReal(_), Expression::CReal(_)) |
+            (Expression::CString(_), Expression::CString(_)) => {
+                eval_elements.push(eval_elem);
+            }
+            _ => {
+                return Err(format!(
+                    "Type {:?} does not match type {:?}",
+                    eval_elem, type_list_eval.unwrap()
+                ));
+            }
         }
     }
+    Ok(Expression::List(eval_elements))
 }
 
-fn eval_append_list(list: Expression, elem: Expression, env: &Environment)
+fn eval_concat_list(list1:Expression, list2:Expression, env: &Environment)
 ->Result<Expression,ErrorMessage>{
 
-    let list_aux = eval(list, env)?;
-    let elem_aux = eval(elem, env)?;
+    let list1_eval = eval(list1,&env)?;
+    let list2_eval = eval(list2,&env)?;
 
-    match (list_aux,elem_aux.clone()) {
-        (Expression::List(mut vec,boxed_type),
-        Expression::List(vec2,boxed_type_2))=>{
-            if boxed_type != boxed_type_2{
-                return Err(String::from("[Type error] Both lists may have same type"));
-            }
-            for i in 0..vec2.len(){
-                if let Some(aux) = vec2.get(i){
-                    vec.push(aux.clone());
+    match(list1_eval,list2_eval){
+
+        (Expression::List(mut vec),
+        Expression::List(mut vec2))=>{
+            if vec.is_empty(){
+                for i in 0..vec2.len(){
+                    if let Some(aux) = vec2.get(i){
+                        vec.push(aux.clone());
+                    }
                 }
+                return Ok(Expression::List(vec));
             }
-            Ok(Expression::List(vec,boxed_type))
-        },
 
-        (Expression::List(mut vec,boxed_type),_) => {
-            match(elem_aux.clone(),&*boxed_type){
+            if vec2.is_empty(){
+                for i in 0..vec.len(){
+                    if let Some(aux) = vec.get(i){
+                        vec2.push(aux.clone());
+                    }
+                }
+                return Ok(Expression::List(vec2));
+            }
+
+            match (vec[0].clone(),vec2[0].clone()){
+                (Expression::CInt(_),Expression::CInt(_)) |
+                (Expression::CReal(_),Expression::CReal(_)) |
+                (Expression::CString(_),Expression::CString(_)) =>{
+                    for i in 0..vec2.len(){
+                        if let Some(aux) = vec2.get(i){
+                            vec.push(aux.clone());
+                        }
+                    }
+                    Ok(Expression::List(vec))
+                }
+                _ => Err(String::from("[Type error] Both lists may have same type"))
+            }
+
+        }
+        _=>Err(String::from("Expected two lists as arguments."))
+    }
+
+}
+
+
+fn eval_append_list(list_expr: Expression, new_elem: Expression, env: &Environment)
+->Result<Expression,ErrorMessage>{
+
+    let eval_new_element = eval(new_elem, env)?;
+    match list_expr {
+        Expression::List(ref elements) => {
+            if elements.is_empty() {
+                return Ok(Expression::List(vec![eval_new_element]));
+            }
+
+            let first_element = &elements[0];
+            match (first_element, &eval_new_element) {
                 (Expression::CInt(_), Expression::CInt(_)) |
                 (Expression::CReal(_), Expression::CReal(_)) |
                 (Expression::CString(_), Expression::CString(_)) => {
-                    vec.push(elem_aux);
-                    Ok(Expression::List(vec,boxed_type))
+                    let mut updated_elements = elements.clone();
+                    updated_elements.push(eval_new_element);
+                    return Ok(Expression::List(updated_elements));
                 }
-                _=>{
-                    Err(format!(
+                _ => {
+                    return Err(format!(
                         "Type {:?} does not match type {:?}",
-                        elem_aux, boxed_type))
+                        eval_new_element, first_element
+                    ));
                 }
             }
-        },
-        _ => Err(String::from("Expected a list as the first argument.")),
+        }
+        _ => {
+            return Err("Provided expression is not a list".to_string());
+        }
     }
 }
 
-fn eval_pop_list(list: Expression, env: &Environment)
+fn eval_pop_back_list(list: Expression, env: &Environment)
 ->Result<Expression,ErrorMessage>{
 
-    let list_aux = eval(list, env)?;
-    match list_aux {
-        Expression::List(mut vec,_) => {
-            if let Some(last) = vec.pop() {
-                Ok(last)
-            } else {
-                Err(String::from("Cannot pop from an empty list."))
+    let eval_list = eval(list.clone(), env)?;
+    match eval_list {
+        Expression::List(mut vec) => {
+            if vec.is_empty(){
+                return Err(String::from("Cannot pop from an empty list."));
             }
+            vec.pop();
+            Ok(Expression::List(vec))
         }
+        _ => Err(String::from("Expected a list for pop operation.")),
+    }
+}
+
+fn eval_pop_front_list(list: Expression, env: &Environment)
+->Result<Expression,ErrorMessage>{
+    let eval_list = eval(list.clone(), env)?;
+    match eval_list {
+        Expression::List(vec) => {
+            if vec.is_empty(){
+                return Err(String::from("Cannot pop from an empty list."));
+            }
+            let mut new_list = Vec::new();
+            for i in 1..vec.len(){
+                if let Some(aux) = vec.get(i){
+                    new_list.push(aux.clone());
+                }
+            }
+            Ok(Expression::List(new_list))
+    }
         _ => Err(String::from("Expected a list for pop operation.")),
     }
 }
@@ -359,7 +423,11 @@ fn eval_get_element_list(list: Expression, index: Expression, env: &Environment)
     let index_eval = eval(index,env)?;
 
     match(list_eval,index_eval){
-        (Expression::List(vec, _), Expression::CInt(v1))=>{
+        (Expression::List(vec), Expression::CInt(v1))=>{
+            if vec.is_empty(){
+                return Err(String::from("List is empty"));
+            }
+
             if v1 < 0 || v1 >= vec.len() as i32{
                 Err(String::from("Index out of bounds"))
             }
@@ -381,7 +449,7 @@ fn eval_get_element_list(list: Expression, index: Expression, env: &Environment)
         }
 
         (Expression::Tuple(_), _) => Err(String::from("Index must be an integer")),
-        (Expression::List(_,_),_)=>Err(String::from("Index must be an integer")),
+        (Expression::List(_),_)=>Err(String::from("Index must be an integer")),
         _=> Err(String::from("First argument must be a list"))
     }
 }
@@ -389,7 +457,7 @@ fn eval_get_element_list(list: Expression, index: Expression, env: &Environment)
 fn eval_len_list(data_structure: Expression,env: &Environment)->Result<Expression,ErrorMessage>{
     let data_structure_type = eval(data_structure,env)?;
     match data_structure_type{
-        Expression::List(vec,_)=>{
+        Expression::List(vec)=>{
             let elem = vec.len() as i32;
             Ok(Expression::CInt(elem))
         }
@@ -843,9 +911,8 @@ mod tests {
 
     #[test]
     fn eval_append_list() {
-        let type_list = Box::new(Expression::CInt(0));
         let mut list = Expression::List(vec![
-            Expression::CInt(5), Expression::CInt(10), Expression::CInt(15)],type_list);
+            Expression::CInt(5), Expression::CInt(10), Expression::CInt(15)]);
         
         let elem = Expression::CInt(20);
         let env = HashMap::new();
@@ -859,16 +926,15 @@ mod tests {
                 Expression::CInt(10), 
                 Expression::CInt(15), 
                 Expression::CInt(20)
-            ],Box::new(Expression::CInt(0)))
+            ])
         );
     }
 
     #[test]
     fn eval_append_real_list() {
 
-        let type_list = Box::new(Expression::CReal(0.0));
         let mut list = Expression::List(
-            vec![Expression::CReal(5.85),],type_list);
+            vec![Expression::CReal(5.85),]);
         
         let elem = Expression::CReal(1.55);
         let env = HashMap::new();
@@ -880,14 +946,14 @@ mod tests {
             Expression::List(vec![
                 Expression::CReal(5.85), 
                 Expression::CReal(1.55), 
-            ],Box::new(Expression::CReal(0.0)))
+            ])
         );
     }
 
     #[test]
     fn eval_append_list_different_types(){
-        let type_list  = Box::new(Expression::CInt(0));
-        let list = Expression::List(vec![Expression::CInt(5)],type_list);
+
+        let list = Expression::List(vec![Expression::CInt(5)]);
         let env = HashMap::new();
         let elem = Expression::CReal(5.1);
         let result = eval(Expression::Append(Box::new(list), Box::new(elem)),&env);
@@ -895,13 +961,13 @@ mod tests {
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err(),
-            "Type CReal(5.1) does not match type CInt(0)"
+            "Type CReal(5.1) does not match type CInt(5)"
         );
     }
 
     #[test]
     fn eval_append_list_str(){
-        let mut list = List(vec![],Box::new(Expression::CString("".to_string())));
+        let mut list = List(vec![]);
         let env = HashMap::new();
         let elem = Expression::CString("Rust".to_string());
         list = eval(Append(Box::new(list), Box::new(elem)),&env).unwrap();
@@ -910,39 +976,36 @@ mod tests {
             list,
             Expression::List(vec![
                 Expression::CString("Rust".to_string()), 
-            ],Box::new(Expression::CString("".to_string())))
+            ])
         );
     }
 
     #[test]
-    fn eval_append_valid_list_with_list(){
+    fn eval_concat_valid_list_with_list(){
         let env = HashMap::new();
-        let type_list = Box::new(CInt(0));
-        let list1 = List(vec![CInt(5)],type_list.clone());
-        let list2 = List(vec![CInt(10)],type_list.clone());
-        let list3 = eval(Append(Box::new(list1),Box::new(list2)),&env).unwrap();
+        let list1 = List(vec![CInt(5)]);
+        let list2 = List(vec![CInt(10)]);
+        let list3 = eval(Concat(Box::new(list1),Box::new(list2)),&env).unwrap();
 
-        assert_eq!(list3,List(vec![CInt(5),CInt(10)],type_list));
+        assert_eq!(list3,List(vec![CInt(5),CInt(10)]));
     }
 
     #[test]
-    fn eval_append_valid_list_with_empty_list(){
+    fn eval_concat_valid_list_with_empty_list(){
         let env = HashMap::new();
-        let type_list = Box::new(CInt(0));
-        let list1 = List(vec![CInt(5)],type_list.clone());
-        let list2 = List(vec![],type_list.clone());
-        let list3 = eval(Append(Box::new(list1),Box::new(list2)),&env).unwrap();
+        let list1 = List(vec![CInt(5)]);
+        let list2 = List(vec![]);
+        let list3 = eval(Concat(Box::new(list1),Box::new(list2)),&env).unwrap();
 
-        assert_eq!(list3,List(vec![CInt(5)],type_list));
+        assert_eq!(list3,List(vec![CInt(5)]));
     }
 
     #[test]
     fn eval_get_element_list(){
-        let type_list = Box::new(Expression::CInt(0));
         let env = HashMap::new();
         let idx = Expression::CInt(1);
         let list = Expression::List(vec!
-            [Expression::CInt(5),Expression::CInt(8)],type_list);
+            [Expression::CInt(5),Expression::CInt(8)]);
 
         let elem = eval(Expression::Get(Box::new(list),Box::new(idx)),&env).unwrap();
 
@@ -951,11 +1014,10 @@ mod tests {
 
     #[test]
     fn eval_get_invalid_element_list(){
-        let type_list = Box::new(Expression::CInt(0));
         let env = HashMap::new();
         let idx = Expression::CInt(4);
         let list = Expression::List(vec!
-            [Expression::CInt(5),Expression::CInt(8)],type_list);
+            [Expression::CInt(5),Expression::CInt(8)]);
 
         let result = eval(Expression::Get(Box::new(list),Box::new(idx)),&env);
 
@@ -966,11 +1028,10 @@ mod tests {
 
     #[test]
     fn eval_get_not_integer_index(){
-        let type_list = Box::new(Expression::CInt(0));
         let env = HashMap::new();
         let idx = Expression::CReal(0.5);
         let list = Expression::List(vec!
-            [Expression::CInt(5),Expression::CInt(8)],type_list);
+            [Expression::CInt(5),Expression::CInt(8)]);
 
         let result = eval(Expression::Get(Box::new(list),Box::new(idx)),&env);
         assert!(result.is_err());
@@ -981,14 +1042,43 @@ mod tests {
     #[test]
     fn eval_len_list_valid(){
         let env = HashMap::new();
-        let type_list = Box::new(Expression::CString("".to_string()));
         let list = Expression::List(vec![
             Expression::CString("Rust".to_string()),
             Expression::CString("Java".to_string()),
-            Expression::CString("Python".to_string())], type_list);
+            Expression::CString("Python".to_string())]);
         let tam_list = eval(Expression::Len(Box::new(list)),&env).unwrap();
 
         assert_eq!(tam_list,Expression::CInt(3));
+    }
+
+    #[test]
+    fn pop_back_valid_list(){
+        let env = HashMap::new();
+
+        let mut list = List(vec![CInt(5),CInt(10)]);
+        
+        list = eval(PopBack(Box::new(list.clone())),&env).unwrap();
+
+        assert_eq!(list,List(vec![CInt(5)]));
+    }
+
+    #[test]
+    fn pop_back_valid_empty_list(){
+        let env = HashMap::new();
+
+        let list = List(vec![]);
+        
+        let result = eval(PopBack(Box::new(list.clone())),&env);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn eval_pop_front_valid_list(){
+        let mut list = List(vec![CInt(5),CInt(10)]);
+        let env = HashMap::new();
+        list = eval(PopFront(Box::new(list.clone())),&env).unwrap();
+        assert_eq!(list,List(vec![CInt(10)]));
     }
 
     #[test]
