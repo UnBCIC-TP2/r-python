@@ -447,7 +447,15 @@ fn eval_get_element_list(list: Expression, index: Expression, env: &Environment)
                 Ok(elements[index as usize].clone())
             }
         }
+        (Expression::Set(elements), Expression::CInt(index)) => {
+            if index < 0 || index as usize >= elements.len() {
+                Err(String::from("Index out of bounds"))
+            } else {
+                Ok(elements[index as usize].clone())
+            }
+        }
 
+        (Expression::Set(_), _) => Err(String::from("Index must be an integer")),
         (Expression::Tuple(_), _) => Err(String::from("Index must be an integer")),
         (Expression::List(_),_)=>Err(String::from("Index must be an integer")),
         _=> Err(String::from("First argument must be a list"))
@@ -462,6 +470,10 @@ fn eval_len_list(data_structure: Expression,env: &Environment)->Result<Expressio
             Ok(Expression::CInt(elem))
         }
         Expression::Tuple(vec)=>{
+            let elem = vec.len() as i32;
+            Ok(Expression::CInt(elem))
+        }
+        Expression::Set(vec)=>{
             let elem = vec.len() as i32;
             Ok(Expression::CInt(elem))
         }
@@ -898,6 +910,18 @@ mod tests {
     }
 
     #[test]
+    fn eval_len_set(){
+        let env = HashMap::new();
+        let set = Expression::Set(vec![
+            Expression::CString("Rust".to_string()),
+            Expression::CString("Java".to_string()),
+            Expression::CString("Python".to_string())]);
+        let tam_set = eval(Expression::Len(Box::new(set)),&env).unwrap();
+
+        assert_eq!(tam_set,Expression::CInt(3));
+    }
+
+    #[test]
     fn eval_get_element_tuple(){
         let env = HashMap::new();
         let idx = Expression::CInt(1);
@@ -905,6 +929,18 @@ mod tests {
             [Expression::CInt(5),Expression::CInt(8)]);
 
         let elem = eval(Expression::Get(Box::new(tuple),Box::new(idx)),&env).unwrap();
+
+        assert_eq!(elem,Expression::CInt(8));
+    }
+
+    #[test]
+    fn eval_get_element_set(){
+        let env = HashMap::new();
+        let idx = Expression::CInt(1);
+        let set = Expression::Set(vec!
+            [Expression::CInt(5),Expression::CInt(8)]);
+
+        let elem = eval(Expression::Get(Box::new(set),Box::new(idx)),&env).unwrap();
 
         assert_eq!(elem,Expression::CInt(8));
     }
