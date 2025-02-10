@@ -405,6 +405,61 @@ fn eval_append_list(list_expr: Expression, new_elem: Expression, env: &Environme
     }
 }
 
+fn eval_insert_list(list_expr: Expression, new_elem: Expression, env: &Environment)
+->Result<Expression,ErrorMessage>{
+
+    let eval_new_element = eval(new_elem, env)?;
+    match list_expr {
+        Expression::List(ref elements) => {
+            if elements.is_empty() {
+                return Ok(Expression::List(vec![eval_new_element]));
+            }
+
+            let first_element = &elements[0];
+            match (first_element, &eval_new_element) {
+                (Expression::CInt(_), Expression::CInt(_)) |
+                (Expression::CReal(_), Expression::CReal(_)) |
+                (Expression::CString(_), Expression::CString(_)) => {
+                    let mut updated_elements = elements.clone();
+                    updated_elements.insert(0,eval_new_element);
+                    return Ok(Expression::List(updated_elements));
+                }
+                _ => {
+                    return Err(format!(
+                        "Type {:?} does not match type {:?}",
+                        eval_new_element, first_element
+                    ));
+                }
+            }
+        }
+        Expression::Set(ref elements) => {
+            if elements.is_empty() {
+                return Ok(Expression::Set(vec![eval_new_element]));
+            }
+
+            let first_element = &elements[0];
+            match (first_element, &eval_new_element) {
+                (Expression::CInt(_), Expression::CInt(_)) |
+                (Expression::CReal(_), Expression::CReal(_)) |
+                (Expression::CString(_), Expression::CString(_)) => {
+                    let mut updated_elements = elements.clone();
+                    updated_elements.insert(0,eval_new_element);
+                    return Ok(Expression::Set(updated_elements));
+                }
+                _ => {
+                    return Err(format!(
+                        "Type {:?} does not match type {:?}",
+                        eval_new_element, first_element
+                    ));
+                }
+            }
+        }
+        _ => {
+            return Err("Provided expression is not a list".to_string());
+        }
+    }
+}
+
 fn eval_pop_back_list(list: Expression, env: &Environment)
 ->Result<Expression,ErrorMessage>{
 
@@ -1008,6 +1063,27 @@ mod tests {
                 Expression::CInt(10), 
                 Expression::CInt(15), 
                 Expression::CInt(20)
+            ])
+        );
+    }
+
+    #[test]
+    fn eval_insert_list() {
+        let mut list = Expression::List(vec![
+            Expression::CInt(2), Expression::CInt(3), Expression::CInt(4)]);
+        
+        let elem = Expression::CInt(1);
+        let env = HashMap::new();
+        
+        list = eval(Expression::Insert(Box::new(list), Box::new(elem)), &env).unwrap();
+        
+        assert_eq!(
+            list,
+            Expression::List(vec![
+                Expression::CInt(1),
+                Expression::CInt(2), 
+                Expression::CInt(3), 
+                Expression::CInt(4)
             ])
         );
     }
