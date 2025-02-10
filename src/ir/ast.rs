@@ -56,7 +56,8 @@ pub enum Expression {
     List(Vec<Expression>),
     Tuple(Vec<Expression>),
     Set(Vec<Expression>),
-    
+
+    Insert(Box<Expression>,Box<Expression>),
     Append(Box<Expression>,Box<Expression>),
     Concat(Box<Expression>,Box<Expression>),
     PopBack(Box<Expression>),

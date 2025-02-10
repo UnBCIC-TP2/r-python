@@ -38,6 +38,9 @@ pub fn eval(exp: Expression, env: &Environment) -> Result<Expression, ErrorMessa
         Expression::Append(list,elem)=>
         eval_append_list(*list,*elem,env),
 
+        Expression::Insert(list,elem)=>
+        eval_insert_list(*list,*elem,env),
+
         Expression::PopBack(list)=>
         eval_pop_back_list(*list,env),
 
@@ -365,6 +368,28 @@ fn eval_append_list(list_expr: Expression, new_elem: Expression, env: &Environme
                     let mut updated_elements = elements.clone();
                     updated_elements.push(eval_new_element);
                     return Ok(Expression::List(updated_elements));
+                }
+                _ => {
+                    return Err(format!(
+                        "Type {:?} does not match type {:?}",
+                        eval_new_element, first_element
+                    ));
+                }
+            }
+        }
+        Expression::Set(ref elements) => {
+            if elements.is_empty() {
+                return Ok(Expression::Set(vec![eval_new_element]));
+            }
+
+            let first_element = &elements[0];
+            match (first_element, &eval_new_element) {
+                (Expression::CInt(_), Expression::CInt(_)) |
+                (Expression::CReal(_), Expression::CReal(_)) |
+                (Expression::CString(_), Expression::CString(_)) => {
+                    let mut updated_elements = elements.clone();
+                    updated_elements.push(eval_new_element);
+                    return Ok(Expression::Set(updated_elements));
                 }
                 _ => {
                     return Err(format!(
@@ -792,6 +817,27 @@ mod tests {
         let elem = eval(Expression::Get(Box::new(set),Box::new(idx)),&env).unwrap();
 
         assert_eq!(elem,Expression::CInt(8));
+    }
+
+    #[test]
+    fn eval_append_set() {
+        let mut set = Expression::Set(vec![
+            Expression::CInt(5), Expression::CInt(10), Expression::CInt(15)]);
+        
+        let elem = Expression::CInt(20);
+        let env = HashMap::new();
+        
+        set = eval(Expression::Append(Box::new(set), Box::new(elem)), &env).unwrap();
+        
+        assert_eq!(
+            set,
+            Expression::Set(vec![
+                Expression::CInt(5), 
+                Expression::CInt(10), 
+                Expression::CInt(15), 
+                Expression::CInt(20)
+            ])
+        );
     }
 
     // #[test]
