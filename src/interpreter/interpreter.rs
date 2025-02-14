@@ -122,6 +122,10 @@ pub fn execute(
             let value = eval(*exp, &new_env)?;
             Ok(ControlFlow::Return(value))
         }
+        Statement::MetaStmt(f) => {
+            f(&mut new_env)?;
+            Ok(ControlFlow::Continue(new_env))
+        }
         _ => Err(String::from("not implemented yet")),
     }
 }
