@@ -277,27 +277,11 @@ fn eval_create_list(
 ) -> Result<Expression, ErrorMessage> {
 
     let mut eval_elements = Vec::new();
-    let mut type_list_eval: Option<Expression> = None;
-
     for element in elements {
-        let eval_elem = eval(element, env)?;
-        if type_list_eval.is_none() {
-            type_list_eval = Some(eval_elem.clone());
-        }
-        match (&eval_elem, type_list_eval.as_ref().unwrap()) {
-            (Expression::CInt(_), Expression::CInt(_)) |
-            (Expression::CReal(_), Expression::CReal(_)) |
-            (Expression::CString(_), Expression::CString(_)) => {
-                eval_elements.push(eval_elem);
-            }
-            _ => {
-                return Err(format!(
-                    "Type {:?} does not match type {:?}",
-                    eval_elem, type_list_eval.unwrap()
-                ));
-            }
-        }
+        let eval_elem = eval(element,env)?;
+        eval_elements.push(eval_elem);
     }
+
     Ok(Expression::List(eval_elements))
 }
 
@@ -329,20 +313,13 @@ fn eval_concat_list(list1:Expression, list2:Expression, env: &Environment)
                 return Ok(Expression::List(vec2));
             }
 
-            match (vec[0].clone(),vec2[0].clone()){
-                (Expression::CInt(_),Expression::CInt(_)) |
-                (Expression::CReal(_),Expression::CReal(_)) |
-                (Expression::CString(_),Expression::CString(_)) =>{
-                    for i in 0..vec2.len(){
-                        if let Some(aux) = vec2.get(i){
-                            vec.push(aux.clone());
-                        }
-                    }
-                    Ok(Expression::List(vec))
+            for i in 0..vec2.len(){
+                if let Some(aux) = vec2.get(i){
+                    vec.push(aux.clone());
                 }
-                _ => Err(String::from("[Type error] Both lists may have same type"))
             }
 
+            Ok(Expression::List(vec))
         }
         _=>Err(String::from("Expected two lists as arguments."))
     }
@@ -360,22 +337,10 @@ fn eval_append_list(list_expr: Expression, new_elem: Expression, env: &Environme
                 return Ok(Expression::List(vec![eval_new_element]));
             }
 
-            let first_element = &elements[0];
-            match (first_element, &eval_new_element) {
-                (Expression::CInt(_), Expression::CInt(_)) |
-                (Expression::CReal(_), Expression::CReal(_)) |
-                (Expression::CString(_), Expression::CString(_)) => {
-                    let mut updated_elements = elements.clone();
-                    updated_elements.push(eval_new_element);
-                    return Ok(Expression::List(updated_elements));
-                }
-                _ => {
-                    return Err(format!(
-                        "Type {:?} does not match type {:?}",
-                        eval_new_element, first_element
-                    ));
-                }
-            }
+            let mut updated_elements = elements.clone();
+            updated_elements.push(eval_new_element);
+            return Ok(Expression::List(updated_elements));
+
         }
         Expression::Set(ref elements) => {
             if elements.is_empty() {
@@ -469,8 +434,11 @@ fn eval_pop_back_list(list: Expression, env: &Environment)
             if vec.is_empty(){
                 return Err(String::from("Cannot pop from an empty list."));
             }
-            vec.pop();
-            Ok(Expression::List(vec))
+            if let Some(removed_item) = vec.pop() {
+                Ok(Expression::Tuple(vec![Expression::List(vec), removed_item]))
+            } else {
+                Err(String::from("Error has ocurred on pop"))
+            }
         }
         _ => Err(String::from("Expected a list for pop operation.")),
     }
@@ -484,13 +452,11 @@ fn eval_pop_front_list(list: Expression, env: &Environment)
             if vec.is_empty(){
                 return Err(String::from("Cannot pop from an empty list."));
             }
-            let mut new_list = Vec::new();
-            for i in 1..vec.len(){
-                if let Some(aux) = vec.get(i){
-                    new_list.push(aux.clone());
-                }
-            }
-            Ok(Expression::List(new_list))
+            
+            let removed_item = vec[0].clone();
+            let new_list = vec[1..].to_vec(); 
+
+            Ok(Expression::Tuple(vec![Expression::List(new_list), removed_item]))
     }
         _ => Err(String::from("Expected a list for pop operation.")),
     }
@@ -1117,10 +1083,6 @@ mod tests {
         let result = eval(Expression::Append(Box::new(list), Box::new(elem)),&env);
 
         assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err(),
-            "Type CReal(5.1) does not match type CInt(5)"
-        );
     }
 
     #[test]
@@ -1210,14 +1172,19 @@ mod tests {
     }
 
     #[test]
-    fn pop_back_valid_list(){
+    fn pop_back_valid_list() {
         let env = HashMap::new();
-
-        let mut list = List(vec![CInt(5),CInt(10)]);
+    
+        let list = List(vec![CInt(5), CInt(10)]);
         
-        list = eval(PopBack(Box::new(list.clone())),&env).unwrap();
-
-        assert_eq!(list,List(vec![CInt(5)]));
+        let result = eval(PopBack(Box::new(list.clone())), &env).unwrap();
+        
+        let new_list = eval(Get(Box::new(result.clone()), Box::new(CInt(0))), &env).unwrap();
+    
+        let removed_item = eval(Get(Box::new(result.clone()), Box::new(CInt(1))), &env).unwrap();
+    
+        assert_eq!(new_list, List(vec![CInt(5)]));
+        assert_eq!(removed_item, CInt(10));
     }
 
     #[test]
@@ -1233,10 +1200,16 @@ mod tests {
 
     #[test]
     fn eval_pop_front_valid_list(){
-        let mut list = List(vec![CInt(5),CInt(10)]);
+        let list = List(vec![CInt(5),CInt(10)]);
         let env = HashMap::new();
-        list = eval(PopFront(Box::new(list.clone())),&env).unwrap();
-        assert_eq!(list,List(vec![CInt(10)]));
+        let result = eval(PopFront(Box::new(list.clone())),&env).unwrap();
+
+        let new_list = eval(Get(Box::new(result.clone()), Box::new(CInt(0))), &env).unwrap();
+    
+        let removed_item = eval(Get(Box::new(result.clone()), Box::new(CInt(1))), &env).unwrap();
+
+        assert_eq!(new_list, List(vec![CInt(10)]));
+        assert_eq!(removed_item, CInt(5));
     }
 
     #[test]
