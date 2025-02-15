@@ -454,7 +454,7 @@ mod tests {
     use crate::ir::ast::Function;
     use crate::ir::ast::Statement::*;
     use crate::ir::ast::Type::*;
-    use crate::stdlib::math::sqrt;
+    use crate::stdlib::math::{sqrt, gcd};
     use approx::relative_eq;
 
     #[test]
@@ -1016,15 +1016,15 @@ mod tests {
     #[test]
     fn metastmt_sqrt() {
         /*
-        * Teste para a função de raiz quadrada (sqrt) usando MetaStmt
+        * Test for the square root function (sqrt) using MetaStmt
         *
-        * Código rpy imaginário:
+        * Imaginary rpy code:
         *
         * > x: TReal = 16.0
         * > MetaStmt(sqrt, [x])
-        * > resultado: TReal = metaResult
+        * > result: TReal = metaResult
         *
-        * Após a execução, 'result' deve ser 4.0 (sqrt(16.0) = 4.0).
+        * After execution, 'result' should be 4.0 (sqrt(16.0) = 4.0).
         */
 
         let env = Environment::new();
@@ -1042,7 +1042,7 @@ mod tests {
         );
 
         let assign_result = Statement::Assignment(
-            "resultado".to_string(),
+            "result".to_string(),
             Box::new(Expression::Var("metaResult".to_string())),
             Some(TReal),
         );
@@ -1060,20 +1060,20 @@ mod tests {
                 if let Some(&(Some(EnvValue::Exp(Expression::CReal(value))), _)) = new_env.get("metaResult") {
                     assert_eq!(value, 4.0);
                 } else {
-                    panic!("Variável 'result' não encontrada ou tem tipo incorreto");
+                    panic!("Variable 'metaResult' not found or has incorrect type");
                 }
             }
-            Ok(_) => panic!("O interpretador não continuou a execução como esperado"),
-            Err(err) => panic!("Falha na execução do interpretador com erro: {}", err),
+            Ok(_) => panic!("The interpreter did not continue execution as expected"),
+            Err(err) => panic!("Interpreter execution failed with error: {}", err),
         }
     }
 
     #[test]
     fn metastmt_function_sqrt() {
         /*
-        * Teste para a função de raiz quadrada (sqrt) usando MetaStmt
+        * Test for the r-python square root function (sqrt) using MetaStmt
         *
-        * Código rpy imaginário:
+        * Imaginary rpy code:
         *
         * > x: TReal = 25.0
         * > def sqrt(x: TReal) -> TReal:
@@ -1081,7 +1081,7 @@ mod tests {
         * >     return metaResult
         * > x = sqrt(x)
         *
-        * Após a execução, 'x' deve ser 5.0 (sqrt(25.0) = 5.0).
+        * After execution, 'x' should be 5.0 (sqrt(25.0) = 5.0).
         */
         let env = Environment::new();
         
@@ -1130,13 +1130,93 @@ mod tests {
                 if let Some(&(Some(EnvValue::Exp(Expression::CReal(value))), _)) = new_env.get("x") {
                     assert_eq!(value, 5.0);
                 } else {
-                    panic!("Variável 'x' não encontrada ou tem tipo incorreto");
+                    panic!("Variable 'x' not found or has incorrect type");
                 }
             }
-            Ok(_) => panic!("O interpretador não continuou a execução como esperado"),
-            Err(err) => panic!("Falha na execução do interpretador com erro: {}", err),
+            Ok(_) => panic!("The interpreter did not continue execution as expected"),
+            Err(err) => panic!("Interpreter execution failed with error: {}", err),
         }
     }
 
-
+    #[test]
+    fn metastmt_function_gcd() {
+        /*
+        * Test for the greatest common divisor function (gcd) using MetaStmt
+        *
+        * Imaginary rpy code:
+        *
+        * > a: TInteger = 48
+        * > b: TInteger = 18
+        * > def gcd(a: TInteger, b: TInteger) -> TInteger:
+        * >     MetaStmt(gcd, [a, b])
+        * >     return metaResult
+        * > result = gcd(a, b)
+        *
+        * After execution, 'result' should be 6 (gcd(48, 18) = 6).
+        */
+    
+        let env = Environment::new();
+    
+        let assign_a = Statement::Assignment(
+            "a".to_string(),
+            Box::new(Expression::CInt(48)),
+            Some(TInteger),
+        );
+    
+        let assign_b = Statement::Assignment(
+            "b".to_string(),
+            Box::new(Expression::CInt(18)),
+            Some(TInteger),
+        );
+    
+        let meta_stmt = Statement::MetaStmt(
+            gcd,
+            vec![Expression::Var("a".to_string()), Expression::Var("b".to_string())],
+            TInteger,
+        );
+    
+        let func: Statement = Statement::FuncDef(
+            "gcd".to_string(),
+            Function {
+                kind: TInteger,
+                params: Some(vec![("a".to_string(), TInteger), ("b".to_string(), TInteger)]),
+                body: Box::new(Statement::Sequence(
+                    Box::new(meta_stmt),
+                    Box::new(Statement::Return(
+                        Box::new(Expression::Var("metaResult".to_string()))
+                    )),
+                )),
+            },
+        );
+    
+        let assign_result = Statement::Assignment(
+            "result".to_string(),
+            Box::new(Expression::FuncCall("gcd".to_string(), vec![Expression::Var("a".to_string()), Expression::Var("b".to_string())])),
+            Some(TInteger),
+        );
+    
+        let program = Statement::Sequence(
+            Box::new(assign_a),
+            Box::new(Statement::Sequence(
+                Box::new(assign_b),
+                Box::new(Statement::Sequence(
+                    Box::new(func),
+                    Box::new(assign_result),
+                )),
+            )),
+        );
+    
+        match execute(program, &env, true) {
+            Ok(ControlFlow::Continue(new_env)) => {
+                if let Some(&(Some(EnvValue::Exp(Expression::CInt(value))), _)) = new_env.get("result") {
+                    assert_eq!(value, 6);
+                } else {
+                    panic!("Variable 'result' not found or has incorrect type");
+                }
+            }
+            Ok(_) => panic!("The interpreter did not continue execution as expected"),
+            Err(err) => panic!("Interpreter execution failed with error: {}", err),
+        }
+    }
+    
 }

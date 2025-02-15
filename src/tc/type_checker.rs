@@ -817,7 +817,7 @@ mod tests {
         );
 
         let assign_stmt = Statement::Assignment(
-            "resultado".to_string(),
+            "result".to_string(),
             Box::new(Expression::Var("metaResult".to_string())),
             Some(Type::TReal),
         );
@@ -831,13 +831,13 @@ mod tests {
             Ok(ControlType::Continue(new_env)) => {
                 let meta_result_type = new_env
                     .get("metaResult")
-                    .expect("metaResult não foi definido no ambiente")
+                    .expect("metaResult was not found in the environment")
                     .1
                     .clone();
                 assert_eq!(meta_result_type, Type::TReal);
             }
-            Ok(_) => panic!("O type checker não retornou um fluxo de controle esperado"),
-            Err(err) => panic!("Type checker falhou com erro: {}", err),
+            Ok(_) => panic!("Type checker should have returned a new environment"),
+            Err(err) => panic!("Type checker should not have failed: {}", err),
         }
     }
 
@@ -859,7 +859,7 @@ mod tests {
         );
 
         let assign_stmt = Statement::Assignment(
-            "resultado".to_string(),
+            "result".to_string(),
             Box::new(Expression::Var("metaResult".to_string())),
             Some(Type::TBool),
         );
@@ -871,7 +871,7 @@ mod tests {
 
         match check_stmt(program, &env, None) {
             Err(_err) => (),
-            Ok(_) => panic!("Type checker deveria ter falhado devido à incompatibilidade de tipos"),
+            Ok(_) => panic!("Type checker should have failed"),
         }
     }
 
