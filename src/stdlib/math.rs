@@ -1,5 +1,11 @@
-pub fn sqrt(x: &f64) -> f64 {
-    x.sqrt()
+use crate::ir::ast::{EnvValue, Expression};
+
+pub fn sqrt(args: Vec<EnvValue>) -> EnvValue {
+    if let EnvValue::Exp(Expression::CReal(x)) = &args[0] {
+        EnvValue::Exp(Expression::CReal(x.sqrt()))
+    } else {
+        EnvValue::Exp(Expression::CReal(f64::NAN))
+    }
 }
 
 pub fn factorial(n: &u64) -> u64{
@@ -61,23 +67,62 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_sqrt_positive(){
-        assert_eq!(sqrt(&1.0), 1.0);
-        assert_eq!(sqrt(&4.0), 2.0);
-        assert_eq!(sqrt(&9.0), 3.0);
-        assert_eq!(sqrt(&25.0), 5.0);
-        assert_eq!(sqrt(&36.0), 6.0);
+    fn test_sqrt_positive_real() {
+        let args = vec![EnvValue::Exp(Expression::CReal(9.0))];
+        let result = sqrt(args);
+
+        if let EnvValue::Exp(Expression::CReal(res_value)) = result {
+            assert_eq!(res_value, 3.0);
+        } else {
+            panic!("O resultado não é um número real");
+        }
     }
 
     #[test]
-    fn test_sqrt_zero(){
-        assert_eq!(sqrt(&0.0), 0.0);
+    fn test_sqrt_zero() {
+        let args = vec![EnvValue::Exp(Expression::CReal(0.0))];
+        let result = sqrt(args);
+
+        if let EnvValue::Exp(Expression::CReal(res_value)) = result {
+            assert_eq!(res_value, 0.0);
+        } else {
+            panic!("O resultado não é um número real");
+        }
     }
 
     #[test]
-    fn test_sqrt_negative(){
-        assert!(sqrt(&-9.0).is_nan());
+    fn test_sqrt_negative_real() {
+        let args = vec![EnvValue::Exp(Expression::CReal(-4.0))];
+        let result = sqrt(args);
+
+        if let EnvValue::Exp(Expression::CReal(res_value)) = result {
+            assert!(res_value.is_nan(), "O resultado deveria ser NaN para números negativos");
+        } else {
+            panic!("O resultado não é um número real");
+        }
     }
+
+    #[test]
+    fn test_sqrt_invalid_argument() {
+        let args = vec![EnvValue::Exp(Expression::CString("invalid".to_string()))];
+
+        let result = sqrt(args);
+
+        if let EnvValue::Exp(Expression::CReal(res_value)) = result {
+            assert!(res_value.is_nan(), "O resultado deveria ser NaN para argumentos inválidos");
+        } else {
+            panic!("O resultado não é um número real");
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "index out of bounds")]
+    fn test_sqrt_no_arguments() {
+        let args = vec![];
+
+        let _ = sqrt(args);
+    }
+
 
     #[test]
     fn test_factorial_base_cases() {

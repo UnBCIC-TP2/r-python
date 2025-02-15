@@ -154,7 +154,7 @@ pub fn check_stmt(
 
             Ok(ControlType::Return(exp_type))
         }
-        Statement::MetaStmt(_) =>{
+        Statement::MetaStmt(_, _) =>{
             Ok(ControlType::Continue(env.clone()))
         }
         _ => Err(String::from("not implemented yet")),
