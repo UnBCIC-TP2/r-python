@@ -1,4 +1,4 @@
-use crate::ir::ast::{EnvValue, Environment, Expression, Name, Statement};
+use crate::ir::ast::{EnvValue, Environment, Expression, Name, Statement, Type};
 use crate::tc::type_checker::{check_stmt, ControlType};
 use crate::HashMap;
 
@@ -26,6 +26,7 @@ pub fn eval(exp: Expression, env: &Environment) -> Result<EnvValue, ErrorMessage
         Expression::LTE(lhs, rhs) => lte(*lhs, *rhs, env),
         Expression::Var(name) => lookup(name, env),
         Expression::FuncCall(name, args) => call(name, args, env),
+        Expression::MetaExp(f, args, return_type) => meta(f, args, return_type, env),
         _ if is_constant(exp.clone()) => Ok(EnvValue::Exp(exp)),
         _ => Err(String::from("Not implemented yet.")),
     }
@@ -443,6 +444,42 @@ fn lte(lhs: Expression, rhs: Expression, env: &Environment) -> Result<EnvValue, 
         },
         "(<=) is only defined for numbers (integers and real).",
     )
+}
+
+fn meta(
+    f: fn(Vec<EnvValue>) -> EnvValue,
+    args: Vec<Expression>,
+    return_type: Type,
+    env: &Environment,
+) -> Result<EnvValue, ErrorMessage> {
+
+    let mut args_values = Vec::new();
+    for expr in &args {
+        let env_value = eval(expr.clone(), env)?;
+        args_values.push(env_value);
+    }
+
+    let result_value = f(args_values);
+
+    if get_type_env_value(&result_value) != return_type {
+                return Err(format!(
+                    "Tipo incorreto: esperado {:?}, mas a função retornou {:?}",
+                    return_type.clone(),
+                    get_type_env_value(&result_value)
+                ));
+            }
+    Ok(result_value)
+}
+
+pub fn get_type_env_value(value: &EnvValue) -> Type {
+    match value {
+        EnvValue::Exp(Expression::CInt(_)) => Type::TInteger,
+        EnvValue::Exp(Expression::CReal(_)) => Type::TReal,
+        EnvValue::Exp(Expression::CString(_)) => Type::TString,
+        EnvValue::Exp(Expression::CTrue) | EnvValue::Exp(Expression::CFalse) => Type::TBool,
+        EnvValue::Func(_) => Type::TFunction,
+        _ => unreachable!(),
+    }
 }
 
 #[cfg(test)]
@@ -1021,7 +1058,7 @@ mod tests {
         * Imaginary rpy code:
         *
         * > x: TReal = 16.0
-        * > MetaStmt(sqrt, [x])
+        * > MetaStmt(sqrt, [x], TReal)
         * > result: TReal = metaResult
         *
         * After execution, 'result' should be 4.0 (sqrt(16.0) = 4.0).
@@ -1077,7 +1114,7 @@ mod tests {
         *
         * > x: TReal = 25.0
         * > def sqrt(x: TReal) -> TReal:
-        * >     MetaStmt(sqrt, [x])
+        * >     MetaStmt(sqrt, [x], TReal)
         * >     return metaResult
         * > x = sqrt(x)
         *
@@ -1148,7 +1185,7 @@ mod tests {
         * > a: TInteger = 48
         * > b: TInteger = 18
         * > def gcd(a: TInteger, b: TInteger) -> TInteger:
-        * >     MetaStmt(gcd, [a, b])
+        * >     MetaStmt(gcd, [a, b], TInteger)
         * >     return metaResult
         * > result = gcd(a, b)
         *
@@ -1219,4 +1256,130 @@ mod tests {
         }
     }
     
+    #[test]
+    fn metaexp_sqrt() {
+        /*
+        * Test for the r-python square root function (sqrt) using MetaExp
+        *
+        * Imaginary rpy code:
+        *
+        * > x: TReal = 25.0
+        * > x = MetaExp(sqrt, [x], TReal)
+        *
+        * After execution, 'x' should be 5.0 (sqrt(25.0) = 5.0).
+        */
+    
+        let env = Environment::new();
+    
+        let assign_x = Statement::Assignment(
+            "x".to_string(),
+            Box::new(Expression::CReal(25.0)),
+            Some(Type::TReal),
+        );
+    
+        let meta_expr = Expression::MetaExp(
+            sqrt,
+            vec![Expression::Var("x".to_string())],
+            Type::TReal,
+        );
+    
+        let assign_result = Statement::Assignment(
+            "x".to_string(),
+            Box::new(meta_expr),
+            Some(Type::TReal),
+        );
+    
+        let program = Statement::Sequence(
+            Box::new(assign_x),
+            Box::new(assign_result),
+        );
+    
+        match execute(program, &env, true) {
+            Ok(ControlFlow::Continue(new_env)) => {
+                if let Some(&(Some(EnvValue::Exp(Expression::CReal(value))), _)) = new_env.get("x") {
+                    assert_eq!(value, 5.0);
+                } else {
+                    panic!("Variable 'x' not found or has incorrect type");
+                }
+            }
+            Ok(_) => panic!("The interpreter did not continue execution as expected"),
+            Err(err) => panic!("Interpreter execution failed with error: {}", err),
+        }
+    }
+    
+    #[test]
+    fn metaexp_function_gcd() {
+        /*
+        * Test for the greatest common divisor function (gcd) using MetaStmt
+        *
+        * Imaginary rpy code:
+        *
+        * > a: TInteger = 48
+        * > b: TInteger = 18
+        * > def gcd(a: TInteger, b: TInteger) -> TInteger:
+        * >     return MetaStmt(gcd, [a, b], TInteger)
+        * > result = gcd(a, b)
+        *
+        * After execution, 'result' should be 6 (gcd(48, 18) = 6).
+        */
+    
+        let env = Environment::new();
+    
+        let assign_a = Statement::Assignment(
+            "a".to_string(),
+            Box::new(Expression::CInt(48)),
+            Some(TInteger),
+        );
+    
+        let assign_b = Statement::Assignment(
+            "b".to_string(),
+            Box::new(Expression::CInt(18)),
+            Some(TInteger),
+        );
+    
+        let meta_epx = Expression::MetaExp(
+            gcd,
+            vec![Expression::Var("a".to_string()), Expression::Var("b".to_string())],
+            TInteger,
+        );
+    
+        let func = Statement::FuncDef(
+            "gcd".to_string(),
+            Function {
+                kind: TInteger,
+                params: Some(vec![("a".to_string(), TInteger), ("b".to_string(), TInteger)]),
+                body: Box::new(Statement::Return(Box::new(meta_epx))),
+            },
+        );
+    
+        let assign_result = Statement::Assignment(
+            "result".to_string(),
+            Box::new(Expression::FuncCall("gcd".to_string(), vec![Expression::Var("a".to_string()), Expression::Var("b".to_string())])),
+            Some(TInteger),
+        );
+    
+        let program = Statement::Sequence(
+            Box::new(assign_a),
+            Box::new(Statement::Sequence(
+                Box::new(assign_b),
+                Box::new(Statement::Sequence(
+                    Box::new(func),
+                    Box::new(assign_result),
+                )),
+            )),
+        );
+    
+        match execute(program, &env, true) {
+            Ok(ControlFlow::Continue(new_env)) => {
+                if let Some(&(Some(EnvValue::Exp(Expression::CInt(value))), _)) = new_env.get("result") {
+                    assert_eq!(value, 6);
+                } else {
+                    panic!("Variable 'result' not found or has incorrect type");
+                }
+            }
+            Ok(_) => panic!("The interpreter did not continue execution as expected"),
+            Err(err) => panic!("Interpreter execution failed with error: {}", err),
+        }
+    }
+
 }

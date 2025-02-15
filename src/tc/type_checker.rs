@@ -28,6 +28,12 @@ pub fn check_exp(exp: Expression, env: &Environment) -> Result<Type, ErrorMessag
         Expression::LTE(l, r) => check_bin_relational_expression(*l, *r, env),
         Expression::Var(name) => check_var_name(name, env),
         Expression::FuncCall(name, args) => check_func_call(name, args, env),
+        Expression::MetaExp(_, args, return_type) => {
+            for arg in args {
+                check_exp(arg.clone(), env)?;
+            }
+            Ok(return_type)
+        }
     }
 }
 
@@ -155,7 +161,7 @@ pub fn check_stmt(
             Ok(ControlType::Return(exp_type))
         }
 
-        Statement::MetaStmt(_f, args, return_type) => {
+        Statement::MetaStmt(_, args, return_type) => {
             for arg in args {
                 check_exp(arg.clone(), env)?;
             }
@@ -875,4 +881,21 @@ mod tests {
         }
     }
 
+    #[test]
+    fn check_metaexp_sqrt_correct() {
+        let mut env = Environment::new();
+        env.insert(
+            "x".to_string(),
+            (Some(EnvValue::Exp(Expression::CReal(25.0))), Type::TReal),
+        );
+
+        let meta_expr = Expression::MetaExp(
+            sqrt,
+            vec![Expression::Var("x".to_string())],
+            Type::TReal,
+        );
+
+        let ty = check_exp(meta_expr, &env).unwrap();
+        assert_eq!(ty, Type::TReal);
+    }
 }
