@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::collections::HashSet;
 
 use crate::ir::ast::{Expression, Name, Statement};
 
@@ -52,6 +53,18 @@ pub fn eval(exp: Expression, env: &Environment) -> Result<Expression, ErrorMessa
 
         Expression::Len(list)=>
         eval_len_list(*list,env),
+
+        Expression::Union(set1,set2)=>
+        eval_union_set(*set1,*set2,env),
+
+        Expression::Intersection(set1,set2)=>
+        eval_intersection_set(*set1,*set2,env),
+
+        Expression::Difference(set1,set2)=>
+        eval_difference_set(*set1,*set2,env),
+
+        Expression::Disjunction(set1,set2)=>
+        eval_disjunction_set(*set1,*set2,env),
 
         // Expression::Dict(elements)=> 
         // eval_create_dict(elements, env),
@@ -346,24 +359,11 @@ fn eval_append_list(list_expr: Expression, new_elem: Expression, env: &Environme
             if elements.is_empty() {
                 return Ok(Expression::Set(vec![eval_new_element]));
             }
-
-            let first_element = &elements[0];
-            match (first_element, &eval_new_element) {
-                (Expression::CInt(_), Expression::CInt(_)) |
-                (Expression::CReal(_), Expression::CReal(_)) |
-                (Expression::CString(_), Expression::CString(_)) => {
-                    let mut updated_elements = elements.clone();
-                    updated_elements.push(eval_new_element);
-                    return Ok(Expression::Set(updated_elements));
-                }
-                _ => {
-                    return Err(format!(
-                        "Type {:?} does not match type {:?}",
-                        eval_new_element, first_element
-                    ));
-                }
+            let mut updated_elements = elements.clone();
+            updated_elements.push(eval_new_element);
+            return Ok(Expression::Set(updated_elements));
+                
             }
-        }
         _ => {
             return Err("Provided expression is not a list".to_string());
         }
@@ -380,44 +380,10 @@ fn eval_insert_list(list_expr: Expression, new_elem: Expression, env: &Environme
                 return Ok(Expression::List(vec![eval_new_element]));
             }
 
-            let first_element = &elements[0];
-            match (first_element, &eval_new_element) {
-                (Expression::CInt(_), Expression::CInt(_)) |
-                (Expression::CReal(_), Expression::CReal(_)) |
-                (Expression::CString(_), Expression::CString(_)) => {
-                    let mut updated_elements = elements.clone();
-                    updated_elements.insert(0,eval_new_element);
-                    return Ok(Expression::List(updated_elements));
-                }
-                _ => {
-                    return Err(format!(
-                        "Type {:?} does not match type {:?}",
-                        eval_new_element, first_element
-                    ));
-                }
-            }
-        }
-        Expression::Set(ref elements) => {
-            if elements.is_empty() {
-                return Ok(Expression::Set(vec![eval_new_element]));
-            }
+            let mut updated_elements = elements.clone();
+            updated_elements.insert(0,eval_new_element);
+            return Ok(Expression::List(updated_elements));
 
-            let first_element = &elements[0];
-            match (first_element, &eval_new_element) {
-                (Expression::CInt(_), Expression::CInt(_)) |
-                (Expression::CReal(_), Expression::CReal(_)) |
-                (Expression::CString(_), Expression::CString(_)) => {
-                    let mut updated_elements = elements.clone();
-                    updated_elements.insert(0,eval_new_element);
-                    return Ok(Expression::Set(updated_elements));
-                }
-                _ => {
-                    return Err(format!(
-                        "Type {:?} does not match type {:?}",
-                        eval_new_element, first_element
-                    ));
-                }
-            }
         }
         _ => {
             return Err("Provided expression is not a list".to_string());
@@ -525,6 +491,102 @@ fn eval_len_list(data_structure: Expression,env: &Environment)->Result<Expressio
         }
         _=> Err(String::from("First argument must be a list"))
     }
+}
+
+fn eval_union_set(set1:Expression, set2:Expression, env: &Environment)
+->Result<Expression,ErrorMessage>{
+
+    let set1_eval = eval(set1,&env)?;
+    let set2_eval = eval(set2,&env)?;
+
+    match(set1_eval, set2_eval){
+
+        (Expression::Set(vec1),
+        Expression::Set(vec2))=>{
+            let set1: HashSet<_> = vec1.into_iter().collect();
+            let set2: HashSet<_> = vec2.into_iter().collect();
+
+            // Aplicar a união dos conjuntos
+            let uniao: HashSet<_> = set1.union(&set2).cloned().collect();
+
+            // Converter de volta para Vec e retornar
+            Ok(Expression::Set(uniao.into_iter().collect()))
+        }
+        _=>Err(String::from("Expected two sets as arguments."))
+    }
+
+}
+
+fn eval_intersection_set(set1:Expression, set2:Expression, env: &Environment)
+->Result<Expression,ErrorMessage>{
+
+    let set1_eval = eval(set1,&env)?;
+    let set2_eval = eval(set2,&env)?;
+
+    match(set1_eval, set2_eval){
+
+        (Expression::Set(vec1),
+        Expression::Set(vec2))=>{
+            let set1: HashSet<_> = vec1.into_iter().collect();
+            let set2: HashSet<_> = vec2.into_iter().collect();
+
+            // Aplicar a interseção dos conjuntos
+            let intersecao: HashSet<_> = set1.intersection(&set2).cloned().collect();
+
+            // Converter de volta para Vec e retornar
+            Ok(Expression::Set(intersecao.into_iter().collect()))
+        }
+        _=>Err(String::from("Expected two sets as arguments."))
+    }
+
+}
+
+fn eval_difference_set(set1:Expression, set2:Expression, env: &Environment)
+->Result<Expression,ErrorMessage>{
+
+    let set1_eval = eval(set1,&env)?;
+    let set2_eval = eval(set2,&env)?;
+
+    match(set1_eval, set2_eval){
+
+        (Expression::Set(vec1),
+        Expression::Set(vec2))=>{
+            let set1: HashSet<_> = vec1.into_iter().collect();
+            let set2: HashSet<_> = vec2.into_iter().collect();
+
+            // Aplicar a diferença entre os elementos do conjunto um comparado com o conjunto dois
+            let diferenca: HashSet<_> = set1.difference(&set2).cloned().collect();
+
+            // Converter de volta para Vec e retornar
+            Ok(Expression::Set(diferenca.into_iter().collect()))
+        }
+        _=>Err(String::from("Expected two sets as arguments."))
+    }
+
+}
+
+fn eval_disjunction_set(set1:Expression, set2:Expression, env: &Environment)
+->Result<Expression,ErrorMessage>{
+
+    let set1_eval = eval(set1,&env)?;
+    let set2_eval = eval(set2,&env)?;
+
+    match(set1_eval, set2_eval){
+
+        (Expression::Set(vec1),
+        Expression::Set(vec2))=>{
+            let set1: HashSet<_> = vec1.into_iter().collect();
+            let set2: HashSet<_> = vec2.into_iter().collect();
+
+            // Aplicar a disjuncao dos conjuntos
+            let disjuncao: HashSet<_> = set1.symmetric_difference(&set2).cloned().collect();
+
+            // Converter de volta para Vec e retornar
+            Ok(Expression::Set(disjuncao.into_iter().collect()))
+        }
+        _=>Err(String::from("Expected two sets as arguments."))
+    }
+
 }
 
 /* Arithmetic Operations */
@@ -857,6 +919,95 @@ mod tests {
                 Expression::CInt(10), 
                 Expression::CInt(15), 
                 Expression::CInt(20)
+            ])
+        );
+    }
+
+    #[test]
+    fn eval_union_set(){
+        let env = HashMap::new();
+
+        let set1 = Expression::Set(vec![
+            Expression::CInt(5), Expression::CInt(10), Expression::CInt(15)]);
+
+        let set2 = Expression::Set(vec![
+            Expression::CInt(20), Expression::CInt(25), Expression::CInt(30)]);
+
+        let result = eval(Expression::Union(Box::new(set1), Box::new(set2)), &env).unwrap();
+
+        assert_eq!(
+            result,
+            Expression::Set(vec![
+                Expression::CInt(5), 
+                Expression::CInt(10), 
+                Expression::CInt(15), 
+                Expression::CInt(20),
+                Expression::CInt(25),
+                Expression::CInt(30),
+            ])
+        );
+    }
+
+    #[test]
+    fn eval_intersection_set() {
+        let env = HashMap::new();
+
+        let set1 = Expression::Set(vec![
+            Expression::CInt(1), Expression::CInt(2), Expression::CInt(3)]);
+
+        let set2 = Expression::Set(vec![
+            Expression::CInt(3), Expression::CInt(4), Expression::CInt(5)]);
+
+        let result = eval(Expression::Intersection(Box::new(set1), Box::new(set2)), &env).unwrap();
+
+        assert_eq!(
+            result,
+            Expression::Set(vec![
+                Expression::CInt(3),
+            ])
+        );
+    }
+
+    #[test]
+    fn eval_difference_set() {
+        let env = HashMap::new();
+
+        let set1 = Expression::Set(vec![
+            Expression::CInt(1), Expression::CInt(2), Expression::CInt(3)]);
+
+        let set2 = Expression::Set(vec![
+            Expression::CInt(3), Expression::CInt(4), Expression::CInt(5)]);
+
+        let result = eval(Expression::Difference(Box::new(set1), Box::new(set2)), &env).unwrap();
+
+        assert_eq!(
+            result,
+            Expression::Set(vec![
+                Expression::CInt(1),
+                Expression::CInt(2),
+            ])
+        );
+    }
+
+    #[test]
+    fn eval_disjunction_set() {
+        let env = HashMap::new();
+
+        let set1 = Expression::Set(vec![
+            Expression::CInt(1), Expression::CInt(2), Expression::CInt(3)]);
+
+        let set2 = Expression::Set(vec![
+            Expression::CInt(3), Expression::CInt(4), Expression::CInt(5)]);
+
+        let result = eval(Expression::Disjunction(Box::new(set1), Box::new(set2)), &env).unwrap();
+
+        assert_eq!(
+            result,
+            Expression::Set(vec![
+                Expression::CInt(1),
+                Expression::CInt(2),
+                Expression::CInt(4),
+                Expression::CInt(5),
             ])
         );
     }
