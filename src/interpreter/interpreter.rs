@@ -1,6 +1,5 @@
-use crate::ir::ast::{EnvValue, Environment, Expression, Name, Statement, Type};
+use crate::ir::ast::{EnvValue, Environment, Expression, Name, Statement};
 use crate::tc::type_checker::{check_stmt, ControlType};
-use crate::stdlib::math::sqrt;
 use crate::HashMap;
 
 type ErrorMessage = String;
@@ -124,7 +123,7 @@ pub fn execute(
             Ok(ControlFlow::Return(value))
         }
 
-        Statement::MetaStmt(f, args_exprs) => {
+        Statement::MetaStmt(f, args_exprs, return_type) => {
             let mut args_values = Vec::new();
             for expr in &args_exprs {
                 let env_value = eval(expr.clone(), &new_env)?;
@@ -136,25 +135,14 @@ pub fn execute(
 
             
             new_env.insert(
-                "result".to_string(),
-                (Some(result_value.clone()), get_type_env_value(&result_value)),
+                "metaResult".to_string(),
+                (Some(result_value.clone()), return_type.clone()),
             );
 
             Ok(ControlFlow::Continue(new_env))
         }
 
         _ => Err(String::from("not implemented yet")),
-    }
-}
-
-fn get_type_env_value(value: &EnvValue) -> Type {
-    match value {
-        EnvValue::Exp(Expression::CInt(_)) => Type::TInteger,
-        EnvValue::Exp(Expression::CReal(_)) => Type::TReal,
-        EnvValue::Exp(Expression::CString(_)) => Type::TString,
-        EnvValue::Exp(Expression::CTrue) | EnvValue::Exp(Expression::CFalse) => Type::TBool,
-        EnvValue::Func(_) => Type::TFunction,
-        _ => unreachable!(),
     }
 }
 
@@ -466,6 +454,7 @@ mod tests {
     use crate::ir::ast::Function;
     use crate::ir::ast::Statement::*;
     use crate::ir::ast::Type::*;
+    use crate::stdlib::math::sqrt;
     use approx::relative_eq;
 
     #[test]
@@ -1023,51 +1012,129 @@ mod tests {
         }
     }
 
+    
     #[test]
-    fn test_metastmt_sqrt_in_interpreter() {
-        // Cria um ambiente inicial
-        let mut env = Environment::new();
+    fn metastmt_sqrt() {
+        /*
+        * Teste para a função de raiz quadrada (sqrt) usando MetaStmt
+        *
+        * Código rpy imaginário:
+        *
+        * > x: TReal = 16.0
+        * > MetaStmt(sqrt, [x])
+        * > resultado: TReal = metaResult
+        *
+        * Após a execução, 'result' deve ser 4.0 (sqrt(16.0) = 4.0).
+        */
 
-        // Insere a variável 'x' com o valor 9.0 no ambiente
-        env.insert(
+        let env = Environment::new();
+
+        let assign_x = Statement::Assignment(
             "x".to_string(),
-            (
-                Some(EnvValue::Exp(Expression::CReal(9.0))),
-                Type::TReal,
-            ),
+            Box::new(Expression::CReal(16.0)),
+            Some(TReal),
         );
 
-        // Cria o MetaStmt que chama a função sqrt_env com 'x' como argumento
         let meta_stmt = Statement::MetaStmt(
             sqrt,
             vec![Expression::Var("x".to_string())],
+            TReal
         );
 
-        // Programa que executa o MetaStmt e armazena o resultado em 'result'
-        let program = Sequence(
-            Box::new(meta_stmt),
-            Box::new(Assignment(
-                "x".to_string(),
-                Box::new(Var("result".to_string())),  // Atribui o resultado de volta a 'x'
-                Some(Type::TReal),
+        let assign_result = Statement::Assignment(
+            "resultado".to_string(),
+            Box::new(Expression::Var("metaResult".to_string())),
+            Some(TReal),
+        );
+
+        let program = Statement::Sequence(
+            Box::new(assign_x),
+            Box::new(Statement::Sequence(
+                Box::new(meta_stmt),
+                Box::new(assign_result),
             )),
         );
 
-        // Executa o programa
         match execute(program, &env, true) {
             Ok(ControlFlow::Continue(new_env)) => {
-                // Verifica se 'result' contém o valor 3.0
-                assert_eq!(
-                    new_env.get("x"),
-                    Some(&(
-                        Some(EnvValue::Exp(Expression::CReal(3.0))),
-                        Type::TReal,
+                if let Some(&(Some(EnvValue::Exp(Expression::CReal(value))), _)) = new_env.get("metaResult") {
+                    assert_eq!(value, 4.0);
+                } else {
+                    panic!("Variável 'result' não encontrada ou tem tipo incorreto");
+                }
+            }
+            Ok(_) => panic!("O interpretador não continuou a execução como esperado"),
+            Err(err) => panic!("Falha na execução do interpretador com erro: {}", err),
+        }
+    }
+
+    #[test]
+    fn metastmt_function_sqrt() {
+        /*
+        * Teste para a função de raiz quadrada (sqrt) usando MetaStmt
+        *
+        * Código rpy imaginário:
+        *
+        * > x: TReal = 25.0
+        * > def sqrt(x: TReal) -> TReal:
+        * >     MetaStmt(sqrt, [x])
+        * >     return metaResult
+        * > x = sqrt(x)
+        *
+        * Após a execução, 'x' deve ser 5.0 (sqrt(25.0) = 5.0).
+        */
+        let env = Environment::new();
+        
+        let assign_x = Statement::Assignment(
+            "x".to_string(),
+            Box::new(Expression::CReal(25.0)),
+            Some(TReal),
+        );
+
+        let meta_stmt = Statement::MetaStmt(
+            sqrt,
+            vec![Expression::Var("x".to_string())],
+            TReal
+        );
+
+        let func: Statement = FuncDef(
+            "sqrt".to_string(), 
+            Function {
+                kind: TReal,
+                params: Some(vec![("x".to_string(), TReal)]),
+                body: Box::new(Sequence(
+                    Box::new(meta_stmt),
+                    Box::new(Return(
+                        Box::new(Expression::Var("metaResult".to_string()))
                     ))
-                );
-                println!("Resultado: {}", 3.0);  // Deve imprimir: Resultado: 3.0
-            },
-            Ok(_) => panic!("Programa não continuou a execução corretamente"),
-            Err(err) => panic!("Erro durante a execução: {}", err),
+                ))
+            }
+            );
+        
+        let assign_result = Statement::Assignment(
+            "x".to_string(),
+            Box::new(Expression::FuncCall("sqrt".to_string(), vec![Expression::Var("x".to_string())])),
+            Some(TReal),
+        );
+
+        let program = Statement::Sequence(
+            Box::new(assign_x),
+            Box::new(Statement::Sequence(
+                Box::new(func),
+                Box::new(assign_result),
+            )),
+        );
+
+        match execute(program, &env, true) {
+            Ok(ControlFlow::Continue(new_env)) => {
+                if let Some(&(Some(EnvValue::Exp(Expression::CReal(value))), _)) = new_env.get("x") {
+                    assert_eq!(value, 5.0);
+                } else {
+                    panic!("Variável 'x' não encontrada ou tem tipo incorreto");
+                }
+            }
+            Ok(_) => panic!("O interpretador não continuou a execução como esperado"),
+            Err(err) => panic!("Falha na execução do interpretador com erro: {}", err),
         }
     }
 

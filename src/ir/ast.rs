@@ -74,7 +74,7 @@ pub enum Statement {
     Sequence(Box<Statement>, Box<Statement>),
     FuncDef(Name, Function),
     Return(Box<Expression>),
-    MetaStmt(fn(Vec<EnvValue>) -> EnvValue, Vec<Expression>), 
+    MetaStmt(fn(Vec<EnvValue>) -> EnvValue, Vec<Expression>, Type), 
 }
 
 #[derive(Debug)]

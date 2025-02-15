@@ -154,9 +154,20 @@ pub fn check_stmt(
 
             Ok(ControlType::Return(exp_type))
         }
-        Statement::MetaStmt(_, _) =>{
-            Ok(ControlType::Continue(env.clone()))
-        }
+
+        Statement::MetaStmt(_f, args, return_type) => {
+            for arg in args {
+                check_exp(arg.clone(), env)?;
+            }
+            
+            let mut new_env = env.clone();
+            new_env.insert(
+                "metaResult".to_string(),
+                (Some(EnvValue::Exp(Expression::Var("result".to_string()))), return_type.clone())
+            );
+            Ok(ControlType::Continue(new_env))
+        }        
+        
         _ => Err(String::from("not implemented yet")),
     }
 }
@@ -271,6 +282,7 @@ mod tests {
     use crate::ir::ast::Function;
     use crate::ir::ast::Statement::*;
     use crate::ir::ast::Type::*;
+    use crate::stdlib::math::sqrt;
 
     #[test]
     fn check_tlist_comparison() {
@@ -786,4 +798,81 @@ mod tests {
             Err(s) => assert_eq!(s, "[Type Error] 'func()' is not defined."),
         }
     }
+
+    #[test]
+    fn check_metastmt_valid() {
+        let mut env = Environment::new();
+        env.insert(
+            "x".to_string(),
+            (
+                Some(EnvValue::Exp(Expression::CReal(9.0))),
+                Type::TReal,
+            ),
+        );
+
+        let meta_stmt = Statement::MetaStmt(
+            sqrt,
+            vec![Expression::Var("x".to_string())],
+            Type::TReal,
+        );
+
+        let assign_stmt = Statement::Assignment(
+            "resultado".to_string(),
+            Box::new(Expression::Var("metaResult".to_string())),
+            Some(Type::TReal),
+        );
+
+        let program = Statement::Sequence(
+            Box::new(meta_stmt),
+            Box::new(assign_stmt),
+        );
+
+        match check_stmt(program, &env, None) {
+            Ok(ControlType::Continue(new_env)) => {
+                let meta_result_type = new_env
+                    .get("metaResult")
+                    .expect("metaResult não foi definido no ambiente")
+                    .1
+                    .clone();
+                assert_eq!(meta_result_type, Type::TReal);
+            }
+            Ok(_) => panic!("O type checker não retornou um fluxo de controle esperado"),
+            Err(err) => panic!("Type checker falhou com erro: {}", err),
+        }
+    }
+
+    #[test]
+    fn check_metastmt_invalid_assignment() {
+        let mut env = Environment::new();
+        env.insert(
+            "x".to_string(),
+            (
+                Some(EnvValue::Exp(Expression::CReal(16.0))),
+                Type::TReal,
+            ),
+        );
+
+        let meta_stmt = Statement::MetaStmt(
+            sqrt,
+            vec![Expression::Var("x".to_string())],
+            Type::TReal,
+        );
+
+        let assign_stmt = Statement::Assignment(
+            "resultado".to_string(),
+            Box::new(Expression::Var("metaResult".to_string())),
+            Some(Type::TBool),
+        );
+
+        let program = Statement::Sequence(
+            Box::new(meta_stmt),
+            Box::new(assign_stmt),
+        );
+
+        match check_stmt(program, &env, None) {
+            Err(_err) => (),
+            Ok(_) => panic!("Type checker deveria ter falhado devido à incompatibilidade de tipos"),
+        }
+    }
+
 }
