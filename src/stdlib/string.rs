@@ -1,6 +1,4 @@
 use crate::ir::ast::{EnvValue, Expression};
-use crate::ir::ast::Environment; 
-use std::collections::HashMap;
 
 pub fn str_upper(args: Vec<EnvValue>) -> EnvValue {
     if args.len() != 1 {

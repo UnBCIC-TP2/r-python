@@ -28,12 +28,7 @@ pub fn check_exp(exp: Expression, env: &Environment) -> Result<Type, ErrorMessag
         Expression::LTE(l, r) => check_bin_relational_expression(*l, *r, env),
         Expression::Var(name) => check_var_name(name, env),
         Expression::FuncCall(name, args) => check_func_call(name, args, env),
-        Expression::MetaExp(_, args, return_type) => {
-            for arg in args {
-                check_exp(arg.clone(), env)?;
-            }
-            Ok(return_type)
-        }
+        Expression::MetaExp(_, args, return_type) => check_metastmt(args, return_type, env),
     }
 }
 
@@ -167,10 +162,7 @@ pub fn check_stmt(
             }
             
             let mut new_env = env.clone();
-            new_env.insert(
-                "metaResult".to_string(),
-                (Some(EnvValue::Exp(Expression::Var("result".to_string()))), return_type.clone())
-            );
+            new_env.insert("metaResult".to_string(), (None, return_type.clone()));
             Ok(ControlType::Continue(new_env))
         }        
         
@@ -276,6 +268,17 @@ fn check_bin_relational_expression(
         (Type::TReal, Type::TReal) => Ok(Type::TBool),
         _ => Err(String::from("[Type Error] expecting numeric type values.")),
     }
+}
+
+fn check_metastmt(
+    args: Vec<Expression>,
+    return_type: Type,
+    env: &Environment,
+) -> Result<Type, ErrorMessage> {
+    for arg in args {
+        check_exp(arg.clone(), env)?;
+    }
+    Ok(return_type)
 }
 
 #[cfg(test)]

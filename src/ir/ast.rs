@@ -43,7 +43,7 @@ pub enum Expression {
 
     /* function call */
     FuncCall(Name, Vec<Expression>),
-    MetaExp(fn(Vec<EnvValue>) -> EnvValue, Vec<Expression>, Type),
+    MetaExp(fn(Vec<EnvValue>) -> Result<EnvValue, String>, Vec<Expression>, Type),
 
     /* arithmetic expressions over numbers */
     Add(Box<Expression>, Box<Expression>),
@@ -75,7 +75,7 @@ pub enum Statement {
     Sequence(Box<Statement>, Box<Statement>),
     FuncDef(Name, Function),
     Return(Box<Expression>),
-    MetaStmt(fn(Vec<EnvValue>) -> EnvValue, Vec<Expression>, Type), 
+    MetaStmt(fn(Vec<EnvValue>) -> Result<EnvValue, String>, Vec<Expression>, Type), 
 }
 
 #[derive(Debug)]
