@@ -498,7 +498,7 @@ mod tests {
     use crate::ir::ast::Statement::*;
     use crate::ir::ast::Type::*;
     use crate::stdlib::math::{sqrt, gcd};
-    //use crate::stdlib::string::{str_upper};
+    use crate::stdlib::string::{str_upper, str_lower, str_length, str_reverse, cont_chars, filter_out_char, replace};
 
     use approx::relative_eq;
 
@@ -1456,5 +1456,328 @@ mod tests {
 
         }
     }
- */       
+ */    
+    #[test]
+    fn metastmt_function_upper() {
+        /*
+        * Teste para a função de conversão de string para maiúsculas usando MetaStmt
+        *
+        * Código imaginário em rpy:
+        *
+        * > x: TString = "hello"
+        * > def upper(x: TString) -> TString:
+        * >     MetaStmt(str_upper, [x], TString)
+        * >     return metaResult
+        * > result = upper(x)
+        *
+        * Após a execução, 'result' deve ser "HELLO".
+        */
+        let env = HashMap::new();
+        let program = Statement::Sequence(
+            Box::new(Statement::Assignment(
+                "x".to_string(),
+                Box::new(Expression::CString("hello".to_string())),
+                Some(Type::TString),
+            )),
+            Box::new(Statement::MetaStmt(
+                str_upper,
+                vec![Expression::Var("x".to_string())],
+                Type::TString,
+            )),
+        );
+
+        match execute(program, &env, true) {
+            Ok(ControlFlow::Continue(new_env)) => {
+                if let Some((Some(EnvValue::Exp(Expression::CString(result))), _)) = new_env.get("metaResult") {
+                    assert_eq!(result, "HELLO");
+                } else {
+                    panic!("metaResult not found or invalid type");
+                }
+            }
+            _ => panic!("Test failed"),
+        }
+    }
+
+    #[test]
+    fn metastmt_function_lower() {
+        /*
+        * Teste para a função de conversão de string para minúsculas usando MetaStmt
+        *
+        * Código imaginário em rpy:
+        *
+        * > x: TString = "HELLO"
+        * > def lower(x: TString) -> TString:
+        * >     MetaStmt(str_lower, [x], TString)
+        * >     return metaResult
+        * > result = lower(x)
+        *
+        * Após a execução, 'result' deve ser "hello".
+        */
+        let env = HashMap::new();
+        let program = Statement::Sequence(
+            Box::new(Statement::Assignment(
+                "x".to_string(),
+                Box::new(Expression::CString("HELLO".to_string())),
+                Some(Type::TString),
+            )),
+            Box::new(Statement::MetaStmt(
+                str_lower,
+                vec![Expression::Var("x".to_string())],
+                Type::TString,
+            )),
+        );
+
+        match execute(program, &env, true) {
+            Ok(ControlFlow::Continue(new_env)) => {
+                if let Some((Some(EnvValue::Exp(Expression::CString(result))), _)) = new_env.get("metaResult") {
+                    assert_eq!(result, "hello");
+                } else {
+                    panic!("metaResult not found or invalid type");
+                }
+            }
+            _ => panic!("Test failed"),
+        }
+    }
+
+    #[test]
+    fn metastmt_function_length() {
+        /*
+        * Teste para a função de obtenção do comprimento de uma string usando MetaStmt
+        *
+        * Código imaginário em rpy:
+        *
+        * > x: TString = "hello"
+        * > def length(x: TString) -> TInteger:
+        * >     MetaStmt(str_length, [x], TInteger)
+        * >     return metaResult
+        * > result = length(x)
+        *
+        * Após a execução, 'result' deve ser 5.
+        */
+        let env = HashMap::new();
+        let program = Statement::Sequence(
+            Box::new(Statement::Assignment(
+                "x".to_string(),
+                Box::new(Expression::CString("hello".to_string())),
+                Some(Type::TString),
+            )),
+            Box::new(Statement::MetaStmt(
+                str_length,
+                vec![Expression::Var("x".to_string())],
+                Type::TInteger,
+            )),
+        );
+
+        match execute(program, &env, true) {
+            Ok(ControlFlow::Continue(new_env)) => {
+                if let Some((Some(EnvValue::Exp(Expression::CInt(result))), _)) = new_env.get("metaResult") {
+                    assert_eq!(*result, 5);
+                } else {
+                    panic!("metaResult not found or invalid type");
+                }
+            }
+            _ => panic!("Test failed"),
+        }
+    }
+
+    #[test]
+    fn metastmt_function_reverse() {
+        /*
+        * Teste para a função de reversão de string usando MetaStmt
+        *
+        * Código imaginário em rpy:
+        *
+        * > x: TString = "hello"
+        * > def reverse(x: TString) -> TString:
+        * >     MetaStmt(str_reverse, [x], TString)
+        * >     return metaResult
+        * > result = reverse(x)
+        *
+        * Após a execução, 'result' deve ser "olleh".
+        */
+        let env = HashMap::new();
+        let program = Statement::Sequence(
+            Box::new(Statement::Assignment(
+                "x".to_string(),
+                Box::new(Expression::CString("hello".to_string())),
+                Some(Type::TString),
+            )),
+            Box::new(Statement::MetaStmt(
+                str_reverse,
+                vec![Expression::Var("x".to_string())],
+                Type::TString,
+            )),
+        );
+
+        match execute(program, &env, true) {
+            Ok(ControlFlow::Continue(new_env)) => {
+                if let Some((Some(EnvValue::Exp(Expression::CString(result))), _)) = new_env.get("metaResult") {
+                    assert_eq!(result, "olleh");
+                } else {
+                    panic!("metaResult not found or invalid type");
+                }
+            }
+            _ => panic!("Test failed"),
+        }
+    }
+
+    #[test]
+    fn metastmt_function_cont_chars() {
+        /*
+        * Teste para a função de contagem de caracteres usando MetaStmt
+        *
+        * Código imaginário em rpy:
+        *
+        * > s: TString = "banana"
+        * > c: TString = "a"
+        * > def cont_chars(s: TString, c: TString) -> TInteger:
+        * >     MetaStmt(cont_chars, [s, c], TInteger)
+        * >     return metaResult
+        * > result = cont_chars(s, c)
+        *
+        * Após a execução, 'result' deve ser 3.
+        */
+        let env = HashMap::new();
+        let program = Statement::Sequence(
+            Box::new(Statement::Assignment(
+                "s".to_string(),
+                Box::new(Expression::CString("banana".to_string())),
+                Some(Type::TString),
+            )),
+            Box::new(Statement::Sequence(
+                Box::new(Statement::Assignment(
+                    "c".to_string(),
+                    Box::new(Expression::CString("a".to_string())),
+                    Some(Type::TString),
+                )),
+                Box::new(Statement::MetaStmt(
+                    cont_chars,
+                    vec![Expression::Var("s".to_string()), Expression::Var("c".to_string())],
+                    Type::TInteger,
+                )),
+            )),
+        );
+
+        match execute(program, &env, true) {
+            Ok(ControlFlow::Continue(new_env)) => {
+                if let Some((Some(EnvValue::Exp(Expression::CInt(result))), _)) = new_env.get("metaResult") {
+                    assert_eq!(*result, 3);
+                } else {
+                    panic!("metaResult not found or invalid type");
+                }
+            }
+            _ => panic!("Test failed"),
+        }
+    }
+
+    #[test]
+    fn metastmt_function_filter_out_char() {
+        /*
+        * Teste para a função de remoção de um caractere específico de uma string usando MetaStmt
+        *
+        * Código imaginário em rpy:
+        *
+        * > s: TString = "banana"
+        * > c: TString = "a"
+        * > def filter_out_char(s: TString, c: TString) -> TString:
+        * >     MetaStmt(filter_out_char, [s, c], TString)
+        * >     return metaResult
+        * > result = filter_out_char(s, c)
+        *
+        * Após a execução, 'result' deve ser "bnn".
+        */
+        let env = HashMap::new();
+        let program = Statement::Sequence(
+            Box::new(Statement::Assignment(
+                "s".to_string(),
+                Box::new(Expression::CString("banana".to_string())),
+                Some(Type::TString),
+            )),
+            Box::new(Statement::Sequence(
+                Box::new(Statement::Assignment(
+                    "c".to_string(),
+                    Box::new(Expression::CString("a".to_string())),
+                    Some(Type::TString),
+                )),
+                Box::new(Statement::MetaStmt(
+                    filter_out_char,
+                    vec![Expression::Var("s".to_string()), Expression::Var("c".to_string())],
+                    Type::TString,
+                )),
+            )),
+        );
+
+        match execute(program, &env, true) {
+            Ok(ControlFlow::Continue(new_env)) => {
+                if let Some((Some(EnvValue::Exp(Expression::CString(result))), _)) = new_env.get("metaResult") {
+                    assert_eq!(result, "bnn");
+                } else {
+                    panic!("metaResult not found or invalid type");
+                }
+            }
+            _ => panic!("Test failed"),
+        }
+    }
+
+    #[test]
+    fn metastmt_function_replace() {
+        /*
+        * Teste para a função de substituição de caracteres em uma string usando MetaStmt
+        *
+        * Código imaginário em rpy:
+        *
+        * > s: TString = "banana"
+        * > old: TString = "a"
+        * > new: TString = "o"
+        * > def replace(s: TString, old: TString, new: TString) -> TString:
+        * >     MetaStmt(replace, [s, old, new], TString)
+        * >     return metaResult
+        * > result = replace(s, old, new)
+        *
+        * Após a execução, 'result' deve ser "bonono".
+        */
+        let env = HashMap::new();
+        let program = Statement::Sequence(
+            Box::new(Statement::Assignment(
+                "s".to_string(),
+                Box::new(Expression::CString("banana".to_string())),
+                Some(Type::TString),
+            )),
+            Box::new(Statement::Sequence(
+                Box::new(Statement::Assignment(
+                    "old".to_string(),
+                    Box::new(Expression::CString("a".to_string())),
+                    Some(Type::TString),
+                )),
+                Box::new(Statement::Sequence(
+                    Box::new(Statement::Assignment(
+                        "new".to_string(),
+                        Box::new(Expression::CString("o".to_string())),
+                        Some(Type::TString),
+                    )),
+                    Box::new(Statement::MetaStmt(
+                        replace,
+                        vec![
+                            Expression::Var("s".to_string()),
+                            Expression::Var("old".to_string()),
+                            Expression::Var("new".to_string()),
+                        ],
+                        Type::TString,
+                    )),
+                )),
+            )),
+        );
+
+        match execute(program, &env, true) {
+            Ok(ControlFlow::Continue(new_env)) => {
+                if let Some((Some(EnvValue::Exp(Expression::CString(result))), _)) = new_env.get("metaResult") {
+                    assert_eq!(result, "bonono");
+                } else {
+                    panic!("metaResult not found or invalid type");
+                }
+            }
+            _ => panic!("Test failed"),
+        }
+    }
+
 }
