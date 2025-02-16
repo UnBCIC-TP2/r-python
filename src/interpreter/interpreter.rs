@@ -492,6 +492,9 @@ mod tests {
     use crate::ir::ast::Statement::*;
     use crate::ir::ast::Type::*;
     use crate::stdlib::math::{sqrt, gcd};
+    use crate::stdlib::string::{str_upper};
+    use crate::stdlib::list::{len};
+
     use approx::relative_eq;
 
     #[test]
@@ -1382,4 +1385,70 @@ mod tests {
         }
     }
 
+    #[test]
+    fn metastmt_function_upper(){
+        /*
+        * Test for the r-python square root function (sqrt) using MetaStmt
+        *
+        * Imaginary rpy code:
+        *
+        * > x: TString = "banana"
+        * > def upper(x: TString) -> TString:
+        * >     MetaStmt(str_upper, [x], TString)
+        * >     return metaResult
+        * > x = upper(x)
+        *
+        * After execution, 'x' should be 5.0 (sqrt(25.0) = 5.0).
+        */
+        let env = Environment::new();
+        let assign_x = Statement::Assignment(
+            "x".to_string(),
+            Box::new(Expression::CString("banana".to_string())),
+            Some(TString)
+        );
+        let meta_stmt = Statement::MetaStmt(
+            str_upper,
+            vec![Expression::Var("x".to_string())],
+            TString
+        );
+        let func = Statement::FuncDef(
+            "upper".to_string(),
+            Function{
+                kind: TString,
+                params: Some(vec![("x".to_string(), TString)]),
+                body: Box::new(Sequence(
+                    Box::new(meta_stmt),
+                    Box::new(Return(
+                        Box::new(Expression::Var("metaResult".to_string()))
+                    ))
+                ))
+            }
+        );
+        let assign_result = Statement::Assignment(
+            "x".to_string(),
+            Box::new(Expression::FuncCall("upper".to_string(), vec![Expression::Var("x".to_string())])),
+            Some(TString),
+        );
+        let program = Statement::Sequence(
+            Box::new(assign_x),
+            Box::new(Statement::Sequence(
+                Box::new(func),
+                Box::new(assign_result)
+            ))
+        );
+        match execute(program, &env, true){
+            Ok(ControlFlow::Continue(new_env)) => {
+                if let Some(&(Some(EnvValue::Exp(Expression::CString(ref value))), _)) = new_env.get("x"){
+                    assert_eq!(value, &"BANANA".to_string());
+                } else{
+                    panic!("Variable 'x' not found or has incorret type");
+                }
+
+            }
+            Ok(_) => panic!("The interpreter did not continue execution as expect"),
+            Err(err) => panic!("Interpreter execution failed with error: {}", err),
+
+        }
+    }
+        
 }
