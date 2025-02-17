@@ -23,15 +23,11 @@ pub fn eval(exp: Expression, env: &Environment) -> Result<Expression, ErrorMessa
         Expression::LTE(lhs, rhs) => lte(*lhs, *rhs, env),
         Expression::Var(name) => lookup(name, env),
         Expression::Dict(entries) => eval_dictionary(entries, env),
-        Expression::DictMerge(dict_name, new_entries) => {
-            eval_dictionary_merge(dict_name, new_entries, env)
+        Expression::DictMerge(var_exp, new_entries) => {
+            eval_dictionary_merge(var_exp, new_entries, env)
         }
-        Expression::In(item_expr, collection_name) => {
-            eval_in_expression(item_expr, collection_name, env)
-        }
-        Expression::NotIn(item_expr, collection_name) => {
-            eval_not_in_expression(item_expr, collection_name, env)
-        }
+        Expression::In(item_expr, var_exp) => eval_in_expression(item_expr, var_exp, env),
+        Expression::NotIn(item_expr, var_exp) => eval_not_in_expression(item_expr, var_exp, env),
         _ if is_constant(exp.clone()) => Ok(exp),
         _ => Err(String::from("Not implemented yet.")),
     }
@@ -294,25 +290,30 @@ fn lte(lhs: Expression, rhs: Expression, env: &Environment) -> Result<Expression
 }
 
 fn eval_dictionary(
-    dict_entries: Vec<(Expression, Box<Expression>)>,
+    dict_entries: Vec<(Box<Expression>, Box<Expression>)>,
     env: &Environment,
 ) -> Result<Expression, ErrorMessage> {
-    let mut evaluated_dic: Vec<(Expression, Box<Expression>)> = Vec::new();
+    let mut evaluated_dic: Vec<(Box<Expression>, Box<Expression>)> = Vec::new();
 
     for (key_expr, value_exp) in dict_entries {
-        let evaluated_key = eval(key_expr, env)?;
+        let evaluated_key = eval(*key_expr, env)?;
         let evaluated_value = eval(*value_exp, env)?;
-        evaluated_dic.push((evaluated_key, Box::new(evaluated_value)));
+        evaluated_dic.push((Box::new(evaluated_key), Box::new(evaluated_value)));
     }
 
     Ok(Expression::Dict(evaluated_dic))
 }
 
 fn eval_dictionary_merge(
-    dict_name: Name,
-    new_entries: Vec<(Expression, Box<Expression>)>,
+    var_exp: Box<Expression>,
+    new_entries: Vec<(Box<Expression>, Box<Expression>)>,
     env: &Environment,
 ) -> Result<Expression, ErrorMessage> {
+    let dict_name = match *var_exp {
+        Expression::Var(dict_name) => dict_name,
+        _ => return Err(String::from("expected a variable on the left side.")),
+    };
+
     let old_entries = match env.get(&dict_name) {
         Some(Expression::Dict(entries)) => entries,
         Some(_) => {
@@ -330,32 +331,25 @@ fn eval_dictionary_merge(
         _ => unreachable!(),
     };
 
-    let mut merged_keys: Vec<Expression> = Vec::new();
-    let mut merged_exps: HashMap<Expression, Box<Expression>> = HashMap::new();
+    let mut merged_entries = old_entries.clone();
 
-    for (key, exp) in old_entries {
-        merged_keys.push(key.clone());
-        merged_exps.insert(key.clone(), exp.clone());
-    }
-
-    for (key, exp) in &new_entries {
-        if !merged_keys.contains(key) {
-            merged_keys.push(key.clone());
+    for (key_exp, value_exp) in new_entries.iter() {
+        if let Some(index) = merged_entries
+            .iter()
+            .position(|(existing_key, _)| **existing_key == **key_exp)
+        {
+            merged_entries[index] = (key_exp.clone(), value_exp.clone());
+        } else {
+            merged_entries.push((key_exp.clone(), value_exp.clone()));
         }
-        merged_exps.insert(key.clone(), exp.clone());
     }
 
-    let new_dict: Vec<(Expression, Box<Expression>)> = merged_keys
-        .into_iter()
-        .map(|k| (k.clone(), merged_exps.get(&k).unwrap().clone()))
-        .collect();
-
-    Ok(Expression::Dict(new_dict))
+    Ok(Expression::Dict(merged_entries))
 }
 
 fn eval_membership_expression<F>(
-    item_expr: Expression,
-    collection_name: Name,
+    item_expr: Box<Expression>,
+    var_exp: Box<Expression>,
     operator: &str,
     check_membership: F,
     env: &Environment,
@@ -363,6 +357,11 @@ fn eval_membership_expression<F>(
 where
     F: Fn(bool) -> Expression,
 {
+    let collection_name = match *var_exp {
+        Expression::Var(collection_name) => collection_name,
+        _ => return Err(String::from("expected a variable on the right side.")),
+    };
+
     let collection = match env.get(&collection_name) {
         Some(value) => value,
         None => return Err(format!("Variable {} not found", collection_name)),
@@ -381,29 +380,41 @@ where
 }
 
 fn eval_in_expression(
-    item_expr: Expression,
-    collection_name: Name,
+    item_expr: Box<Expression>,
+    var_exp: Box<Expression>,
     env: &Environment,
 ) -> Result<Expression, ErrorMessage> {
     eval_membership_expression(
         item_expr,
-        collection_name,
+        var_exp,
         "in",
-        |item_found| if item_found { Expression::CTrue } else { Expression::CFalse },
+        |item_found| {
+            if item_found {
+                Expression::CTrue
+            } else {
+                Expression::CFalse
+            }
+        },
         env,
     )
 }
 
 fn eval_not_in_expression(
-    item_expr: Expression,
-    collection_name: Name,
+    item_expr: Box<Expression>,
+    var_exp: Box<Expression>,
     env: &Environment,
 ) -> Result<Expression, ErrorMessage> {
     eval_membership_expression(
         item_expr,
-        collection_name,
+        var_exp,
         "not in",
-        |item_found| if item_found { Expression::CFalse } else { Expression::CTrue },
+        |item_found| {
+            if item_found {
+                Expression::CFalse
+            } else {
+                Expression::CTrue
+            }
+        },
         env,
     )
 }
@@ -444,7 +455,12 @@ pub fn execute(stmt: Statement, env: Environment) -> Result<Environment, ErrorMe
 
             Ok(new_env)
         }
-        Statement::DictDel(dict_name, key_expr) => {
+        Statement::DictDel(var_exp, key_expr) => {
+            let dict_name = match *var_exp {
+                Expression::Var(dict_name) => dict_name,
+                _ => return Err(String::from("expected a variable on the left side.")),
+            };
+
             let mut new_env = env.clone();
 
             let dict_entries = match new_env.get_mut(&dict_name) {
@@ -459,8 +475,10 @@ pub fn execute(stmt: Statement, env: Environment) -> Result<Environment, ErrorMe
             let entry_index = dict_entries.iter().position(|(k, _)| *k == key_expr);
 
             match entry_index {
-                Some(index) => { dict_entries.remove(index); },
-                None => return Err(format!("key '{:?}' not found", key_expr)),
+                Some(index) => {
+                    dict_entries.remove(index);
+                }
+                None => return Err(String::from("key not found")),
             };
 
             Ok(new_env)
@@ -1187,21 +1205,21 @@ mod tests {
 
         let dict_exp = Dict(vec![
             (
-                String::from("x"),
+                Box::new(CString(String::from("x"))),
                 Box::new(Add(
                     Box::new(Add(Box::new(CInt(10)), Box::new(CInt(12)))),
                     Box::new(CInt(20)),
                 )),
             ),
             (
-                String::from("y"),
+                Box::new(CString(String::from("y"))),
                 Box::new(Or(
                     Box::new(And(Box::new(CTrue), Box::new(CFalse))),
                     Box::new(CTrue),
                 )),
             ),
             (
-                String::from("z"),
+                Box::new(CString(String::from("z"))),
                 Box::new(Add(Box::new(Var(String::from("var"))), Box::new(CInt(50)))),
             ),
         ]);
@@ -1211,9 +1229,9 @@ mod tests {
         assert_eq!(
             evaluated_dict,
             Ok(Dict(vec![
-                (String::from("x"), Box::new(CInt(42))),
-                (String::from("y"), Box::new(CTrue)),
-                (String::from("z"), Box::new(CInt(76))),
+                (Box::new(CString(String::from("x"))), Box::new(CInt(42))),
+                (Box::new(CString(String::from("y"))), Box::new(CTrue)),
+                (Box::new(CString(String::from("z"))), Box::new(CInt(76))),
             ])),
             "Dictionary not evaluated correctly"
         );
@@ -1235,15 +1253,15 @@ mod tests {
 
         let dict_exp = Dict(vec![
             (
-                String::from("x"),
+                Box::new(CString(String::from("x"))),
                 Box::new(Add(Box::new(CInt(10)), Box::new(CInt(12)))),
             ),
             (
-                String::from("y"),
+                Box::new(CString(String::from("y"))),
                 Box::new(Dict(vec![
-                    (String::from("y1"), Box::new(CInt(12))),
+                    (Box::new(CString(String::from("y1"))), Box::new(CInt(12))),
                     (
-                        String::from("y2"),
+                        Box::new(CString(String::from("y2"))),
                         Box::new(Add(Box::new(Var(String::from("var"))), Box::new(CInt(20)))),
                     ),
                 ])),
@@ -1255,12 +1273,12 @@ mod tests {
         assert_eq!(
             evaluated_dict,
             Ok(Dict(vec![
-                (String::from("x"), Box::new(CInt(22))),
+                (Box::new(CString(String::from("x"))), Box::new(CInt(22))),
                 (
-                    String::from("y"),
+                    Box::new(CString(String::from("y"))),
                     Box::new(Dict(vec![
-                        (String::from("y1"), Box::new(CInt(12))),
-                        (String::from("y2"), Box::new(CInt(30))),
+                        (Box::new(CString(String::from("y1"))), Box::new(CInt(12))),
+                        (Box::new(CString(String::from("y2"))), Box::new(CInt(30))),
                     ])),
                 ),
             ])),
@@ -1282,16 +1300,16 @@ mod tests {
         let env = HashMap::from([(
             String::from("dict"),
             Dict(vec![
-                (String::from("x"), Box::new(CInt(10))),
-                (String::from("y"), Box::new(CInt(20))),
+                (Box::new(CString(String::from("x"))), Box::new(CInt(10))),
+                (Box::new(CString(String::from("y"))), Box::new(CInt(20))),
             ]),
         )]);
 
         let merge_exp = DictMerge(
-            String::from("dict"),
+            Box::new(Var(String::from("dict"))),
             vec![
-                (String::from("y"), Box::new(CTrue)),
-                (String::from("z"), Box::new(CInt(30))),
+                (Box::new(CString(String::from("y"))), Box::new(CTrue)),
+                (Box::new(CString(String::from("z"))), Box::new(CInt(30))),
             ],
         );
 
@@ -1300,9 +1318,9 @@ mod tests {
         assert_eq!(
             new_dict,
             Ok(Dict(vec![
-                (String::from("x"), Box::new(CInt(10))),
-                (String::from("y"), Box::new(CTrue)),
-                (String::from("z"), Box::new(CInt(30)))
+                (Box::new(CString(String::from("x"))), Box::new(CInt(10))),
+                (Box::new(CString(String::from("y"))), Box::new(CTrue)),
+                (Box::new(CString(String::from("z"))), Box::new(CInt(30)))
             ]))
         );
     }
@@ -1317,10 +1335,16 @@ mod tests {
          */
         let env = HashMap::from([(
             String::from("dict"),
-            Dict(vec![(String::from("x"), Box::new(CInt(10)))]),
+            Dict(vec![(
+                Box::new(CString(String::from("x"))),
+                Box::new(CInt(10)),
+            )]),
         )]);
 
-        let del_stmts = DictDel(String::from("dict"), String::from("x"));
+        let del_stmts = DictDel(
+            Box::new(Var(String::from("dict"))),
+            Box::new(CString(String::from("x"))),
+        );
 
         match execute(del_stmts, env) {
             Ok(new_env) => {
@@ -1341,10 +1365,16 @@ mod tests {
          */
         let env = HashMap::from([(
             String::from("dict"),
-            Dict(vec![(String::from("x"), Box::new(CInt(10)))]),
+            Dict(vec![(
+                Box::new(CString(String::from("x"))),
+                Box::new(CInt(10)),
+            )]),
         )]);
 
-        let in_exp = In(String::from("x"), String::from("dict"));
+        let in_exp = In(
+            Box::new(CString(String::from("x"))),
+            Box::new(Var(String::from("dict"))),
+        );
 
         match eval(in_exp, &env) {
             Ok(CTrue) => assert!(true),
@@ -1361,7 +1391,10 @@ mod tests {
          */
         let env = HashMap::from([(String::from("dict"), Dict(vec![]))]);
 
-        let in_exp = In(String::from("x"), String::from("dict"));
+        let in_exp = In(
+            Box::new(CString(String::from("x"))),
+            Box::new(Var(String::from("dict"))),
+        );
 
         match eval(in_exp, &env) {
             Ok(CFalse) => assert!(true),
@@ -1378,7 +1411,10 @@ mod tests {
          */
         let env = HashMap::from([(String::from("var"), CInt(10))]);
 
-        let in_exp = In(String::from("x"), String::from("var"));
+        let in_exp = In(
+            Box::new(CString(String::from("x"))),
+            Box::new(Var(String::from("var"))),
+        );
 
         match eval(in_exp, &env) {
             Err(msg) => assert_eq!(msg, String::from("operator (in) is not defined for var.")),
@@ -1395,10 +1431,16 @@ mod tests {
          */
         let env = HashMap::from([(
             String::from("dict"),
-            Dict(vec![(String::from("x"), Box::new(CInt(10)))]),
+            Dict(vec![(
+                Box::new(CString(String::from("x"))),
+                Box::new(CInt(10)),
+            )]),
         )]);
 
-        let not_in_exp = NotIn(String::from("x"), String::from("dict"));
+        let not_in_exp = NotIn(
+            Box::new(CString(String::from("x"))),
+            Box::new(Var(String::from("dict"))),
+        );
 
         match eval(not_in_exp, &env) {
             Ok(CFalse) => assert!(true),
@@ -1415,7 +1457,10 @@ mod tests {
          */
         let env = HashMap::from([(String::from("dict"), Dict(vec![]))]);
 
-        let in_exp = NotIn(String::from("x"), String::from("dict"));
+        let in_exp = NotIn(
+            Box::new(CString(String::from("x"))),
+            Box::new(Var(String::from("dict"))),
+        );
 
         match eval(in_exp, &env) {
             Ok(CTrue) => assert!(true),
@@ -1432,7 +1477,10 @@ mod tests {
          */
         let env = HashMap::from([(String::from("var"), CInt(10))]);
 
-        let in_exp = NotIn(String::from("x"), String::from("var"));
+        let in_exp = NotIn(
+            Box::new(CString(String::from("x"))),
+            Box::new(Var(String::from("var"))),
+        );
 
         match eval(in_exp, &env) {
             Err(msg) => assert_eq!(

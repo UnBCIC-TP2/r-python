@@ -28,11 +28,11 @@ pub fn check(exp: Expression, env: &Environment) -> Result<Type, ErrorMessage> {
         Expression::GTE(l, r) => check_bin_relational_expression(*l, *r, env),
         Expression::LTE(l, r) => check_bin_boolean_expression(*l, *r, env),
         Expression::Dict(entries) => check_dictionary(entries, env),
-        Expression::DictMerge(dict_expr, new_entries) => {
-            check_dictionary_merge_expression(*dict_expr, new_entries, env)
+        Expression::DictMerge(var_exp, new_entries) => {
+            check_dictionary_merge_expression(var_exp, new_entries, env)
         }
-        Expression::In(_, collection_expr) => check_membership_expression(collection_expr, env),
-        Expression::NotIn(_, collection_expr) => check_membership_expression(collection_expr, env),
+        Expression::In(_, var_exp) => check_membership_expression(var_exp, env),
+        Expression::NotIn(_, var_exp) => check_membership_expression(var_exp, env),
         _ => Err(String::from("not implemented yet")),
     }
 }
@@ -68,32 +68,19 @@ fn check_bin_boolean_expression(
     }
 }
 
-/// Attempts to extract a key (Name) from an expression.
-/// Only accepts CString or Var.
-fn extract_key(exp: &Expression) -> Option<Name> {
-    match exp {
-        Expression::CString(s) => Some(s.clone()),
-        Expression::Var(s) => Some(s.clone()),
-        _ => None,
-    }
-}
-
-/// Updated dictionary type checking: keys are now Expressions.
-/// Only accepts keys that are either a CString or a Var.
+/// Only accepts keys that are a CString.
 fn check_dictionary(
-    dict_entries: Vec<(Expression, Box<Expression>)>,
+    dict_entries: Vec<(Box<Expression>, Box<Expression>)>,
     env: &Environment,
 ) -> Result<Type, ErrorMessage> {
     let mut dict_entries_type: Vec<(Name, Type)> = Vec::new();
 
     for (key_expr, value_exp) in dict_entries {
-        // Convert key expression to Name (only CString and Var are allowed)
-        let key = match key_expr {
+        let key = match *key_expr {
             Expression::CString(s) => s,
-            Expression::Var(s) => s,
             _ => {
                 return Err(String::from(
-                    "[Type Error] dictionary key must be a string literal or variable.",
+                    "[Type Error] dictionary key must be a string literal.",
                 ))
             }
         };
@@ -103,20 +90,16 @@ fn check_dictionary(
     Ok(Type::TDict(dict_entries_type))
 }
 
-/// Updated dictionary merge type checking.
-/// The dictionary name is now an Expression (must be CString or Var).
 fn check_dictionary_merge_expression(
-    dict_expr: Expression,
-    new_entries: Vec<(Expression, Box<Expression>)>,
+    var_exp: Box<Expression>,
+    new_entries: Vec<(Box<Expression>, Box<Expression>)>,
     env: &Environment,
 ) -> Result<Type, ErrorMessage> {
-    // Extract dictionary name from the expression
-    let dict_name = match dict_expr {
+    let dict_name = match *var_exp {
         Expression::Var(s) => s,
-        Expression::CString(s) => s,
         _ => {
             return Err(String::from(
-                "[Type Error] invalid dictionary name in merge.",
+                "[Type Error] expected a variable on the left side.",
             ))
         }
     };
@@ -133,28 +116,31 @@ fn check_dictionary_merge_expression(
         _ => unreachable!(),
     };
 
-    // Merge the old and new dictionary types
-    let mut merged_types: HashMap<Name, Type> = old_entries.clone().into_iter().collect();
-    for (key, t) in new_entries_checked {
-        merged_types.insert(key, t);
+    let mut merged_types = old_entries.clone();
+
+    for (key, value_type) in new_entries_checked.iter() {
+        if let Some(index) = merged_types
+            .iter()
+            .position(|(existing_key, _)| **existing_key == **key)
+        {
+            merged_types[index] = (key.clone(), value_type.clone());
+        } else {
+            merged_types.push((key.clone(), value_type.clone()));
+        }
     }
 
-    let new_dict_type: Vec<(Name, Type)> = merged_types.into_iter().collect();
-    Ok(Type::TDict(new_dict_type))
+    Ok(Type::TDict(merged_types))
 }
 
-/// Updated membership expression type checking.
-/// The collection expression is now converted to a Name (only Var or CString allowed).
 fn check_membership_expression(
-    collection_expr: Expression,
+    var_exp: Box<Expression>,
     env: &Environment,
 ) -> Result<Type, ErrorMessage> {
-    let collection_name = match collection_expr {
+    let collection_name = match *var_exp {
         Expression::Var(s) => s,
-        Expression::CString(s) => s,
         _ => {
             return Err(String::from(
-                "[Type Error] invalid collection name in membership expression",
+                "[Type Error] expected a variable on the left side.",
             ))
         }
     };
@@ -342,20 +328,20 @@ mod tests {
         let env = HashMap::new();
         let dict = Dict(vec![
             (
-                CString(String::from("x")),
+                Box::new(CString(String::from("x"))),
                 Box::new(Add(
                     Box::new(Add(Box::new(CInt(10)), Box::new(CInt(12)))),
                     Box::new(CInt(20)),
                 )),
             ),
             (
-                CString(String::from("y")),
+                Box::new(CString(String::from("y"))),
                 Box::new(Or(
                     Box::new(And(Box::new(CTrue), Box::new(CFalse))),
                     Box::new(CTrue),
                 )),
             ),
-            (CString(String::from("z")), Box::new(CReal(50.0))),
+            (Box::new(CString(String::from("z"))), Box::new(CReal(50.0))),
         ]);
 
         let dict_type = check(dict, &env);
@@ -389,10 +375,10 @@ mod tests {
 
         let merge_exp = DictMerge(
             // The dictionary name is now an Expression
-            Expression::Var(String::from("dict")),
+            Box::new(Expression::Var(String::from("dict"))),
             vec![
-                (CString(String::from("y")), Box::new(CTrue)),
-                (CString(String::from("z")), Box::new(CInt(30))),
+                (Box::new(CString(String::from("y"))), Box::new(CTrue)),
+                (Box::new(CString(String::from("z"))), Box::new(CInt(30))),
             ],
         );
 
@@ -410,21 +396,30 @@ mod tests {
     #[test]
     fn check_in_expression() {
         let env = HashMap::from([(String::from("dict"), TDict(vec![]))]);
-        let in_exp = In(CString(String::from("key")), Expression::Var(String::from("dict")));
+        let in_exp = In(
+            Box::new(CString(String::from("key"))),
+            Box::new(Expression::Var(String::from("dict"))),
+        );
         assert_eq!(check(in_exp, &env), Ok(TBool));
     }
 
     #[test]
     fn check_not_in_expression() {
         let env = HashMap::from([(String::from("dict"), TDict(vec![]))]);
-        let not_in_exp = NotIn(CString(String::from("key")), Expression::Var(String::from("dict")));
+        let not_in_exp = NotIn(
+            Box::new(CString(String::from("key"))),
+            Box::new(Expression::Var(String::from("dict"))),
+        );
         assert_eq!(check(not_in_exp, &env), Ok(TBool));
     }
 
     #[test]
     fn check_type_error_in_expression() {
         let env = HashMap::from([(String::from("var"), TInteger)]);
-        let in_exp = In(String::from("key"), String::from("var"));
+        let in_exp = In(
+            Box::new(CString(String::from("key"))),
+            Box::new(Var(String::from("var"))),
+        );
 
         assert_eq!(
             check(in_exp, &env),
@@ -437,7 +432,10 @@ mod tests {
     #[test]
     fn check_type_error_not_in_expression() {
         let env = HashMap::from([(String::from("var"), TInteger)]);
-        let not_in_exp = NotIn(String::from("key"), String::from("var"));
+        let not_in_exp = NotIn(
+            Box::new(CString(String::from("key"))),
+            Box::new(Var(String::from("var"))),
+        );
 
         assert_eq!(
             check(not_in_exp, &env),
