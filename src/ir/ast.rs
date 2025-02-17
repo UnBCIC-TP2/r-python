@@ -11,6 +11,7 @@ pub enum Type {
     TReal,
     TString,
     EmptyList,
+    EmptySet,
     TList(Box<Type>),
     TTuple(Vec<Type>),
     TSet(Box<Type>),
@@ -57,6 +58,11 @@ pub enum Expression {
     Tuple(Vec<Expression>),
     Set(Vec<Expression>),
 
+
+    Union(Box<Expression>,Box<Expression>),
+    Intersection(Box<Expression>,Box<Expression>),
+    Difference(Box<Expression>,Box<Expression>),
+    Disjunction(Box<Expression>,Box<Expression>),
     Insert(Box<Expression>,Box<Expression>),
     Append(Box<Expression>,Box<Expression>),
     Concat(Box<Expression>,Box<Expression>),

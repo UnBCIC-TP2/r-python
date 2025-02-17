@@ -1,0 +1,203 @@
+# R-Python: Um Interpretador Python em Rust
+
+## Visão Geral
+R-Python é uma implementação de um dialeto Python em Rust, focando em uma versão simplificada e imperativa. O projeto implementa um parser usando a biblioteca nom e um interpretador que suporta uma AST com tipos algébricos.
+
+## Componentes Principais
+
+### AST (Abstract Syntax Tree)
+**Localização:** [`src/ir/ast.rs`](src/ir/ast.rs)
+
+A AST define dois tipos principais:
+
+#### Expression
+-> Representa expressões como constantes, variáveis e operações:
+```rust
+pub enum Expression {
+    CInt(i32),                                         // Constantes inteiras
+    Var(String),                                       // Variáveis
+    Add(Box<Expression>, Box<Expression>),             // Adição
+    Sub(Box<Expression>, Box<Expression>),             // Subtração
+    Mul(Box<Expression>, Box<Expression>),             // Multiplicação
+    Div(Box<Expression>, Box<Expression>),             // Divisão
+    Comparison(Box<Expression>, String, Box<Expression>)// Comparações
+}
+
+#### Statement
+
+-> Representa comandos como atribuições e estruturas de controle
+
+pub enum Statement {
+    VarDeclaration(Box<Name>),
+    ValDeclaration(Box<Name>),
+    Assignment(Box<Name>, Box<Expression>),
+    IfThenElse(Box<Expression>, Box<Statement>, Box<Statement>),
+    While(Box<Expression>, Box<Statement>),
+    Block(Vec<Statement>),
+    Sequence(Box<Statement>, Box<Statement>),
+}
+
+Parser
+Localização: src/parser/parser.rs
+
+O parser utiliza a biblioteca nom para análise sintática e implementa:
+
+Parsing de Expressões:
+Constantes numéricas
+Variáveis
+Operações aritméticas
+Comparações
+
+
+Parsing de Comandos:
+Atribuições
+Estruturas if-else
+Blocos indentados
+Sequências de comandos
+
+
+Interpretador
+Localização: src/interpreter/interpreter.rs
+
+O interpretador implementa duas funções principais:
+
+eval: Avalia expressões
+pub fn eval(exp: &Expression, env: &Environment) -> Result<IntValue, ErrorMessage>
+
+execute: Executa comandos
+pub fn execute(stmt: &Statement, env: Environment) -> Result<Environment, ErrorMessage>
+
+Funcionalidades Implementadas
+✅ Expressões aritméticas
+✅ Variáveis e atribuições
+✅ Estruturas if-else
+✅ Blocos indentados
+✅ Operadores de comparação
+✅ Sequências de comandos
+✅ Ambiente de execução
+
+
+Testes
+O projeto inclui testes extensivos para todas as funcionalidades:
+
+Testes do Parser:
+Atribuições simples
+Expressões complexas
+Estruturas if-else
+Indentação
+Programa completo
+
+Testes do Interpretador:
+Avaliação de expressões
+Execução de comandos
+Manipulação do ambiente
+Fluxo de controle
+
+Exemplos de Código Suportado
+# Exemplo 1: Operações Aritméticas
+x = 5
+y = 3
+z = (x * y) + (10 - 4)
+
+# Exemplo 2: Estruturas de Controle
+x = 10
+if x > 5:
+    y = 1
+else:
+    y = 2
+
+# Limitações Atuais
+❌ Não suporta definição de funções
+❌ Tipagem estática não implementada
+❌ Escopo limitado a variáveis globais
+❌ Sem suporte a strings ou outros tipos além de inteiros
+
+# Explicação do Parser
+
+# 1. Funções Básicas de Parsing
+
+fn identifier(input: &str) -> IResult<&str, Name>
+
+-> Parse de identificadores (nomes de variáveis)
+-> Aceita caracteres alfanuméricos e underscore
+-> Retorna uma String
+
+fn integer(input: &str) -> IResult<&str, Expression>
+
+->Parse de números inteiros
+->Converte string de dígitos para Expression::CInt
+
+# 2. Expressões e Operadores
+
+fn term(input: &str) -> IResult<&str, Expression>
+
+Parse de termos básicos:
+ -> Expressões entre parênteses
+ -> Números inteiros
+ -> Identificadores
+
+ fn operator(input: &str) -> IResult<&str, &str>
+
+-> Parse de operadores aritméticos (+, -, *, /)
+
+fn comparison_operator(input: &str) -> IResult<&str, &str>
+
+-> Parse de operadores de comparação (==, !=, >=, <=, >, <)
+
+# 3. Expressões Complexas
+
+fn arithmetic_expression(input: &str) -> IResult<&str, Expression>
+
+-> Parse de expressões aritméticas completas
+-> Implementa precedência de operadores
+-> Constrói AST com operações aninhadas
+
+fn comparison_expression(input: &str) -> IResult<&str, Expression>
+
+-> Parse de expressões de comparação
+-> Gera Expression::Comparison com operador e operandos
+
+# 4. Statements e Blocos
+
+fn assignment(input: &str) -> IResult<&str, Statement>
+
+-> Parse de atribuições (x = expr)
+-> Lida com whitespace antes/depois do '='
+
+fn if_statement(input: &str) -> IResult<&str, Statement>
+
+-> Parse de estruturas if-else
+-> Lida com condição e blocos then/else
+-> Suporta indentação Python-style
+
+fn indented_block(input: &str) -> IResult<&str, Vec<Statement>>
+
+-> Parse de blocos indentados
+-> Gerencia indentação consistente
+-> Agrupa statements em um bloco
+
+# 5. Funções Principais
+
+pub fn parse_statements(input: &str) -> IResult<&str, Vec<Statement>>
+
+-> Parse de múltiplos statements
+-> Lida com quebras de linha entre statements
+-> Gerencia whitespace inicial/final
+
+pub fn parse(input: &str) -> IResult<&str, Vec<Statement>>
+
+-> Função principal de parsing
+-> Entry point do parser
+-> Retorna lista de statements parseados
+
+# 6. Características Especiais
+
+-> Suporte a indentação estilo Python
+-> Precedência de operadores
+-> Expressões parentizadas
+-> Whitespace flexível
+-> Blocos aninhados
+-> Error handling robusto
+
+
+Esta implementação usa a biblioteca nom para criar um parser declarativo e composicional, com excelente tratamento de erros e suporte a features avançadas como indentação significativa.

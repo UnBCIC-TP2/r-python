@@ -1,0 +1,1967 @@
+
+=== Running test: 1. Basic if-else ===
+Program:
+x = 10
+if x > 5:
+    y = 1
+else:
+    y = 2
+
+Parsed AST: [
+    Assignment(
+        "x",
+        CInt(
+            10,
+        ),
+        Some(
+            TInteger,
+        ),
+    ),
+    IfThenElse(
+        GT(
+            Var(
+                "x",
+            ),
+            CInt(
+                5,
+            ),
+        ),
+        Block(
+            [
+                Assignment(
+                    "y",
+                    CInt(
+                        1,
+                    ),
+                    Some(
+                        TInteger,
+                    ),
+                ),
+            ],
+        ),
+        Some(
+            Block(
+                [
+                    Assignment(
+                        "y",
+                        CInt(
+                            2,
+                        ),
+                        Some(
+                            TInteger,
+                        ),
+                    ),
+                ],
+            ),
+        ),
+    ),
+]
+
+
+Final environment: {"y": (Some(Exp(CInt(1))), TInteger), "x": (Some(Exp(CInt(10))), TInteger)}
+
+=== Running test: 2. Arithmetic operations ===
+Program:
+x = 5
+y = 3
+z = (x * y) + (10 - 4)
+w = z / (y + 1)
+
+Parsed AST: [
+    Assignment(
+        "x",
+        CInt(
+            5,
+        ),
+        Some(
+            TInteger,
+        ),
+    ),
+    Assignment(
+        "y",
+        CInt(
+            3,
+        ),
+        Some(
+            TInteger,
+        ),
+    ),
+    Assignment(
+        "z",
+        Add(
+            Mul(
+                Var(
+                    "x",
+                ),
+                Var(
+                    "y",
+                ),
+            ),
+            Sub(
+                CInt(
+                    10,
+                ),
+                CInt(
+                    4,
+                ),
+            ),
+        ),
+        None,
+    ),
+    Assignment(
+        "w",
+        Div(
+            Var(
+                "z",
+            ),
+            Add(
+                Var(
+                    "y",
+                ),
+                CInt(
+                    1,
+                ),
+            ),
+        ),
+        None,
+    ),
+]
+
+
+Final environment: {"z": (Some(Exp(CInt(21))), TInteger), "y": (Some(Exp(CInt(3))), TInteger), "w": (Some(Exp(CInt(5))), TInteger), "x": (Some(Exp(CInt(5))), TInteger)}
+
+=== Running test: 3. Nested if statements with multiple operations ===
+Program:
+x = 10
+if x > 5:
+    if x > 8:
+        y = 1
+        z = y + x
+    else:
+        y = 2
+        z = y * x
+else:
+    y = 3
+    z = y - x
+
+Parsed AST: [
+    Assignment(
+        "x",
+        CInt(
+            10,
+        ),
+        Some(
+            TInteger,
+        ),
+    ),
+    IfThenElse(
+        GT(
+            Var(
+                "x",
+            ),
+            CInt(
+                5,
+            ),
+        ),
+        Block(
+            [
+                IfThenElse(
+                    GT(
+                        Var(
+                            "x",
+                        ),
+                        CInt(
+                            8,
+                        ),
+                    ),
+                    Block(
+                        [
+                            Assignment(
+                                "y",
+                                CInt(
+                                    1,
+                                ),
+                                Some(
+                                    TInteger,
+                                ),
+                            ),
+                            Assignment(
+                                "z",
+                                Add(
+                                    Var(
+                                        "y",
+                                    ),
+                                    Var(
+                                        "x",
+                                    ),
+                                ),
+                                None,
+                            ),
+                        ],
+                    ),
+                    Some(
+                        Block(
+                            [
+                                Assignment(
+                                    "y",
+                                    CInt(
+                                        2,
+                                    ),
+                                    Some(
+                                        TInteger,
+                                    ),
+                                ),
+                                Assignment(
+                                    "z",
+                                    Mul(
+                                        Var(
+                                            "y",
+                                        ),
+                                        Var(
+                                            "x",
+                                        ),
+                                    ),
+                                    None,
+                                ),
+                            ],
+                        ),
+                    ),
+                ),
+            ],
+        ),
+        Some(
+            Block(
+                [
+                    Assignment(
+                        "y",
+                        CInt(
+                            3,
+                        ),
+                        Some(
+                            TInteger,
+                        ),
+                    ),
+                    Assignment(
+                        "z",
+                        Sub(
+                            Var(
+                                "y",
+                            ),
+                            Var(
+                                "x",
+                            ),
+                        ),
+                        None,
+                    ),
+                ],
+            ),
+        ),
+    ),
+]
+
+
+Final environment: {"y": (Some(Exp(CInt(1))), TInteger), "z": (Some(Exp(CInt(11))), TInteger), "x": (Some(Exp(CInt(10))), TInteger)}
+
+=== Running test: 4. Multiple assignments and references ===
+Program:
+x = 42
+y = x
+z = y + 10
+w = z
+final = w * 2
+
+Parsed AST: [
+    Assignment(
+        "x",
+        CInt(
+            42,
+        ),
+        Some(
+            TInteger,
+        ),
+    ),
+    Assignment(
+        "y",
+        Var(
+            "x",
+        ),
+        None,
+    ),
+    Assignment(
+        "z",
+        Add(
+            Var(
+                "y",
+            ),
+            CInt(
+                10,
+            ),
+        ),
+        None,
+    ),
+    Assignment(
+        "w",
+        Var(
+            "z",
+        ),
+        None,
+    ),
+    Assignment(
+        "final",
+        Mul(
+            Var(
+                "w",
+            ),
+            CInt(
+                2,
+            ),
+        ),
+        None,
+    ),
+]
+
+
+Final environment: {"final": (Some(Exp(CInt(104))), TInteger), "w": (Some(Exp(CInt(52))), TInteger), "x": (Some(Exp(CInt(42))), TInteger), "z": (Some(Exp(CInt(52))), TInteger), "y": (Some(Exp(CInt(42))), TInteger)}
+
+=== Running test: 5. Complex arithmetic expressions ===
+Program:
+a = 5
+b = 3
+c = (a * b) + (10 / 2)
+d = c - (b * 2)
+e = (d + a) * (b - 1)
+
+Parsed AST: [
+    Assignment(
+        "a",
+        CInt(
+            5,
+        ),
+        Some(
+            TInteger,
+        ),
+    ),
+    Assignment(
+        "b",
+        CInt(
+            3,
+        ),
+        Some(
+            TInteger,
+        ),
+    ),
+    Assignment(
+        "c",
+        Add(
+            Mul(
+                Var(
+                    "a",
+                ),
+                Var(
+                    "b",
+                ),
+            ),
+            Div(
+                CInt(
+                    10,
+                ),
+                CInt(
+                    2,
+                ),
+            ),
+        ),
+        None,
+    ),
+    Assignment(
+        "d",
+        Sub(
+            Var(
+                "c",
+            ),
+            Mul(
+                Var(
+                    "b",
+                ),
+                CInt(
+                    2,
+                ),
+            ),
+        ),
+        None,
+    ),
+    Assignment(
+        "e",
+        Mul(
+            Add(
+                Var(
+                    "d",
+                ),
+                Var(
+                    "a",
+                ),
+            ),
+            Sub(
+                Var(
+                    "b",
+                ),
+                CInt(
+                    1,
+                ),
+            ),
+        ),
+        None,
+    ),
+]
+
+
+Final environment: {"a": (Some(Exp(CInt(5))), TInteger), "b": (Some(Exp(CInt(3))), TInteger), "d": (Some(Exp(CInt(14))), TInteger), "c": (Some(Exp(CInt(20))), TInteger), "e": (Some(Exp(CInt(38))), TInteger)}
+
+=== Running test: 6. Multiple nested comparisons ===
+Program:
+x = 10
+y = 5
+if x > y:
+    if y > 3:
+        if x > 8:
+            z = 1
+        else:
+            z = 2
+    else:
+        z = 3
+else:
+    z = 4
+
+Parsed AST: [
+    Assignment(
+        "x",
+        CInt(
+            10,
+        ),
+        Some(
+            TInteger,
+        ),
+    ),
+    Assignment(
+        "y",
+        CInt(
+            5,
+        ),
+        Some(
+            TInteger,
+        ),
+    ),
+    IfThenElse(
+        GT(
+            Var(
+                "x",
+            ),
+            Var(
+                "y",
+            ),
+        ),
+        Block(
+            [
+                IfThenElse(
+                    GT(
+                        Var(
+                            "y",
+                        ),
+                        CInt(
+                            3,
+                        ),
+                    ),
+                    Block(
+                        [
+                            IfThenElse(
+                                GT(
+                                    Var(
+                                        "x",
+                                    ),
+                                    CInt(
+                                        8,
+                                    ),
+                                ),
+                                Block(
+                                    [
+                                        Assignment(
+                                            "z",
+                                            CInt(
+                                                1,
+                                            ),
+                                            Some(
+                                                TInteger,
+                                            ),
+                                        ),
+                                    ],
+                                ),
+                                Some(
+                                    Block(
+                                        [
+                                            Assignment(
+                                                "z",
+                                                CInt(
+                                                    2,
+                                                ),
+                                                Some(
+                                                    TInteger,
+                                                ),
+                                            ),
+                                        ],
+                                    ),
+                                ),
+                            ),
+                        ],
+                    ),
+                    Some(
+                        Block(
+                            [
+                                Assignment(
+                                    "z",
+                                    CInt(
+                                        3,
+                                    ),
+                                    Some(
+                                        TInteger,
+                                    ),
+                                ),
+                            ],
+                        ),
+                    ),
+                ),
+            ],
+        ),
+        Some(
+            Block(
+                [
+                    Assignment(
+                        "z",
+                        CInt(
+                            4,
+                        ),
+                        Some(
+                            TInteger,
+                        ),
+                    ),
+                ],
+            ),
+        ),
+    ),
+]
+
+
+Final environment: {"y": (Some(Exp(CInt(5))), TInteger), "x": (Some(Exp(CInt(10))), TInteger), "z": (Some(Exp(CInt(1))), TInteger)}
+
+=== Running test: 7. Mixed arithmetic and control flow ===
+Program:
+a = 15
+b = 3
+if a > 10:
+    c = a + b
+    d = c * 2
+    if d > 30:
+        e = d - 10
+    else:
+        e = d + 5
+else:
+    c = a - b
+    d = c / 2
+    e = d * 3
+
+Parsed AST: [
+    Assignment(
+        "a",
+        CInt(
+            15,
+        ),
+        Some(
+            TInteger,
+        ),
+    ),
+    Assignment(
+        "b",
+        CInt(
+            3,
+        ),
+        Some(
+            TInteger,
+        ),
+    ),
+    IfThenElse(
+        GT(
+            Var(
+                "a",
+            ),
+            CInt(
+                10,
+            ),
+        ),
+        Block(
+            [
+                Assignment(
+                    "c",
+                    Add(
+                        Var(
+                            "a",
+                        ),
+                        Var(
+                            "b",
+                        ),
+                    ),
+                    None,
+                ),
+                Assignment(
+                    "d",
+                    Mul(
+                        Var(
+                            "c",
+                        ),
+                        CInt(
+                            2,
+                        ),
+                    ),
+                    None,
+                ),
+                IfThenElse(
+                    GT(
+                        Var(
+                            "d",
+                        ),
+                        CInt(
+                            30,
+                        ),
+                    ),
+                    Block(
+                        [
+                            Assignment(
+                                "e",
+                                Sub(
+                                    Var(
+                                        "d",
+                                    ),
+                                    CInt(
+                                        10,
+                                    ),
+                                ),
+                                None,
+                            ),
+                        ],
+                    ),
+                    Some(
+                        Block(
+                            [
+                                Assignment(
+                                    "e",
+                                    Add(
+                                        Var(
+                                            "d",
+                                        ),
+                                        CInt(
+                                            5,
+                                        ),
+                                    ),
+                                    None,
+                                ),
+                            ],
+                        ),
+                    ),
+                ),
+            ],
+        ),
+        Some(
+            Block(
+                [
+                    Assignment(
+                        "c",
+                        Sub(
+                            Var(
+                                "a",
+                            ),
+                            Var(
+                                "b",
+                            ),
+                        ),
+                        None,
+                    ),
+                    Assignment(
+                        "d",
+                        Div(
+                            Var(
+                                "c",
+                            ),
+                            CInt(
+                                2,
+                            ),
+                        ),
+                        None,
+                    ),
+                    Assignment(
+                        "e",
+                        Mul(
+                            Var(
+                                "d",
+                            ),
+                            CInt(
+                                3,
+                            ),
+                        ),
+                        None,
+                    ),
+                ],
+            ),
+        ),
+    ),
+]
+
+
+Final environment: {"b": (Some(Exp(CInt(3))), TInteger), "a": (Some(Exp(CInt(15))), TInteger), "c": (Some(Exp(CInt(18))), TInteger), "d": (Some(Exp(CInt(36))), TInteger), "e": (Some(Exp(CInt(26))), TInteger)}
+
+=== Running test: 8. Basic function definition and call ===
+Program:
+def add(a: TInteger, b: TInteger) -> TInteger:
+    return a + b
+
+x = 5
+y = 3
+result = add(x, y)
+
+Parsed AST: [
+    FuncDef(
+        "add",
+        Function {
+            kind: TInteger,
+            params: Some(
+                [
+                    (
+                        "a",
+                        TInteger,
+                    ),
+                    (
+                        "b",
+                        TInteger,
+                    ),
+                ],
+            ),
+            body: Block(
+                [
+                    Return(
+                        Add(
+                            Var(
+                                "a",
+                            ),
+                            Var(
+                                "b",
+                            ),
+                        ),
+                    ),
+                ],
+            ),
+        },
+    ),
+    Assignment(
+        "x",
+        CInt(
+            5,
+        ),
+        Some(
+            TInteger,
+        ),
+    ),
+    Assignment(
+        "y",
+        CInt(
+            3,
+        ),
+        Some(
+            TInteger,
+        ),
+    ),
+    Assignment(
+        "result",
+        FuncCall(
+            "add",
+            [
+                Var(
+                    "x",
+                ),
+                Var(
+                    "y",
+                ),
+            ],
+        ),
+        None,
+    ),
+]
+
+
+Final environment: {"x": (Some(Exp(CInt(5))), TInteger), "add": (Some(Func(Function { kind: TInteger, params: Some([("a", TInteger), ("b", TInteger)]), body: Block([Return(Add(Var("a"), Var("b")))]) })), TInteger), "y": (Some(Exp(CInt(3))), TInteger), "result": (Some(Exp(CInt(8))), TInteger)}
+
+=== Running test: 9. Recursive function ===
+Program:
+def fibonacci(n: TInteger) -> TInteger:
+    if n < 0:
+        return 0
+    if n <= 2:
+        return n - 1
+    return fibonacci(n - 1) + fibonacci(n - 2)
+
+fib = fibonacci(10)
+
+Parsed AST: [
+    FuncDef(
+        "fibonacci",
+        Function {
+            kind: TInteger,
+            params: Some(
+                [
+                    (
+                        "n",
+                        TInteger,
+                    ),
+                ],
+            ),
+            body: Block(
+                [
+                    IfThenElse(
+                        LT(
+                            Var(
+                                "n",
+                            ),
+                            CInt(
+                                0,
+                            ),
+                        ),
+                        Block(
+                            [
+                                Return(
+                                    CInt(
+                                        0,
+                                    ),
+                                ),
+                                IfThenElse(
+                                    LTE(
+                                        Var(
+                                            "n",
+                                        ),
+                                        CInt(
+                                            2,
+                                        ),
+                                    ),
+                                    Block(
+                                        [
+                                            Return(
+                                                Sub(
+                                                    Var(
+                                                        "n",
+                                                    ),
+                                                    CInt(
+                                                        1,
+                                                    ),
+                                                ),
+                                            ),
+                                            Return(
+                                                Add(
+                                                    FuncCall(
+                                                        "fibonacci",
+                                                        [
+                                                            Sub(
+                                                                Var(
+                                                                    "n",
+                                                                ),
+                                                                CInt(
+                                                                    1,
+                                                                ),
+                                                            ),
+                                                        ],
+                                                    ),
+                                                    FuncCall(
+                                                        "fibonacci",
+                                                        [
+                                                            Sub(
+                                                                Var(
+                                                                    "n",
+                                                                ),
+                                                                CInt(
+                                                                    2,
+                                                                ),
+                                                            ),
+                                                        ],
+                                                    ),
+                                                ),
+                                            ),
+                                        ],
+                                    ),
+                                    None,
+                                ),
+                            ],
+                        ),
+                        None,
+                    ),
+                ],
+            ),
+        },
+    ),
+    Assignment(
+        "fib",
+        FuncCall(
+            "fibonacci",
+            [
+                CInt(
+                    10,
+                ),
+            ],
+        ),
+        None,
+    ),
+]
+
+Execution error: Function did not return a value
+
+=== Running test: 10. Function with multiple return paths ===
+Program:
+def max(a: TInteger, b: TInteger) -> TInteger:
+    if a > b:
+        return a
+    else:
+        return b
+
+result = max(15, 10)
+
+Parsed AST: [
+    FuncDef(
+        "max",
+        Function {
+            kind: TInteger,
+            params: Some(
+                [
+                    (
+                        "a",
+                        TInteger,
+                    ),
+                    (
+                        "b",
+                        TInteger,
+                    ),
+                ],
+            ),
+            body: Block(
+                [
+                    IfThenElse(
+                        GT(
+                            Var(
+                                "a",
+                            ),
+                            Var(
+                                "b",
+                            ),
+                        ),
+                        Block(
+                            [
+                                Return(
+                                    Var(
+                                        "a",
+                                    ),
+                                ),
+                            ],
+                        ),
+                        Some(
+                            Block(
+                                [
+                                    Return(
+                                        Var(
+                                            "b",
+                                        ),
+                                    ),
+                                ],
+                            ),
+                        ),
+                    ),
+                ],
+            ),
+        },
+    ),
+    Assignment(
+        "result",
+        FuncCall(
+            "max",
+            [
+                CInt(
+                    15,
+                ),
+                CInt(
+                    10,
+                ),
+            ],
+        ),
+        None,
+    ),
+]
+
+
+Final environment: {"result": (Some(Exp(CInt(15))), TInteger), "max": (Some(Func(Function { kind: TInteger, params: Some([("a", TInteger), ("b", TInteger)]), body: Block([IfThenElse(GT(Var("a"), Var("b")), Block([Return(Var("a"))]), Some(Block([Return(Var("b"))])))]) })), TInteger)}
+
+=== Running test: 11. Left recursion and operator precedence ===
+Program:
+a = 1 + 2 + 3
+b = 1 - 2 - 3
+c = 2 * 3 * 4
+d = 12 / 4 / 2
+e = 1 + 2 * 3
+f = (1 + 2) * 3
+g = 2 * 3 + 4 * 5
+h = (2 + 3) * (4 + 5)
+
+Parsed AST: [
+    Assignment(
+        "a",
+        Add(
+            Add(
+                CInt(
+                    1,
+                ),
+                CInt(
+                    2,
+                ),
+            ),
+            CInt(
+                3,
+            ),
+        ),
+        None,
+    ),
+    Assignment(
+        "b",
+        Sub(
+            Sub(
+                CInt(
+                    1,
+                ),
+                CInt(
+                    2,
+                ),
+            ),
+            CInt(
+                3,
+            ),
+        ),
+        None,
+    ),
+    Assignment(
+        "c",
+        Mul(
+            Mul(
+                CInt(
+                    2,
+                ),
+                CInt(
+                    3,
+                ),
+            ),
+            CInt(
+                4,
+            ),
+        ),
+        None,
+    ),
+    Assignment(
+        "d",
+        Div(
+            Div(
+                CInt(
+                    12,
+                ),
+                CInt(
+                    4,
+                ),
+            ),
+            CInt(
+                2,
+            ),
+        ),
+        None,
+    ),
+    Assignment(
+        "e",
+        Add(
+            CInt(
+                1,
+            ),
+            Mul(
+                CInt(
+                    2,
+                ),
+                CInt(
+                    3,
+                ),
+            ),
+        ),
+        None,
+    ),
+    Assignment(
+        "f",
+        Mul(
+            Add(
+                CInt(
+                    1,
+                ),
+                CInt(
+                    2,
+                ),
+            ),
+            CInt(
+                3,
+            ),
+        ),
+        None,
+    ),
+    Assignment(
+        "g",
+        Add(
+            Mul(
+                CInt(
+                    2,
+                ),
+                CInt(
+                    3,
+                ),
+            ),
+            Mul(
+                CInt(
+                    4,
+                ),
+                CInt(
+                    5,
+                ),
+            ),
+        ),
+        None,
+    ),
+    Assignment(
+        "h",
+        Mul(
+            Add(
+                CInt(
+                    2,
+                ),
+                CInt(
+                    3,
+                ),
+            ),
+            Add(
+                CInt(
+                    4,
+                ),
+                CInt(
+                    5,
+                ),
+            ),
+        ),
+        None,
+    ),
+]
+
+
+Final environment: {"h": (Some(Exp(CInt(45))), TInteger), "b": (Some(Exp(CInt(-4))), TInteger), "c": (Some(Exp(CInt(24))), TInteger), "d": (Some(Exp(CInt(1))), TInteger), "e": (Some(Exp(CInt(7))), TInteger), "a": (Some(Exp(CInt(6))), TInteger), "f": (Some(Exp(CInt(9))), TInteger), "g": (Some(Exp(CInt(26))), TInteger)}
+
+=== Running test: 12. Complex expression chains ===
+Program:
+x = 1
+y = x + 2 + 3 * 4 + 5
+z = (x + y) * 2 - 3
+
+Parsed AST: [
+    Assignment(
+        "x",
+        CInt(
+            1,
+        ),
+        Some(
+            TInteger,
+        ),
+    ),
+    Assignment(
+        "y",
+        Add(
+            Add(
+                Add(
+                    Var(
+                        "x",
+                    ),
+                    CInt(
+                        2,
+                    ),
+                ),
+                Mul(
+                    CInt(
+                        3,
+                    ),
+                    CInt(
+                        4,
+                    ),
+                ),
+            ),
+            CInt(
+                5,
+            ),
+        ),
+        None,
+    ),
+    Assignment(
+        "z",
+        Sub(
+            Mul(
+                Add(
+                    Var(
+                        "x",
+                    ),
+                    Var(
+                        "y",
+                    ),
+                ),
+                CInt(
+                    2,
+                ),
+            ),
+            CInt(
+                3,
+            ),
+        ),
+        None,
+    ),
+]
+
+
+Final environment: {"x": (Some(Exp(CInt(1))), TInteger), "y": (Some(Exp(CInt(20))), TInteger), "z": (Some(Exp(CInt(39))), TInteger)}
+
+=== Running test: 13. Mixed operator precedence ===
+Program:
+a = 10
+b = 2
+c = 3
+result = a + b * c - (a / b) + c * (a - b)
+
+Parsed AST: [
+    Assignment(
+        "a",
+        CInt(
+            10,
+        ),
+        Some(
+            TInteger,
+        ),
+    ),
+    Assignment(
+        "b",
+        CInt(
+            2,
+        ),
+        Some(
+            TInteger,
+        ),
+    ),
+    Assignment(
+        "c",
+        CInt(
+            3,
+        ),
+        Some(
+            TInteger,
+        ),
+    ),
+    Assignment(
+        "result",
+        Add(
+            Sub(
+                Add(
+                    Var(
+                        "a",
+                    ),
+                    Mul(
+                        Var(
+                            "b",
+                        ),
+                        Var(
+                            "c",
+                        ),
+                    ),
+                ),
+                Div(
+                    Var(
+                        "a",
+                    ),
+                    Var(
+                        "b",
+                    ),
+                ),
+            ),
+            Mul(
+                Var(
+                    "c",
+                ),
+                Sub(
+                    Var(
+                        "a",
+                    ),
+                    Var(
+                        "b",
+                    ),
+                ),
+            ),
+        ),
+        None,
+    ),
+]
+
+
+Final environment: {"c": (Some(Exp(CInt(3))), TInteger), "b": (Some(Exp(CInt(2))), TInteger), "result": (Some(Exp(CInt(35))), TInteger), "a": (Some(Exp(CInt(10))), TInteger)}
+
+=== Running test: 14. Deeply nested expressions ===
+Program:
+x = 2
+y = 3
+z = ((x + y) * (x - y)) / (x + 1) + y * (x + y)
+
+Parsed AST: [
+    Assignment(
+        "x",
+        CInt(
+            2,
+        ),
+        Some(
+            TInteger,
+        ),
+    ),
+    Assignment(
+        "y",
+        CInt(
+            3,
+        ),
+        Some(
+            TInteger,
+        ),
+    ),
+    Assignment(
+        "z",
+        Add(
+            Div(
+                Mul(
+                    Add(
+                        Var(
+                            "x",
+                        ),
+                        Var(
+                            "y",
+                        ),
+                    ),
+                    Sub(
+                        Var(
+                            "x",
+                        ),
+                        Var(
+                            "y",
+                        ),
+                    ),
+                ),
+                Add(
+                    Var(
+                        "x",
+                    ),
+                    CInt(
+                        1,
+                    ),
+                ),
+            ),
+            Mul(
+                Var(
+                    "y",
+                ),
+                Add(
+                    Var(
+                        "x",
+                    ),
+                    Var(
+                        "y",
+                    ),
+                ),
+            ),
+        ),
+        None,
+    ),
+]
+
+
+Final environment: {"y": (Some(Exp(CInt(3))), TInteger), "x": (Some(Exp(CInt(2))), TInteger), "z": (Some(Exp(CInt(14))), TInteger)}
+
+=== Running test: 15. Basic negative numbers ===
+Program:
+a = -5
+b = -10
+c = -15
+result = a + b + c
+
+Parsed AST: [
+    Assignment(
+        "a",
+        CInt(
+            -5,
+        ),
+        Some(
+            TInteger,
+        ),
+    ),
+    Assignment(
+        "b",
+        CInt(
+            -10,
+        ),
+        Some(
+            TInteger,
+        ),
+    ),
+    Assignment(
+        "c",
+        CInt(
+            -15,
+        ),
+        Some(
+            TInteger,
+        ),
+    ),
+    Assignment(
+        "result",
+        Add(
+            Add(
+                Var(
+                    "a",
+                ),
+                Var(
+                    "b",
+                ),
+            ),
+            Var(
+                "c",
+            ),
+        ),
+        None,
+    ),
+]
+
+
+Final environment: {"result": (Some(Exp(CInt(-30))), TInteger), "b": (Some(Exp(CInt(-10))), TInteger), "a": (Some(Exp(CInt(-5))), TInteger), "c": (Some(Exp(CInt(-15))), TInteger)}
+
+=== Running test: 16. Mixed positive and negative operations ===
+Program:
+x = 10
+y = -3
+z = x + y * -2
+w = -x + (-y * 2)
+
+Parsed AST: [
+    Assignment(
+        "x",
+        CInt(
+            10,
+        ),
+        Some(
+            TInteger,
+        ),
+    ),
+    Assignment(
+        "y",
+        CInt(
+            -3,
+        ),
+        Some(
+            TInteger,
+        ),
+    ),
+    Assignment(
+        "z",
+        Add(
+            Var(
+                "x",
+            ),
+            Mul(
+                Var(
+                    "y",
+                ),
+                CInt(
+                    -2,
+                ),
+            ),
+        ),
+        None,
+    ),
+    Assignment(
+        "w",
+        Add(
+            Mul(
+                CInt(
+                    -1,
+                ),
+                Var(
+                    "x",
+                ),
+            ),
+            Mul(
+                Mul(
+                    CInt(
+                        -1,
+                    ),
+                    Var(
+                        "y",
+                    ),
+                ),
+                CInt(
+                    2,
+                ),
+            ),
+        ),
+        None,
+    ),
+]
+
+
+Final environment: {"w": (Some(Exp(CInt(-4))), TInteger), "z": (Some(Exp(CInt(16))), TInteger), "x": (Some(Exp(CInt(10))), TInteger), "y": (Some(Exp(CInt(-3))), TInteger)}
+
+=== Running test: 17. Complex expressions with negatives ===
+Program:
+a = -2
+b = 3
+c = (-a * b) + (-4 * -5)
+d = (a + -b) * (-2 + b)
+
+Parsed AST: [
+    Assignment(
+        "a",
+        CInt(
+            -2,
+        ),
+        Some(
+            TInteger,
+        ),
+    ),
+    Assignment(
+        "b",
+        CInt(
+            3,
+        ),
+        Some(
+            TInteger,
+        ),
+    ),
+    Assignment(
+        "c",
+        Add(
+            Mul(
+                Mul(
+                    CInt(
+                        -1,
+                    ),
+                    Var(
+                        "a",
+                    ),
+                ),
+                Var(
+                    "b",
+                ),
+            ),
+            Mul(
+                CInt(
+                    -4,
+                ),
+                CInt(
+                    -5,
+                ),
+            ),
+        ),
+        None,
+    ),
+    Assignment(
+        "d",
+        Mul(
+            Add(
+                Var(
+                    "a",
+                ),
+                Mul(
+                    CInt(
+                        -1,
+                    ),
+                    Var(
+                        "b",
+                    ),
+                ),
+            ),
+            Add(
+                CInt(
+                    -2,
+                ),
+                Var(
+                    "b",
+                ),
+            ),
+        ),
+        None,
+    ),
+]
+
+
+Final environment: {"a": (Some(Exp(CInt(-2))), TInteger), "c": (Some(Exp(CInt(26))), TInteger), "d": (Some(Exp(CInt(-5))), TInteger), "b": (Some(Exp(CInt(3))), TInteger)}
+
+=== Running test: 18. Function calls with negative numbers ===
+Program:
+def subtract(a: TInteger, b: TInteger) -> TInteger:
+    return a - b
+
+result1 = subtract(-10, -3)
+result2 = subtract(5, -3)
+result3 = subtract(-5, 3)
+
+Parsed AST: [
+    FuncDef(
+        "subtract",
+        Function {
+            kind: TInteger,
+            params: Some(
+                [
+                    (
+                        "a",
+                        TInteger,
+                    ),
+                    (
+                        "b",
+                        TInteger,
+                    ),
+                ],
+            ),
+            body: Block(
+                [
+                    Return(
+                        Sub(
+                            Var(
+                                "a",
+                            ),
+                            Var(
+                                "b",
+                            ),
+                        ),
+                    ),
+                ],
+            ),
+        },
+    ),
+    Assignment(
+        "result1",
+        FuncCall(
+            "subtract",
+            [
+                CInt(
+                    -10,
+                ),
+                CInt(
+                    -3,
+                ),
+            ],
+        ),
+        None,
+    ),
+    Assignment(
+        "result2",
+        FuncCall(
+            "subtract",
+            [
+                CInt(
+                    5,
+                ),
+                CInt(
+                    -3,
+                ),
+            ],
+        ),
+        None,
+    ),
+    Assignment(
+        "result3",
+        FuncCall(
+            "subtract",
+            [
+                CInt(
+                    -5,
+                ),
+                CInt(
+                    3,
+                ),
+            ],
+        ),
+        None,
+    ),
+]
+
+
+Final environment: {"subtract": (Some(Func(Function { kind: TInteger, params: Some([("a", TInteger), ("b", TInteger)]), body: Block([Return(Sub(Var("a"), Var("b")))]) })), TInteger), "result1": (Some(Exp(CInt(-7))), TInteger), "result2": (Some(Exp(CInt(8))), TInteger), "result3": (Some(Exp(CInt(-8))), TInteger)}
+
+=== Running test: 19. Boolean Operations ===
+Program:
+a = True
+b = False
+c = True and False
+d = True or False
+e = not False
+f = not (True and False) or True
+
+Parsed AST: [
+    Assignment(
+        "a",
+        CTrue,
+        Some(
+            TBool,
+        ),
+    ),
+    Assignment(
+        "b",
+        CFalse,
+        Some(
+            TBool,
+        ),
+    ),
+    Assignment(
+        "c",
+        And(
+            CTrue,
+            CFalse,
+        ),
+        None,
+    ),
+    Assignment(
+        "d",
+        Or(
+            CTrue,
+            CFalse,
+        ),
+        None,
+    ),
+    Assignment(
+        "e",
+        Not(
+            CFalse,
+        ),
+        None,
+    ),
+    Assignment(
+        "f",
+        Or(
+            Not(
+                And(
+                    CTrue,
+                    CFalse,
+                ),
+            ),
+            CTrue,
+        ),
+        None,
+    ),
+]
+
+
+Final environment: {"c": (Some(Exp(CFalse)), TInteger), "f": (Some(Exp(CTrue)), TInteger), "d": (Some(Exp(CTrue)), TInteger), "b": (Some(Exp(CFalse)), TInteger), "e": (Some(Exp(CTrue)), TInteger), "a": (Some(Exp(CTrue)), TInteger)}
+
+=== Running test: 20. Real Number Operations ===
+Program:
+x = 3.14
+y = -2.5
+z = x + y
+w = x * 2.0
+v = 10.5 / 2.1
+
+Parsed AST: [
+    Assignment(
+        "x",
+        CReal(
+            3.14,
+        ),
+        Some(
+            TReal,
+        ),
+    ),
+    Assignment(
+        "y",
+        CReal(
+            -2.5,
+        ),
+        Some(
+            TReal,
+        ),
+    ),
+    Assignment(
+        "z",
+        Add(
+            Var(
+                "x",
+            ),
+            Var(
+                "y",
+            ),
+        ),
+        None,
+    ),
+    Assignment(
+        "w",
+        Mul(
+            Var(
+                "x",
+            ),
+            CReal(
+                2.0,
+            ),
+        ),
+        None,
+    ),
+    Assignment(
+        "v",
+        Div(
+            CReal(
+                10.5,
+            ),
+            CReal(
+                2.1,
+            ),
+        ),
+        None,
+    ),
+]
+
+
+Final environment: {"w": (Some(Exp(CReal(6.28))), TInteger), "z": (Some(Exp(CReal(0.6400000000000001))), TInteger), "v": (Some(Exp(CReal(5.0))), TInteger), "y": (Some(Exp(CReal(-2.5))), TInteger), "x": (Some(Exp(CReal(3.14))), TInteger)}
+
+=== Running test: 21. String Operations ===
+Program:
+name = "Hello"
+greeting = "World"
+message = "Test "
+
+Parsed AST: [
+    Assignment(
+        "name",
+        CString(
+            "Hello",
+        ),
+        Some(
+            TString,
+        ),
+    ),
+    Assignment(
+        "greeting",
+        CString(
+            "World",
+        ),
+        Some(
+            TString,
+        ),
+    ),
+    Assignment(
+        "message",
+        CString(
+            "Test ",
+        ),
+        Some(
+            TString,
+        ),
+    ),
+]
+
+
+Final environment: {"name": (Some(Exp(CString("Hello"))), TInteger), "greeting": (Some(Exp(CString("World"))), TInteger), "message": (Some(Exp(CString("Test "))), TInteger)}
+
+=== Running test: 22. Mixed Boolean Operations ===
+Program:
+x = 10
+y = 5
+result1 = x > y and True
+result2 = (x < y) or True
+result3 = not (x <= y)
+result4 = (x >= y) and (not False)
+
+Parsed AST: [
+    Assignment(
+        "x",
+        CInt(
+            10,
+        ),
+        Some(
+            TInteger,
+        ),
+    ),
+    Assignment(
+        "y",
+        CInt(
+            5,
+        ),
+        Some(
+            TInteger,
+        ),
+    ),
+    Assignment(
+        "result1",
+        And(
+            GT(
+                Var(
+                    "x",
+                ),
+                Var(
+                    "y",
+                ),
+            ),
+            CTrue,
+        ),
+        None,
+    ),
+    Assignment(
+        "result2",
+        Or(
+            LT(
+                Var(
+                    "x",
+                ),
+                Var(
+                    "y",
+                ),
+            ),
+            CTrue,
+        ),
+        None,
+    ),
+    Assignment(
+        "result3",
+        Not(
+            LTE(
+                Var(
+                    "x",
+                ),
+                Var(
+                    "y",
+                ),
+            ),
+        ),
+        None,
+    ),
+    Assignment(
+        "result4",
+        And(
+            GTE(
+                Var(
+                    "x",
+                ),
+                Var(
+                    "y",
+                ),
+            ),
+            Not(
+                CFalse,
+            ),
+        ),
+        None,
+    ),
+]
+
+
+Final environment: {"result2": (Some(Exp(CTrue)), TInteger), "result1": (Some(Exp(CTrue)), TInteger), "result3": (Some(Exp(CTrue)), TInteger), "y": (Some(Exp(CInt(5))), TInteger), "x": (Some(Exp(CInt(10))), TInteger), "result4": (Some(Exp(CTrue)), TInteger)}

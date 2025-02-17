@@ -42,18 +42,27 @@ pub fn check(exp: Expression, env: &Environment) -> Result<Type, ErrorMessage> {
 
         Expression::Hash(elements)=>
         check_hash_creation(elements, env),
+
         Expression::GetHash(hash, key)=>
         check_hash_get(*hash, *key, env),
+
         Expression::SetHash(hash, key, value)=>
         check_hash_set(*hash, *key, *value, env),
+
         Expression::RemoveHash(mut hash, key)=>
         check_hash_remove(&mut *hash, *key, env),
    
-        Expression::Tuple(elements) => check_create_tuple(elements,env),
+        Expression::Tuple(elements) => 
+        check_create_tuple(elements,env),
+
         Expression::List(elements)=>
         check_create_list(elements, env),
+
         Expression::Append(list,elem)=>
         check_append_list(*list,*elem,env),
+
+        Expression::Insert(list,elem)=>
+        check_insert_list(*list,*elem,env),
 
         Expression::Concat(list1, list2)=>
         check_concat_list(*list1, *list2, env),
@@ -70,6 +79,18 @@ pub fn check(exp: Expression, env: &Environment) -> Result<Type, ErrorMessage> {
         Expression::Len(data_structure) =>
         check_len(*data_structure,env),
 
+        Expression::Union(set1,set2)=>
+        check_union_set(*set1,*set2,env),
+
+        Expression::Intersection(set1,set2)=>
+        check_intersection_set(*set1,*set2,env),
+
+        Expression::Difference(set1,set2)=>
+        check_difference_set(*set1,*set2,env),
+
+        Expression::Disjunction(set1,set2)=>
+        check_disjunction_set(*set1,*set2,env),
+
         _ => Err(String::from("not implemented yet")),
     }
 }
@@ -78,20 +99,90 @@ fn check_create_set(
     maybe_set: Vec<Expression>,
     env: &Environment,
 ) -> Result<Type, ErrorMessage> {
-    match maybe_set {
-        vec => {
-            let first_type = check(vec[0].clone(), env)?;
+    if maybe_set.is_empty() {
+        return Ok(Type::EmptySet);
+    }
 
-            for item in vec.iter() {
-                let item_type = check(item.clone(), env)?;
-                if item_type != first_type {
-                    return Err(String::from("[Type error] Different types in set"));
-                }
-            }
-            Ok(Type::TSet(Box::new(first_type)))
+    let first_type = check(maybe_set[0].clone(), env)?;
+
+    for item in &maybe_set {
+        let item_type = check(item.clone(), env)?;
+        if item_type != first_type {
+            return Err(String::from("[Type error] Different types in set"));
         }
     }
+
+    Ok(Type::TSet(Box::new(first_type)))
 }
+
+fn check_union_set(set1: Expression, set2: Expression, env: &Environment) -> Result<Type, ErrorMessage> {
+    let set1_type = check(set1, env)?;
+    let set2_type = check(set2, env)?;
+
+    match (set1_type, set2_type) {
+        (Type::TSet(boxed_type1), Type::TSet(boxed_type2)) => {
+            if boxed_type1 == boxed_type2 {
+                Ok(Type::TSet(boxed_type1))
+            } else {
+                Err(String::from("[Type error] Set types do not match"))
+            }
+        }
+        (Type::EmptySet, Type::TSet(boxed_type)) | (Type::TSet(boxed_type), Type::EmptySet) => {
+            Ok(Type::TSet(boxed_type))
+        }
+        _ => Err(String::from("[Type error] Expected two sets")),
+    }
+}
+
+fn check_intersection_set(set1: Expression, set2: Expression, env: &Environment) -> Result<Type, ErrorMessage> {
+    let set1_type = check(set1, env)?;
+    let set2_type = check(set2, env)?;
+
+    match (set1_type, set2_type) {
+        (Type::TSet(boxed_type1), Type::TSet(boxed_type2)) => {
+            if boxed_type1 == boxed_type2 {
+                Ok(Type::TSet(boxed_type1))
+            } else {
+                Err(String::from("[Type error] Set types do not match"))
+            }
+        }
+        _ => Err(String::from("[Type error] Expected two sets")),
+    }
+}
+
+fn check_difference_set(set1: Expression, set2: Expression, env: &Environment) -> Result<Type, ErrorMessage> {
+    let set1_type = check(set1, env)?;
+    let set2_type = check(set2, env)?;
+
+    match (set1_type, set2_type) {
+        (Type::TSet(boxed_type1), Type::TSet(boxed_type2)) => {
+            if boxed_type1 == boxed_type2 {
+                Ok(Type::TSet(boxed_type1))
+            } else {
+                Err(String::from("[Type error] Set types do not match"))
+            }
+        }
+        _ => Err(String::from("[Type error] Expected two sets")),
+    }
+}
+
+fn check_disjunction_set(set1: Expression, set2: Expression, env: &Environment) -> Result<Type, ErrorMessage> {
+    let set1_type = check(set1, env)?;
+    let set2_type = check(set2, env)?;
+
+    match (set1_type, set2_type) {
+        (Type::TSet(boxed_type1), Type::TSet(boxed_type2)) => {
+            if boxed_type1 == boxed_type2 {
+                Ok(Type::TSet(boxed_type1))
+            } else {
+                Err(String::from("[Type error] Set types do not match"))
+            }
+        }
+        _ => Err(String::from("[Type error] Expected two sets")),
+    }
+}
+
+
 
 // fn check_dict_creation(elements: Option<Vec<(Expression, Expression)>>, env: &Environment) -> Result<Type, ErrorMessage> {
 //     match elements {
@@ -441,6 +532,23 @@ fn check_append_list(list: Expression, elem: Expression ,env: &Environment)
     }
 }
 
+fn check_insert_list(list: Expression, elem: Expression, env: &Environment) -> Result<Type, ErrorMessage> {
+    let list_type = check(list, env)?;
+    let elem_type = check(elem, env)?;
+
+    match list_type {
+        Type::TList(boxed_type) => {
+            if *boxed_type == elem_type {
+                Ok(Type::TList(boxed_type))
+            } else {
+                Err(String::from("[Type error] Element type does not match list type"))
+            }
+        }
+        Type::EmptyList => Ok(Type::TList(Box::new(elem_type))),
+        _ => Err(String::from("[Type error] Expected a list")),
+    }
+}
+
 fn check_pop_back_list(list: Expression, env: &Environment)
 ->Result<Type,ErrorMessage>{
     let list_type = check(list,env)?;
@@ -590,6 +698,117 @@ mod tests {
         let set = Set(vec![CInt(1), CInt(2), CInt(3)]);
         assert_eq!(check(set, &env), Ok(TSet(Box::new(TInteger))));
     }
+
+    #[test]
+    fn check_union_valid_sets() {
+        let env = HashMap::new();
+        let set1 = Set(vec![CInt(1), CInt(2)]);
+        let set2 = Set(vec![CInt(2), CInt(3)]);
+
+        assert_eq!(
+            check_union_set(set1, set2, &env),
+            Ok(TSet(Box::new(TInteger)))
+        );
+    }
+
+    #[test]
+    fn check_union_invalid_sets() {
+        let env = HashMap::new();
+        let set1 = Set(vec![CInt(1), CInt(2)]);
+        let set2 = Set(vec![CReal(2.0), CReal(3.0)]);
+
+        assert_eq!(
+            check_union_set(set1, set2, &env),
+            Err(String::from("[Type error] Set types do not match"))
+        );
+    }
+
+    #[test]
+    fn check_union_with_empty_set() {
+        let env = HashMap::new();
+        let set1 = Set(vec![CInt(1), CInt(2)]);
+        let set2 = Set(vec![]);
+
+        assert_eq!(
+            check_union_set(set1, set2, &env),
+            Ok(TSet(Box::new(TInteger)))
+        );
+    }
+
+    #[test]
+    fn check_intersection_valid_sets() {
+        let env = HashMap::new();
+        let set1 = Set(vec![CInt(1), CInt(2)]);
+        let set2 = Set(vec![CInt(2), CInt(3)]);
+
+        assert_eq!(
+            check_intersection_set(set1, set2, &env),
+            Ok(TSet(Box::new(TInteger)))
+        );
+    }
+
+    #[test]
+    fn check_intersection_invalid_sets() {
+        let env = HashMap::new();
+        let set1 = Set(vec![CInt(1), CInt(2)]);
+        let set2 = Set(vec![CReal(2.0), CReal(3.0)]);
+
+        assert_eq!(
+            check_intersection_set(set1, set2, &env),
+            Err(String::from("[Type error] Set types do not match"))
+        );
+    }
+
+    #[test]
+    fn check_difference_valid_sets() {
+        let env = HashMap::new();
+        let set1 = Set(vec![CInt(1), CInt(2)]);
+        let set2 = Set(vec![CInt(2), CInt(3)]);
+
+        assert_eq!(
+            check_difference_set(set1, set2, &env),
+            Ok(TSet(Box::new(TInteger)))
+        );
+    }
+
+    #[test]
+    fn check_difference_invalid_sets() {
+        let env = HashMap::new();
+        let set1 = Set(vec![CInt(1), CInt(2)]);
+        let set2 = Set(vec![CReal(2.0), CReal(3.0)]);
+
+        assert_eq!(
+            check_difference_set(set1, set2, &env),
+            Err(String::from("[Type error] Set types do not match"))
+        );
+    }
+
+    #[test]
+    fn check_disjunction_valid_sets() {
+        let env = HashMap::new();
+        let set1 = Set(vec![CInt(1), CInt(2)]);
+        let set2 = Set(vec![CInt(2), CInt(3)]);
+
+        assert_eq!(
+            check_disjunction_set(set1, set2, &env),
+            Ok(TSet(Box::new(TInteger)))
+        );
+    }
+
+    #[test]
+    fn check_disjunction_invalid_sets() {
+        let env = HashMap::new();
+        let set1 = Set(vec![CInt(1), CInt(2)]);
+        let set2 = Set(vec![CReal(2.0), CReal(3.0)]);
+
+        assert_eq!(
+            check_disjunction_set(set1, set2, &env),
+            Err(String::from("[Type error] Set types do not match"))
+        );
+    }
+
+
+
 
     // #[test]
     // fn check_dict_creation_t() {
@@ -775,6 +994,43 @@ mod tests {
         
         assert!(check(append,&env).is_ok());
     }
+
+    #[test]
+    fn check_insert_valid_list() {
+        let env = HashMap::new();
+        let list = List(vec![CInt(1), CInt(2)]);
+        let new_elem = CInt(3);
+
+        assert_eq!(
+            check_insert_list(list, new_elem, &env),
+            Ok(TList(Box::new(TInteger)))
+        );
+    }
+
+    #[test]
+    fn check_insert_invalid_element_type() {
+        let env = HashMap::new();
+        let list = List(vec![CInt(1), CInt(2)]);
+        let new_elem = CReal(3.0);
+
+        assert_eq!(
+            check_insert_list(list, new_elem, &env),
+            Err(String::from("[Type error] Element type does not match list type"))
+        );
+    }
+
+    #[test]
+    fn check_insert_empty_list() {
+        let env = HashMap::new();
+        let list = List(vec![]);
+        let new_elem = CInt(1);
+
+        assert_eq!(
+            check_insert_list(list, new_elem, &env),
+            Ok(TList(Box::new(TInteger)))
+        );
+    }
+
 
     #[test]
     fn check_concat_valid_list_with_list(){
