@@ -14,6 +14,9 @@ type ParseResult<'a, T> = IResult<&'a str, T, Error<&'a str>>;
 use crate::ir::ast::Function;
 use crate::ir::ast::Type;
 use crate::ir::ast::{Expression, Name, Statement};
+use crate::stdlib::math::*;
+use crate::stdlib::string::*;
+use crate::ir::ast::EnvValue;
 
 // Parse identifier
 fn identifier(input: &str) -> IResult<&str, Name> {
@@ -69,6 +72,7 @@ fn term(input: &str) -> ParseResult<Expression> {
 fn statement(input: &str) -> IResult<&str, Statement> {
     let (input, _) = space0(input)?;
     alt((
+        meta_stmt,
         function_def,
         if_statement,
         return_statement,
@@ -80,6 +84,7 @@ fn statement(input: &str) -> IResult<&str, Statement> {
 // Parse basic expressions
 fn expression(input: &str) -> IResult<&str, Expression> {
     alt((
+        meta_exp,
         boolean_expression,
         comparison_expression,
         arithmetic_expression,
@@ -368,6 +373,76 @@ fn return_statement(input: &str) -> IResult<&str, Statement> {
     let (input, _) = space1(input)?;
     let (input, expr) = expression(input)?;
     Ok((input, Statement::Return(Box::new(expr))))
+}
+
+//meta parsing
+fn meta_exp(input: &str) -> IResult<&str, Expression> {
+    let (input, _) = tag("MetaExp")(input)?;
+    let (input, _) = space0(input)?;
+    let (input, _) = char('(')(input)?;
+    let (input, meta_func_id) = identifier(input)?;
+    let (input, _) = delimited(space0, char(','), space0)(input)?;
+    let (input, args) = delimited(
+        char('['),
+        separated_list0(delimited(space0, char(','), space0), expression),
+        char(']')
+    )(input)?;
+    let (input, _) = delimited(space0, char(','), space0)(input)?;
+    let (input, type_str) = identifier(input)?;
+    let (input, _) = char(')')(input)?;
+
+    let meta_func = match resolve_meta_function(&meta_func_id) {
+        Ok(func) => func,
+        Err(_) => return Err(nom::Err::Failure(Error::new(input, ErrorKind::Tag))),
+    };
+    let meta_type = parse_type(&type_str);
+
+    Ok((input, Expression::MetaExp(meta_func, args, meta_type)))
+}
+
+fn meta_stmt(input: &str) -> IResult<&str, Statement> {
+    let (input, _) = tag("MetaStmt")(input)?;
+    let (input, _) = space0(input)?;
+    let (input, _) = char('(')(input)?;
+    let (input, meta_func_id) = identifier(input)?;
+    let (input, _) = delimited(space0, char(','), space0)(input)?;
+    let (input, args) = delimited(
+        char('['),
+        separated_list0(delimited(space0, char(','), space0), expression),
+        char(']')
+    )(input)?;
+    let (input, _) = delimited(space0, char(','), space0)(input)?;
+    let (input, type_str) = identifier(input)?;
+    let (input, _) = char(')')(input)?;
+
+    let meta_func = match resolve_meta_function(&meta_func_id) {
+        Ok(func) => func,
+        Err(_) => return Err(nom::Err::Failure(Error::new(input, ErrorKind::Tag))),
+    };
+    let meta_type = parse_type(&type_str);
+
+    Ok((input, Statement::MetaStmt(meta_func, args, meta_type)))
+}
+
+fn resolve_meta_function(id: &str) -> Result<fn(Vec<EnvValue>) -> Result<EnvValue, String>, String> {
+    match id {
+        "sqrt" => Ok(sqrt),
+        "factorial" => Ok(factorial),
+        "gcd" => Ok(gcd),
+        "lcm" => Ok(lcm),
+        "comb" => Ok(comb),
+        "perm" => Ok(perm),
+        "is_prime" => Ok(is_prime),
+        "log" => Ok(log),
+        "str_upper" => Ok(str_upper),
+        "str_lower" => Ok(str_lower),
+        "str_length" => Ok(str_length),
+        "str_reverse" => Ok(str_reverse),
+        "cont_chars" => Ok(cont_chars),
+        "filter_out_char" => Ok(filter_out_char),
+        "replace" => Ok(replace),
+        _ => Err(format!("Meta function '{}' não encontrada", id)),
+    }
 }
 
 // Parse multiple statements
@@ -884,4 +959,49 @@ mod tests {
         assert_eq!(rest, "");
         assert_eq!(result, expected);
     }
+
+    #[test]
+    fn test_metaexp_parsing() {
+        let input = "x = MetaExp(sqrt, [x], TReal)";
+        let (rest, stmts) = parse(input).unwrap();
+        assert_eq!(rest, "");
+
+        match &stmts[0] {
+            Statement::Assignment(name, expr, _type) => {
+                assert_eq!(name, "x");
+                match &**expr {
+                    Expression::MetaExp(_, args, meta_type) => {
+                        assert_eq!(meta_type, &Type::TReal);
+                        assert_eq!(args.len(), 1);
+                        match &args[0] {
+                            Expression::Var(var_name) => assert_eq!(var_name, "x"),
+                            _ => panic!("Expected a variable as argument in MetaExp"),
+                        }
+                    },
+                    _ => panic!("Expected a MetaExp expression"),
+                }
+            },
+            _ => panic!("Expected an Assignment statement"),
+        }
+    }
+
+    #[test]
+    fn test_metastmt_parsing() {
+        let input = "MetaStmt(sqrt, [x], TReal)";
+        let (rest, stmt) = meta_stmt(input).unwrap();
+        assert_eq!(rest, "");
+
+        match stmt {
+            Statement::MetaStmt(_, args, meta_type) => {
+                assert_eq!(meta_type, Type::TReal);
+                assert_eq!(args.len(), 1);
+                match &args[0] {
+                    Expression::Var(var_name) => assert_eq!(var_name, "x"),
+                    _ => panic!("Expected a variable as argument in MetaStmt"),
+                }
+            },
+            _ => panic!("Expected a MetaStmt statement"),
+        }
+    }
+
 }
