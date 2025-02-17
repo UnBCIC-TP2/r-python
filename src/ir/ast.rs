@@ -45,13 +45,13 @@ pub enum Expression {
     LTE(Box<Expression>, Box<Expression>),
 
     /* data structures */
-    Dict(Vec<(Name, Box<Expression>)>),
-    DictAccess(Name, Name),
-    DictMerge(Name, Vec<(Name, Box<Expression>)>),
+    Dict(Vec<(Expression, Box<Expression>)>),
+    DictAccess(Expression, Expression),
+    DictMerge(Expression, Vec<(Expression, Box<Expression>)>),
 
     /* membership checks over collections */
-    In(Name, Name),
-    NotIn(Name, Name),
+    In(Expression, Expression),
+    NotIn(Expression, Expression),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -63,8 +63,8 @@ pub enum Statement {
     While(Box<Expression>, Box<Statement>),
     Block(Vec<Statement>), // For indented blocks
     Sequence(Box<Statement>, Box<Statement>),
-    DictAssigment(Name, Name, Box<Expression>),
-    DictDel(Name, Name),
+    DictAssigment(Expression, Expression, Box<Expression>),
+    DictDel(Expression, Expression),
 }
 
 #[derive(Debug)]
