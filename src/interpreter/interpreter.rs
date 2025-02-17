@@ -26,11 +26,11 @@ pub fn eval(exp: Expression, env: &Environment) -> Result<Expression, ErrorMessa
         Expression::DictMerge(dict_name, new_entries) => {
             eval_dictionary_merge(dict_name, new_entries, env)
         }
-        Expression::In(item_name, collection_name) => {
-            eval_in_expression(item_name, collection_name, env)
+        Expression::In(item_expr, collection_name) => {
+            eval_in_expression(item_expr, collection_name, env)
         }
-        Expression::NotIn(item_name, collection_name) => {
-            eval_not_in_expression(item_name, collection_name, env)
+        Expression::NotIn(item_expr, collection_name) => {
+            eval_not_in_expression(item_expr, collection_name, env)
         }
         _ if is_constant(exp.clone()) => Ok(exp),
         _ => Err(String::from("Not implemented yet.")),
@@ -294,15 +294,15 @@ fn lte(lhs: Expression, rhs: Expression, env: &Environment) -> Result<Expression
 }
 
 fn eval_dictionary(
-    dict_entries: Vec<(Name, Box<Expression>)>,
+    dict_entries: Vec<(Expression, Box<Expression>)>,
     env: &Environment,
 ) -> Result<Expression, ErrorMessage> {
-    let mut evaluated_dic: Vec<(Name, Box<Expression>)> = Vec::new();
+    let mut evaluated_dic: Vec<(Expression, Box<Expression>)> = Vec::new();
 
-    for (key, value_exp) in dict_entries {
-        let evaluated_exp = eval(*value_exp, env)?;
-
-        evaluated_dic.push((key, Box::new(evaluated_exp)))
+    for (key_expr, value_exp) in dict_entries {
+        let evaluated_key = eval(key_expr, env)?;
+        let evaluated_value = eval(*value_exp, env)?;
+        evaluated_dic.push((evaluated_key, Box::new(evaluated_value)));
     }
 
     Ok(Expression::Dict(evaluated_dic))
@@ -310,7 +310,7 @@ fn eval_dictionary(
 
 fn eval_dictionary_merge(
     dict_name: Name,
-    new_entries: Vec<(Name, Box<Expression>)>,
+    new_entries: Vec<(Expression, Box<Expression>)>,
     env: &Environment,
 ) -> Result<Expression, ErrorMessage> {
     let old_entries = match env.get(&dict_name) {
@@ -330,8 +330,8 @@ fn eval_dictionary_merge(
         _ => unreachable!(),
     };
 
-    let mut merged_keys: Vec<Name> = Vec::new();
-    let mut merged_exps: HashMap<Name, Box<Expression>> = HashMap::new();
+    let mut merged_keys: Vec<Expression> = Vec::new();
+    let mut merged_exps: HashMap<Expression, Box<Expression>> = HashMap::new();
 
     for (key, exp) in old_entries {
         merged_keys.push(key.clone());
@@ -345,7 +345,7 @@ fn eval_dictionary_merge(
         merged_exps.insert(key.clone(), exp.clone());
     }
 
-    let new_dict: Vec<(Name, Box<Expression>)> = merged_keys
+    let new_dict: Vec<(Expression, Box<Expression>)> = merged_keys
         .into_iter()
         .map(|k| (k.clone(), merged_exps.get(&k).unwrap().clone()))
         .collect();
@@ -353,42 +353,8 @@ fn eval_dictionary_merge(
     Ok(Expression::Dict(new_dict))
 }
 
-fn eval_in_expression(
-    item_name: Name,
-    collection_name: Name,
-    env: &Environment,
-) -> Result<Expression, ErrorMessage> {
-    eval_membership_expression(
-        item_name,
-        collection_name,
-        "in",
-        |item_found| match item_found {
-            true => Expression::CTrue,
-            false => Expression::CFalse,
-        },
-        env,
-    )
-}
-
-fn eval_not_in_expression(
-    item_name: Name,
-    collection_name: Name,
-    env: &Environment,
-) -> Result<Expression, ErrorMessage> {
-    eval_membership_expression(
-        item_name,
-        collection_name,
-        "not in",
-        |item_found| match item_found {
-            true => Expression::CFalse,
-            false => Expression::CTrue,
-        },
-        env,
-    )
-}
-
 fn eval_membership_expression<F>(
-    item_name: Name,
+    item_expr: Expression,
     collection_name: Name,
     operator: &str,
     check_membership: F,
@@ -403,7 +369,7 @@ where
     };
 
     match collection {
-        Expression::Dict(entries) => match entries.iter().find(|(item, _)| *item == item_name) {
+        Expression::Dict(entries) => match entries.iter().find(|(item, _)| *item == item_expr) {
             Some(_) => Ok(check_membership(true)),
             None => Ok(check_membership(false)),
         },
@@ -412,6 +378,34 @@ where
             operator, collection_name
         )),
     }
+}
+
+fn eval_in_expression(
+    item_expr: Expression,
+    collection_name: Name,
+    env: &Environment,
+) -> Result<Expression, ErrorMessage> {
+    eval_membership_expression(
+        item_expr,
+        collection_name,
+        "in",
+        |item_found| if item_found { Expression::CTrue } else { Expression::CFalse },
+        env,
+    )
+}
+
+fn eval_not_in_expression(
+    item_expr: Expression,
+    collection_name: Name,
+    env: &Environment,
+) -> Result<Expression, ErrorMessage> {
+    eval_membership_expression(
+        item_expr,
+        collection_name,
+        "not in",
+        |item_found| if item_found { Expression::CFalse } else { Expression::CTrue },
+        env,
+    )
 }
 
 pub fn execute(stmt: Statement, env: Environment) -> Result<Environment, ErrorMessage> {
@@ -450,7 +444,7 @@ pub fn execute(stmt: Statement, env: Environment) -> Result<Environment, ErrorMe
 
             Ok(new_env)
         }
-        Statement::DictDel(dict_name, key_name) => {
+        Statement::DictDel(dict_name, key_expr) => {
             let mut new_env = env.clone();
 
             let dict_entries = match new_env.get_mut(&dict_name) {
@@ -462,11 +456,11 @@ pub fn execute(stmt: Statement, env: Environment) -> Result<Environment, ErrorMe
                 }
             };
 
-            let entry_index = dict_entries.iter().position(|(k, _)| *k == key_name);
+            let entry_index = dict_entries.iter().position(|(k, _)| *k == key_expr);
 
             match entry_index {
-                Some(index) => dict_entries.remove(index),
-                None => return Err(format!("key '{}' not found", key_name)),
+                Some(index) => { dict_entries.remove(index); },
+                None => return Err(format!("key '{:?}' not found", key_expr)),
             };
 
             Ok(new_env)

@@ -121,72 +121,91 @@ fn arithmetic_expression(input: &str) -> IResult<&str, Expression> {
 }
 
 /// Parses a dictionary expression.
-/// Example: `{key1: value1, key2: value2}`
+/// Exemplo: `{x: 42, y: 10}`
+///
+/// Agora, a chave é convertida em um literal de string (Expression::CString)
 fn dict_expression(input: &str) -> IResult<&str, Expression> {
     let (input, _) = delimited(space0, char('{'), multispace0)(input)?;
-
     let (input, key_value_pairs) = separated_list0(
         delimited(space0, char(','), multispace0),
         separated_pair(identifier, delimited(space0, char(':'), space0), expression),
     )(input)?;
-
     let (input, _) = preceded(multispace0, char('}'))(input)?;
-
     Ok((
         input,
         Expression::Dict(
             key_value_pairs
                 .iter()
-                .map(|(key, value)| (key.clone(), Box::new(value.clone())))
+                .map(|(key, value)| (Expression::CString(key.clone()), Box::new(value.clone())))
                 .collect(),
         ),
     ))
 }
 
 /// Parses a dictionary access expression.
-/// Example: `dict.key`
+/// Exemplo: `dict.key`
 fn dict_access_expression(input: &str) -> IResult<&str, Expression> {
-    let (input, (dict_name, key_name)) = separated_pair(identifier, char('.'), identifier)(input)?;
-
-    Ok((input, Expression::DictAccess(dict_name, key_name)))
+    let (input, (dict_name, key_name)) =
+        separated_pair(identifier, char('.'), identifier)(input)?;
+    Ok((
+        input,
+        Expression::DictAccess(
+            Expression::Var(dict_name),
+            Expression::CString(key_name),
+        ),
+    ))
 }
 
-/// Parses a merge expression that creates a new updated dictionary.
-/// Example: `dict_name with { key1 = value1, key2 = value2 }`
+/// Parses a merge expression que cria um novo dicionário atualizado.
+/// Exemplo: `dict with { x: 42, y: 10 }`
 fn dict_merge_expression(input: &str) -> IResult<&str, Expression> {
     let (input, (dict_name, new_dict)) = separated_pair(
         identifier,
         tuple((space0, tag("with"), space0)),
         dict_expression,
     )(input)?;
-
     let new_entries = match new_dict {
         Expression::Dict(entries) => entries,
         _ => unreachable!(),
     };
-
-    Ok((input, Expression::DictMerge(dict_name, new_entries)))
+    Ok((
+        input,
+        Expression::DictMerge(Expression::Var(dict_name), new_entries),
+    ))
 }
 
-/// Parses a `in` expression.
-/// Example: `key in dict`
+/// Parses uma expressão `in`.
+/// Exemplo: `key in dict`
 fn in_expression(input: &str) -> IResult<&str, Expression> {
-    let (input, (item_name, collection_name)) =
-        separated_pair(identifier, tuple((space0, tag("in"), space0)), identifier)(input)?;
-
-    Ok((input, Expression::In(item_name, collection_name)))
+    let (input, (item_name, collection_name)) = separated_pair(
+        identifier,
+        tuple((space0, tag("in"), space0)),
+        identifier,
+    )(input)?;
+    Ok((
+        input,
+        Expression::In(
+            Expression::CString(item_name),
+            Expression::Var(collection_name),
+        ),
+    ))
 }
 
-/// Parses a `not in` expression.
-/// Example: `key not in dict`
+/// Parses uma expressão `not in`.
+/// Exemplo: `key not in dict`
 fn not_in_expression(input: &str) -> IResult<&str, Expression> {
     let (input, (item_name, collection_name)) = separated_pair(
         identifier,
         tuple((space0, tag("not"), space0, tag("in"), space0)),
         identifier,
     )(input)?;
-
-    Ok((input, Expression::NotIn(item_name, collection_name)))
+    Ok((
+        input,
+        Expression::NotIn(
+            Expression::CString(item_name),
+            Expression::Var(collection_name),
+        ),
+    ))
 }
 
 //indented block parser
@@ -225,27 +244,18 @@ fn if_statement(input: &str) -> IResult<&str, Statement> {
     ))
 }
 
-/// Parses a delete statement for a dictionary.
-/// Example: `del dict.key`
+/// Parses um statement de delete para dicionários.
+/// Exemplo: `del dict.key`
 fn dict_del_statement(input: &str) -> IResult<&str, Statement> {
     let (input, _) = tuple((tag("del"), space1))(input)?;
-    let (input, (dict_name, key_name)) = separated_pair(identifier, char('.'), identifier)(input)?;
-
-    Ok((input, Statement::DictDel(dict_name, key_name)))
-}
-
-fn declaration(input: &str) -> IResult<&str, Statement> {
-    let (input, keyword) = alt((tag("var"), tag("val")))(input)?;
-    let (input, _) = space1(input)?;
-    let (input, name) = identifier(input)?;
-
+    let (input, (dict_name, key_name)) =
+        separated_pair(identifier, char('.'), identifier)(input)?;
     Ok((
         input,
-        match keyword {
-            "var" => Statement::VarDeclaration(name), // No Box needed
-            "val" => Statement::ValDeclaration(name), // No Box needed
-            _ => unreachable!(),
-        },
+        Statement::DictDel(
+            Expression::Var(dict_name),
+            Expression::CString(key_name),
+        ),
     ))
 }
 
@@ -266,16 +276,20 @@ fn var_assignment(input: &str) -> IResult<&str, Statement> {
     ))
 }
 
-/// Parses a dictionary assignment statement.
-/// Example: `dict.key = exp`
+/// Parses um statement de atribuição em dicionários.
+/// Exemplo: `dict.key = exp`
 fn dict_assignment(input: &str) -> IResult<&str, Statement> {
-    let (input, (dict_name, key_name)) = separated_pair(identifier, char('.'), identifier)(input)?;
+    let (input, (dict_name, key_name)) =
+        separated_pair(identifier, char('.'), identifier)(input)?;
     let (input, _) = delimited(space0, char('='), space0)(input)?;
     let (input, expr) = expression(input)?;
-
     Ok((
         input,
-        Statement::DictAssigment(dict_name, key_name, Box::new(expr)),
+        Statement::DictAssigment(
+            Expression::Var(dict_name),
+            Expression::CString(key_name),
+            Box::new(expr),
+        ),
     ))
 }
 
