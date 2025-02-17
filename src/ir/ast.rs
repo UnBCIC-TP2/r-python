@@ -11,6 +11,7 @@ pub enum Type {
     TReal,
     TString,
     EmptyList,
+    EmptySet,
     TList(Box<Type>),
     TTuple(Vec<Type>),
     TSet(Box<Type>),

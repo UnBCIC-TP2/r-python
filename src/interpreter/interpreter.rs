@@ -1012,6 +1012,51 @@ mod tests {
         );
     }
 
+    #[test]
+    fn eval_union_set_error() {
+        let env = HashMap::new();
+
+        let not_a_set = Expression::CInt(42);
+        let set = Expression::Set(vec![Expression::CInt(1), Expression::CInt(2)]);
+
+        let result = eval(Expression::Union(Box::new(not_a_set), Box::new(set)), &env);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn eval_intersection_set_error() {
+        let env = HashMap::new();
+
+        let not_a_set = Expression::CInt(42);
+        let set = Expression::Set(vec![Expression::CInt(1), Expression::CInt(2)]);
+
+        let result = eval(Expression::Intersection(Box::new(not_a_set), Box::new(set)), &env);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn eval_difference_set_error() {
+        let env = HashMap::new();
+
+        let not_a_set = Expression::CInt(42);
+        let set = Expression::Set(vec![Expression::CInt(1), Expression::CInt(2)]);
+
+        let result = eval(Expression::Difference(Box::new(not_a_set), Box::new(set)), &env);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn eval_disjunction_set_error() {
+        let env = HashMap::new();
+
+        let not_a_set = Expression::CInt(42);
+        let set = Expression::Set(vec![Expression::CInt(1), Expression::CInt(2)]);
+
+        let result = eval(Expression::Disjunction(Box::new(not_a_set), Box::new(set)), &env);
+        assert!(result.is_err());
+    }
+
+
     // #[test]
     // fn eval_create_dict_t() {
     //     let elements = vec![
