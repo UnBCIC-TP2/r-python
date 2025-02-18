@@ -125,20 +125,7 @@ fn eval_create_set(elements: Vec<Expression>, env: &Environment) -> Result<Expre
             return Err(format!("Element {:?} is already in set", eval_elem));
         }
 
-        // Garante que todos os elementos sejam do mesmo tipo
-        match (&eval_elem, type_set_eval.as_ref().unwrap()) {
-            (Expression::CInt(_), Expression::CInt(_)) |
-            (Expression::CReal(_), Expression::CReal(_)) |
-            (Expression::CString(_), Expression::CString(_)) => {
-                evaluated_elements.push(eval_elem);
-            }
-            _ => {
-                return Err(format!(
-                    "Type {:?} does not match type {:?}",
-                    eval_elem, type_set_eval.unwrap()
-                ));
-            }
-        }
+        evaluated_elements.push(eval_elem);
     }
 
     Ok(Expression::Set(evaluated_elements))
