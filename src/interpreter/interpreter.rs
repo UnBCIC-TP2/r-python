@@ -162,23 +162,6 @@ fn eval_set_hash(
     }
 }
 
-// fn eval_remove_dict(
-//     dict: Expression, 
-//     key: Expression, 
-//     _env: &Environment
-// ) -> Result<Expression, ErrorMessage> {
-//     if let Expression::Dict(Some(mut elements)) = dict {
-//         if let Some(pos) = elements.iter().position(|(k, _)| *k == key) {
-//             elements.remove(pos);
-//             Ok(Expression::Dict(Some(elements)))
-//         } else {
-//             Err(format!("Key not found in Dict"))
-//         }
-//     } else {
-//         Err(format!("Expected a Dict"))
-//     }
-// }
-
 fn eval_remove_hash(
     hash: Expression, 
     key: Expression, 
