@@ -100,7 +100,7 @@ fn check_create_set(
     env: &Environment,
 ) -> Result<Type, ErrorMessage> {
     if maybe_set.is_empty() {
-        return Ok(Type::EmptySet);
+        return Ok(Type::NotDefine);
     }
 
     let first_type = check(maybe_set[0].clone(), env)?;
@@ -127,7 +127,7 @@ fn check_union_set(set1: Expression, set2: Expression, env: &Environment) -> Res
                 Err(String::from("[Type error] Set types do not match"))
             }
         }
-        (Type::EmptySet, Type::TSet(boxed_type)) | (Type::TSet(boxed_type), Type::EmptySet) => {
+        (Type::NotDefine, Type::TSet(boxed_type)) | (Type::TSet(boxed_type), Type::NotDefine) => {
             Ok(Type::TSet(boxed_type))
         }
         _ => Err(String::from("[Type error] Expected two sets")),
@@ -476,7 +476,7 @@ fn check_create_list(
         elements => {
 
             if elements.is_empty(){
-                return Ok(Type::EmptyList);
+                return Ok(Type::NotDefine);
             }
 
             let first_elem = elements[0].clone();
@@ -500,9 +500,9 @@ fn check_concat_list(list: Expression, list2: Expression, env: &Environment)
     let list_type2 = check(list2, env)?;
     
     match (list_type1.clone(), list_type2.clone()) {
-        (Type::EmptyList, Type::TList(_)) => Ok(list_type2),
-        (Type::TList(_), Type::EmptyList) => Ok(list_type1),
-        (Type::EmptyList,Type::EmptyList)=> Ok(Type::EmptyList),
+        (Type::NotDefine, Type::TList(_)) => Ok(list_type2),
+        (Type::TList(_), Type::NotDefine) => Ok(list_type1),
+        (Type::NotDefine,Type::NotDefine)=> Ok(Type::NotDefine),
         (Type::TList(boxed_type1), Type::TList(boxed_type2)) => {
             if *boxed_type1 == *boxed_type2 {
                 Ok(Type::TList(boxed_type1.clone()))
@@ -519,7 +519,7 @@ fn check_append_list(list: Expression, elem: Expression ,env: &Environment)
     let list_type = check(list,env)?;
     let elem_type = check(elem,env)?;
     match (list_type.clone(),elem_type.clone()) {
-        (Type::EmptyList,type_elem)=> Ok(type_elem),
+        (Type::NotDefine,type_elem)=> Ok(type_elem),
         (Type::TList(boxed_type),type_elem)=>{
             if *boxed_type == type_elem{
                 Ok(Type::TList(boxed_type.clone()))
@@ -544,25 +544,20 @@ fn check_insert_list(list: Expression, elem: Expression, env: &Environment) -> R
                 Err(String::from("[Type error] Element type does not match list type"))
             }
         }
-        Type::EmptyList => Ok(Type::TList(Box::new(elem_type))),
+        Type::NotDefine => Ok(Type::TList(Box::new(elem_type))),
         _ => Err(String::from("[Type error] Expected a list")),
     }
 }
 
 fn check_pop_back_list(list: Expression, env: &Environment)
 ->Result<Type,ErrorMessage>{
-    let list_type = check(list,env)?;
+    let list_type = check_exp(list,env)?;
 
     match list_type.clone(){
         Type::TList(boxed_type) => {
-            match *boxed_type{
-                Type::TInteger | Type::TReal | Type::TString => {
-                    Ok(Type::TList(boxed_type.clone()))
-                },
-                _=> Err(String::from("cannot pop from an non-typed list"))
+                Ok(Type::TList(boxed_type.clone()))
             }
-        }
-        Type::EmptyList=> Err(String::from("cannot pop from an empty list")),
+        Type::NotDefine=> Err(String::from("cannot pop from an empty list")),
 
         _ => Err(String::from("[Type error] cannot pop from a non-list type"))
     }
@@ -570,17 +565,13 @@ fn check_pop_back_list(list: Expression, env: &Environment)
 
 fn check_pop_front_list(list: Expression, env: &Environment)
 ->Result<Type,ErrorMessage>{
-    let list_type = check(list,&env)?;
+    let list_type = check_exp(list,&env)?;
     match list_type{
         Type::TList(boxed_type) => {
-            match *boxed_type{
-                Type::TInteger | Type::TReal | Type::TString => {
-                    Ok(*boxed_type)
-                },
-                _=> Err(String::from("cannot pop from an non-typed list"))
+            Ok(Type::TList(boxed_type.clone()))
             }
-        }
-        Type::EmptyList=> Err(String::from("cannot pop from an empty list")),
+
+        Type::NotDefine=> Err(String::from("cannot pop from an empty list")),
         _=>Err(String::from("[Type error] cannot pop from a non-list type"))
     }
 }
@@ -602,7 +593,7 @@ fn check_get(data_structure: Expression, index: Expression,env: &Environment)
                 _ => Err(String::from("[Type error] Index must be an integer")),
             }
         }
-        (Type::EmptyList,Type::TInteger)=>Err(String::from("cannot get element from an empty list")),
+        (Type::NotDefine,Type::TInteger)=>Err(String::from("cannot get element from an empty list")),
         _=> Err(String::from("[Type error] index must be integer"))
     }
 }
@@ -617,7 +608,7 @@ Result<Type, String>{
         Type::TTuple(_)=>{
             Ok(Type::TInteger)
         }
-        Type::EmptyList=>{
+        Type::NotDefine=>{
             Ok(Type::TInteger)
         },
         _=>Err(String::from("[Type error] first argument must be a list"))
