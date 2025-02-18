@@ -10,12 +10,10 @@ pub enum Type {
     TBool,
     TReal,
     TString,
-    EmptyList,
-    EmptySet,
+    NotDefine,
     TList(Box<Type>),
     TTuple(Vec<Type>),
     TSet(Box<Type>),
-    // TDict(Box<Type>,Box<Type>),
     THash(Box<Type>, Box<Type>),
     TUnit,
 }
@@ -71,12 +69,6 @@ pub enum Expression {
     Get(Box<Expression>,Box<Expression>),
     Len(Box<Expression>),
 
-    
-    // Dict(Option<Vec<(Expression, Expression)>>),
-    // GetDict(Box<Expression>, Box<Expression>),
-    // SetDict(Box<Expression>, Box<Expression>, Box<Expression>),
-    // RemoveDict(Box<Expression>, Box<Expression>),
-    
     Hash(Option<HashMap<Expression, Expression>>),
     GetHash(Box<Expression>, Box<Expression>),
     SetHash(Box<Expression>, Box<Expression>, Box<Expression>),

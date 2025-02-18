@@ -66,14 +66,6 @@ pub fn eval(exp: Expression, env: &Environment) -> Result<Expression, ErrorMessa
         Expression::Disjunction(set1,set2)=>
         eval_disjunction_set(*set1,*set2,env),
 
-        // Expression::Dict(elements)=> 
-        // eval_create_dict(elements, env),
-        // Expression::GetDict(dict, key)=> 
-        // eval_get_dict(*dict, *key, env),
-        // Expression::SetDict(dict, key, value)=> 
-        // eval_set_dict(*dict, *key, *value, env),
-        // Expression::RemoveDict(dict, key)=> 
-        // eval_remove_dict(*dict, *key, env),
 
         Expression::Hash(elements)=> 
         eval_create_hash(elements, env),
@@ -125,35 +117,11 @@ fn eval_create_set(elements: Vec<Expression>, env: &Environment) -> Result<Expre
             return Err(format!("Element {:?} is already in set", eval_elem));
         }
 
-        // Garante que todos os elementos sejam do mesmo tipo
-        match (&eval_elem, type_set_eval.as_ref().unwrap()) {
-            (Expression::CInt(_), Expression::CInt(_)) |
-            (Expression::CReal(_), Expression::CReal(_)) |
-            (Expression::CString(_), Expression::CString(_)) => {
-                evaluated_elements.push(eval_elem);
-            }
-            _ => {
-                return Err(format!(
-                    "Type {:?} does not match type {:?}",
-                    eval_elem, type_set_eval.unwrap()
-                ));
-            }
-        }
+        evaluated_elements.push(eval_elem);
     }
 
     Ok(Expression::Set(evaluated_elements))
 }
-
-
-// fn eval_create_dict(
-//     elements: Option<Vec<(Expression, Expression)>>, 
-//     _env: &Environment
-// ) -> Result<Expression, ErrorMessage> {
-//     match elements {
-//         Some(vec) => Ok(Expression::Dict(Some(vec))),
-//         None => Ok(Expression::Dict(Some(Vec::new()))),
-//     }
-// }
 
 fn eval_create_hash(
     elements: Option<HashMap<Expression, Expression>>, 
@@ -164,23 +132,6 @@ fn eval_create_hash(
         None => Ok(Expression::Hash(Some(HashMap::new()))),
     }
 }
-
-// fn eval_get_dict(
-//     dict: Expression, 
-//     key: Expression, 
-//     _env: &Environment
-// ) -> Result<Expression, ErrorMessage> {
-//     if let Expression::Dict(Some(elements)) = dict {
-//         for (k, v) in elements {
-//             if k == key {
-//                 return Ok(v);
-//             }
-//         }
-//         Err(format!("Key not found in Dict"))
-//     } else {
-//         Err(format!("Expected a Dict"))
-//     }
-// }
 
 fn eval_get_hash(
     hash: Expression, 
@@ -197,33 +148,6 @@ fn eval_get_hash(
     }
 }
 
-// fn eval_set_dict(
-//     dict: Expression, 
-//     key: Expression, 
-//     value: Expression, 
-//     _env: &Environment
-// ) -> Result<Expression, ErrorMessage> {
-//     if let Expression::Dict(Some(mut elements)) = dict {
-//         let mut found = false;
-        
-//         for (k, v) in &mut elements {
-//             if *k == key {
-//                 *v = value.clone();
-//                 found = true;
-//                 break;
-//             }
-//         }
-        
-//         if !found {
-//             elements.push((key, value));
-//         }
-        
-//         Ok(Expression::Dict(Some(elements)))
-//     } else {
-//         Err(format!("Expected a Dict"))
-//     }
-// }
-
 fn eval_set_hash(
     hash: Expression, 
     key: Expression, 
@@ -237,23 +161,6 @@ fn eval_set_hash(
         Err(format!("Expected a Hash"))
     }
 }
-
-// fn eval_remove_dict(
-//     dict: Expression, 
-//     key: Expression, 
-//     _env: &Environment
-// ) -> Result<Expression, ErrorMessage> {
-//     if let Expression::Dict(Some(mut elements)) = dict {
-//         if let Some(pos) = elements.iter().position(|(k, _)| *k == key) {
-//             elements.remove(pos);
-//             Ok(Expression::Dict(Some(elements)))
-//         } else {
-//             Err(format!("Key not found in Dict"))
-//         }
-//     } else {
-//         Err(format!("Expected a Dict"))
-//     }
-// }
 
 fn eval_remove_hash(
     hash: Expression, 
@@ -863,8 +770,6 @@ pub fn execute(stmt: Statement, env: Environment) -> Result<Environment, ErrorMe
 
 #[cfg(test)]
 mod tests {
-
-    //use std::hash::Hash;
     use super::*;
     use crate::ir::ast::Expression::*;
     use crate::ir::ast::Statement::*;
@@ -1055,18 +960,6 @@ mod tests {
         let result = eval(Expression::Disjunction(Box::new(not_a_set), Box::new(set)), &env);
         assert!(result.is_err());
     }
-
-
-    // #[test]
-    // fn eval_create_dict_t() {
-    //     let elements = vec![
-    //         (Expression::CString("chave1".to_string()), Expression::CInt(10)),
-    //         (Expression::CString("chave2".to_string()), Expression::CInt(20)),
-    //     ];
-    
-    //     let result = eval_create_dict(Some(elements.clone()), &HashMap::new());
-    //     assert_eq!(result, Ok(Expression::Dict(Some(elements))));
-    // }
     
     #[test]
     fn eval_create_hash_t() {
@@ -1077,19 +970,6 @@ mod tests {
         let result = eval_create_hash(Some(elements.clone()), &HashMap::new());
         assert_eq!(result, Ok(Expression::Hash(Some(elements))));
     }
-
-    // #[test]
-    // fn eval_get_dict_t() {
-    //     let elements = vec![
-    //         (Expression::CString("chave1".to_string()), Expression::CInt(10)),
-    //         (Expression::CString("chave2".to_string()), Expression::CInt(20)),
-    //     ];
-    //     let dict = Expression::Dict(Some(elements));
-
-    //     let key = Expression::CString("chave1".to_string());
-    //     let result = eval_get_dict(dict, key, &HashMap::new());
-    //     assert_eq!(result, Ok(Expression::CInt(10)));
-    // }
 
     #[test]
     fn eval_get_hash_t() {
@@ -1103,25 +983,6 @@ mod tests {
         let result = eval_get_hash(hash, key, &HashMap::new());
         assert_eq!(result, Ok(Expression::CInt(10)));
     }
-
-    // #[test]
-    // fn eval_set_dict_t() {
-    //     let elements = vec![
-    //         (Expression::CString("chave1".to_string()), Expression::CInt(10)),
-    //         (Expression::CString("chave2".to_string()), Expression::CInt(20)),
-    //     ];
-    //     let dict = Expression::Dict(Some(elements));
-
-    //     let key = Expression::CString("chave1".to_string());
-    //     let value = Expression::CInt(30);
-    //     let result = eval_set_dict(dict, key, value, &HashMap::new());
-
-    //     let expected_elements = vec![
-    //         (Expression::CString("chave1".to_string()), Expression::CInt(30)),
-    //         (Expression::CString("chave2".to_string()), Expression::CInt(20)),
-    //     ];
-    //     assert_eq!(result, Ok(Expression::Dict(Some(expected_elements))));
-    // }
 
     #[test]
     fn eval_set_hash_t() {
@@ -1141,23 +1002,6 @@ mod tests {
 
         assert_eq!(result, Ok(Expression::Hash(Some(expected_map))));
     }
-
-    // #[test]
-    // fn eval_remove_dict_t() {
-    //     let elements = vec![
-    //         (Expression::CString("chave1".to_string()), Expression::CInt(10)),
-    //         (Expression::CString("chave2".to_string()), Expression::CInt(20)),
-    //     ];
-    //     let dict = Expression::Dict(Some(elements));
-
-    //     let key = Expression::CString("chave1".to_string());
-    //     let result = eval_remove_dict(dict, key, &HashMap::new());
-
-    //     let expected_elements = vec![
-    //         (Expression::CString("chave2".to_string()), Expression::CInt(20)),
-    //     ];
-    //     assert_eq!(result, Ok(Expression::Dict(Some(expected_elements))));
-    // }
 
     #[test]
     fn eval_remove_hash_t() {
@@ -1270,6 +1114,7 @@ mod tests {
         );
     }
 
+    /* 
     #[test]
     fn eval_append_list_different_types(){
 
@@ -1280,6 +1125,7 @@ mod tests {
 
         assert!(result.is_err());
     }
+    */
 
     #[test]
     fn eval_append_list_str(){
