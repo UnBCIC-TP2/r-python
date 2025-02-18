@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::collections::HashSet;
 
 use crate::ir::ast::{Expression, Name, Statement};
 
@@ -117,6 +118,7 @@ fn eval_create_set(elements: Vec<Expression>, env: &Environment) -> Result<Expre
             return Err(format!("Element {:?} is already in set", eval_elem));
         }
 
+        evaluated_elements.push(eval_elem);
         evaluated_elements.push(eval_elem);
     }
 
@@ -271,6 +273,11 @@ fn eval_append_list(list_expr: Expression, new_elem: Expression, env: &Environme
             return Ok(Expression::Set(updated_elements));
                 
             }
+            let mut updated_elements = elements.clone();
+            updated_elements.push(eval_new_element);
+            return Ok(Expression::Set(updated_elements));
+                
+            }
         _ => {
             return Err("Provided expression is not a list".to_string());
         }
@@ -286,6 +293,10 @@ fn eval_insert_list(list_expr: Expression, new_elem: Expression, env: &Environme
             if elements.is_empty() {
                 return Ok(Expression::List(vec![eval_new_element]));
             }
+
+            let mut updated_elements = elements.clone();
+            updated_elements.insert(0,eval_new_element);
+            return Ok(Expression::List(updated_elements));
 
             let mut updated_elements = elements.clone();
             updated_elements.insert(0,eval_new_element);
@@ -398,6 +409,102 @@ fn eval_len_list(data_structure: Expression,env: &Environment)->Result<Expressio
         }
         _=> Err(String::from("First argument must be a list"))
     }
+}
+
+fn eval_union_set(set1:Expression, set2:Expression, env: &Environment)
+->Result<Expression,ErrorMessage>{
+
+    let set1_eval = eval(set1,&env)?;
+    let set2_eval = eval(set2,&env)?;
+
+    match(set1_eval, set2_eval){
+
+        (Expression::Set(vec1),
+        Expression::Set(vec2))=>{
+            let set1: HashSet<_> = vec1.into_iter().collect();
+            let set2: HashSet<_> = vec2.into_iter().collect();
+
+            // Aplicar a união dos conjuntos
+            let uniao: HashSet<_> = set1.union(&set2).cloned().collect();
+
+            // Converter de volta para Vec e retornar
+            Ok(Expression::Set(uniao.into_iter().collect()))
+        }
+        _=>Err(String::from("Expected two sets as arguments."))
+    }
+
+}
+
+fn eval_intersection_set(set1:Expression, set2:Expression, env: &Environment)
+->Result<Expression,ErrorMessage>{
+
+    let set1_eval = eval(set1,&env)?;
+    let set2_eval = eval(set2,&env)?;
+
+    match(set1_eval, set2_eval){
+
+        (Expression::Set(vec1),
+        Expression::Set(vec2))=>{
+            let set1: HashSet<_> = vec1.into_iter().collect();
+            let set2: HashSet<_> = vec2.into_iter().collect();
+
+            // Aplicar a interseção dos conjuntos
+            let intersecao: HashSet<_> = set1.intersection(&set2).cloned().collect();
+
+            // Converter de volta para Vec e retornar
+            Ok(Expression::Set(intersecao.into_iter().collect()))
+        }
+        _=>Err(String::from("Expected two sets as arguments."))
+    }
+
+}
+
+fn eval_difference_set(set1:Expression, set2:Expression, env: &Environment)
+->Result<Expression,ErrorMessage>{
+
+    let set1_eval = eval(set1,&env)?;
+    let set2_eval = eval(set2,&env)?;
+
+    match(set1_eval, set2_eval){
+
+        (Expression::Set(vec1),
+        Expression::Set(vec2))=>{
+            let set1: HashSet<_> = vec1.into_iter().collect();
+            let set2: HashSet<_> = vec2.into_iter().collect();
+
+            // Aplicar a diferença entre os elementos do conjunto um comparado com o conjunto dois
+            let diferenca: HashSet<_> = set1.difference(&set2).cloned().collect();
+
+            // Converter de volta para Vec e retornar
+            Ok(Expression::Set(diferenca.into_iter().collect()))
+        }
+        _=>Err(String::from("Expected two sets as arguments."))
+    }
+
+}
+
+fn eval_disjunction_set(set1:Expression, set2:Expression, env: &Environment)
+->Result<Expression,ErrorMessage>{
+
+    let set1_eval = eval(set1,&env)?;
+    let set2_eval = eval(set2,&env)?;
+
+    match(set1_eval, set2_eval){
+
+        (Expression::Set(vec1),
+        Expression::Set(vec2))=>{
+            let set1: HashSet<_> = vec1.into_iter().collect();
+            let set2: HashSet<_> = vec2.into_iter().collect();
+
+            // Aplicar a disjuncao dos conjuntos
+            let disjuncao: HashSet<_> = set1.symmetric_difference(&set2).cloned().collect();
+
+            // Converter de volta para Vec e retornar
+            Ok(Expression::Set(disjuncao.into_iter().collect()))
+        }
+        _=>Err(String::from("Expected two sets as arguments."))
+    }
+
 }
 
 fn eval_union_set(set1:Expression, set2:Expression, env: &Environment)

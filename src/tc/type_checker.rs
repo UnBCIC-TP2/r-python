@@ -34,11 +34,14 @@ pub fn check(exp: Expression, env: &Environment) -> Result<Type, ErrorMessage> {
         Expression::Hash(elements)=>
         check_hash_creation(elements, env),
 
+
         Expression::GetHash(hash, key)=>
         check_hash_get(*hash, *key, env),
 
+
         Expression::SetHash(hash, key, value)=>
         check_hash_set(*hash, *key, *value, env),
+
 
         Expression::RemoveHash(mut hash, key)=>
         check_hash_remove(&mut *hash, *key, env),
@@ -46,11 +49,18 @@ pub fn check(exp: Expression, env: &Environment) -> Result<Type, ErrorMessage> {
         Expression::Tuple(elements) => 
         check_create_tuple(elements,env),
 
+        Expression::Tuple(elements) => 
+        check_create_tuple(elements,env),
+
         Expression::List(elements)=>
         check_create_list(elements, env),
 
+
         Expression::Append(list,elem)=>
         check_append_list(*list,*elem,env),
+
+        Expression::Insert(list,elem)=>
+        check_insert_list(*list,*elem,env),
 
         Expression::Insert(list,elem)=>
         check_insert_list(*list,*elem,env),
@@ -82,6 +92,18 @@ pub fn check(exp: Expression, env: &Environment) -> Result<Type, ErrorMessage> {
         Expression::Disjunction(set1,set2)=>
         check_disjunction_set(*set1,*set2,env),
 
+        Expression::Union(set1,set2)=>
+        check_union_set(*set1,*set2,env),
+
+        Expression::Intersection(set1,set2)=>
+        check_intersection_set(*set1,*set2,env),
+
+        Expression::Difference(set1,set2)=>
+        check_difference_set(*set1,*set2,env),
+
+        Expression::Disjunction(set1,set2)=>
+        check_disjunction_set(*set1,*set2,env),
+
         _ => Err(String::from("not implemented yet")),
     }
 }
@@ -90,6 +112,11 @@ fn check_create_set(
     maybe_set: Vec<Expression>,
     env: &Environment,
 ) -> Result<Type, ErrorMessage> {
+    if maybe_set.is_empty() {
+        return Ok(Type::NotDefine);
+    }
+
+    let first_type = check(maybe_set[0].clone(), env)?;
     if maybe_set.is_empty() {
         return Ok(Type::NotDefine);
     }
@@ -297,6 +324,7 @@ fn check_create_list(
 
             if elements.is_empty(){
                 return Ok(Type::NotDefine);
+                return Ok(Type::NotDefine);
             }
 
             let first_elem = elements[0].clone();
@@ -323,6 +351,9 @@ fn check_concat_list(list: Expression, list2: Expression, env: &Environment)
         (Type::NotDefine, Type::TList(_)) => Ok(list_type2),
         (Type::TList(_), Type::NotDefine) => Ok(list_type1),
         (Type::NotDefine,Type::NotDefine)=> Ok(Type::NotDefine),
+        (Type::NotDefine, Type::TList(_)) => Ok(list_type2),
+        (Type::TList(_), Type::NotDefine) => Ok(list_type1),
+        (Type::NotDefine,Type::NotDefine)=> Ok(Type::NotDefine),
         (Type::TList(boxed_type1), Type::TList(boxed_type2)) => {
             if *boxed_type1 == *boxed_type2 {
                 Ok(Type::TList(boxed_type1.clone()))
@@ -339,6 +370,7 @@ fn check_append_list(list: Expression, elem: Expression ,env: &Environment)
     let list_type = check(list,env)?;
     let elem_type = check(elem,env)?;
     match (list_type.clone(),elem_type.clone()) {
+        (Type::NotDefine,type_elem)=> Ok(type_elem),
         (Type::NotDefine,type_elem)=> Ok(type_elem),
         (Type::TList(boxed_type),type_elem)=>{
             if *boxed_type == type_elem{
@@ -369,14 +401,33 @@ fn check_insert_list(list: Expression, elem: Expression, env: &Environment) -> R
     }
 }
 
+fn check_insert_list(list: Expression, elem: Expression, env: &Environment) -> Result<Type, ErrorMessage> {
+    let list_type = check(list, env)?;
+    let elem_type = check(elem, env)?;
+
+    match list_type {
+        Type::TList(boxed_type) => {
+            if *boxed_type == elem_type {
+                Ok(Type::TList(boxed_type))
+            } else {
+                Err(String::from("[Type error] Element type does not match list type"))
+            }
+        }
+        Type::NotDefine => Ok(Type::TList(Box::new(elem_type))),
+        _ => Err(String::from("[Type error] Expected a list")),
+    }
+}
+
 fn check_pop_back_list(list: Expression, env: &Environment)
 ->Result<Type,ErrorMessage>{
-    let list_type = check(list,env)?;
+    let list_type = check_exp(list,env)?;
 
     match list_type.clone(){
         Type::TList(boxed_type) => {
                 Ok(Type::TList(boxed_type.clone()))
+                Ok(Type::TList(boxed_type.clone()))
             }
+        Type::NotDefine=> Err(String::from("cannot pop from an empty list")),
         Type::NotDefine=> Err(String::from("cannot pop from an empty list")),
 
         _ => Err(String::from("[Type error] cannot pop from a non-list type"))
@@ -385,11 +436,14 @@ fn check_pop_back_list(list: Expression, env: &Environment)
 
 fn check_pop_front_list(list: Expression, env: &Environment)
 ->Result<Type,ErrorMessage>{
-    let list_type = check(list,&env)?;
+    let list_type = check_exp(list,&env)?;
     match list_type{
         Type::TList(boxed_type) => {
             Ok(Type::TList(boxed_type.clone()))
+            Ok(Type::TList(boxed_type.clone()))
             }
+
+        Type::NotDefine=> Err(String::from("cannot pop from an empty list")),
 
         Type::NotDefine=> Err(String::from("cannot pop from an empty list")),
         _=>Err(String::from("[Type error] cannot pop from a non-list type"))
@@ -414,6 +468,7 @@ fn check_get(data_structure: Expression, index: Expression,env: &Environment)
             }
         }
         (Type::NotDefine,Type::TInteger)=>Err(String::from("cannot get element from an empty list")),
+        (Type::NotDefine,Type::TInteger)=>Err(String::from("cannot get element from an empty list")),
         _=> Err(String::from("[Type error] index must be integer"))
     }
 }
@@ -428,6 +483,7 @@ Result<Type, String>{
         Type::TTuple(_)=>{
             Ok(Type::TInteger)
         }
+        Type::NotDefine=>{
         Type::NotDefine=>{
             Ok(Type::TInteger)
         },
