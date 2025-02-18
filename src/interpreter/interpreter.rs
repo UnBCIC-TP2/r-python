@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
-use std::collections::HashSet;
 
 use crate::ir::ast::{Expression, Name, Statement};
 
@@ -67,7 +66,6 @@ pub fn eval(exp: Expression, env: &Environment) -> Result<Expression, ErrorMessa
         Expression::Disjunction(set1,set2)=>
         eval_disjunction_set(*set1,*set2,env),
 
-
         Expression::Hash(elements)=> 
         eval_create_hash(elements, env),
         Expression::GetHash(hash, key)=> 
@@ -119,11 +117,11 @@ fn eval_create_set(elements: Vec<Expression>, env: &Environment) -> Result<Expre
         }
 
         evaluated_elements.push(eval_elem);
-        evaluated_elements.push(eval_elem);
     }
 
     Ok(Expression::Set(evaluated_elements))
 }
+
 
 fn eval_create_hash(
     elements: Option<HashMap<Expression, Expression>>, 
@@ -163,6 +161,23 @@ fn eval_set_hash(
         Err(format!("Expected a Hash"))
     }
 }
+
+// fn eval_remove_dict(
+//     dict: Expression, 
+//     key: Expression, 
+//     _env: &Environment
+// ) -> Result<Expression, ErrorMessage> {
+//     if let Expression::Dict(Some(mut elements)) = dict {
+//         if let Some(pos) = elements.iter().position(|(k, _)| *k == key) {
+//             elements.remove(pos);
+//             Ok(Expression::Dict(Some(elements)))
+//         } else {
+//             Err(format!("Key not found in Dict"))
+//         }
+//     } else {
+//         Err(format!("Expected a Dict"))
+//     }
+// }
 
 fn eval_remove_hash(
     hash: Expression, 
@@ -273,11 +288,6 @@ fn eval_append_list(list_expr: Expression, new_elem: Expression, env: &Environme
             return Ok(Expression::Set(updated_elements));
                 
             }
-            let mut updated_elements = elements.clone();
-            updated_elements.push(eval_new_element);
-            return Ok(Expression::Set(updated_elements));
-                
-            }
         _ => {
             return Err("Provided expression is not a list".to_string());
         }
@@ -293,10 +303,6 @@ fn eval_insert_list(list_expr: Expression, new_elem: Expression, env: &Environme
             if elements.is_empty() {
                 return Ok(Expression::List(vec![eval_new_element]));
             }
-
-            let mut updated_elements = elements.clone();
-            updated_elements.insert(0,eval_new_element);
-            return Ok(Expression::List(updated_elements));
 
             let mut updated_elements = elements.clone();
             updated_elements.insert(0,eval_new_element);
@@ -409,102 +415,6 @@ fn eval_len_list(data_structure: Expression,env: &Environment)->Result<Expressio
         }
         _=> Err(String::from("First argument must be a list"))
     }
-}
-
-fn eval_union_set(set1:Expression, set2:Expression, env: &Environment)
-->Result<Expression,ErrorMessage>{
-
-    let set1_eval = eval(set1,&env)?;
-    let set2_eval = eval(set2,&env)?;
-
-    match(set1_eval, set2_eval){
-
-        (Expression::Set(vec1),
-        Expression::Set(vec2))=>{
-            let set1: HashSet<_> = vec1.into_iter().collect();
-            let set2: HashSet<_> = vec2.into_iter().collect();
-
-            // Aplicar a união dos conjuntos
-            let uniao: HashSet<_> = set1.union(&set2).cloned().collect();
-
-            // Converter de volta para Vec e retornar
-            Ok(Expression::Set(uniao.into_iter().collect()))
-        }
-        _=>Err(String::from("Expected two sets as arguments."))
-    }
-
-}
-
-fn eval_intersection_set(set1:Expression, set2:Expression, env: &Environment)
-->Result<Expression,ErrorMessage>{
-
-    let set1_eval = eval(set1,&env)?;
-    let set2_eval = eval(set2,&env)?;
-
-    match(set1_eval, set2_eval){
-
-        (Expression::Set(vec1),
-        Expression::Set(vec2))=>{
-            let set1: HashSet<_> = vec1.into_iter().collect();
-            let set2: HashSet<_> = vec2.into_iter().collect();
-
-            // Aplicar a interseção dos conjuntos
-            let intersecao: HashSet<_> = set1.intersection(&set2).cloned().collect();
-
-            // Converter de volta para Vec e retornar
-            Ok(Expression::Set(intersecao.into_iter().collect()))
-        }
-        _=>Err(String::from("Expected two sets as arguments."))
-    }
-
-}
-
-fn eval_difference_set(set1:Expression, set2:Expression, env: &Environment)
-->Result<Expression,ErrorMessage>{
-
-    let set1_eval = eval(set1,&env)?;
-    let set2_eval = eval(set2,&env)?;
-
-    match(set1_eval, set2_eval){
-
-        (Expression::Set(vec1),
-        Expression::Set(vec2))=>{
-            let set1: HashSet<_> = vec1.into_iter().collect();
-            let set2: HashSet<_> = vec2.into_iter().collect();
-
-            // Aplicar a diferença entre os elementos do conjunto um comparado com o conjunto dois
-            let diferenca: HashSet<_> = set1.difference(&set2).cloned().collect();
-
-            // Converter de volta para Vec e retornar
-            Ok(Expression::Set(diferenca.into_iter().collect()))
-        }
-        _=>Err(String::from("Expected two sets as arguments."))
-    }
-
-}
-
-fn eval_disjunction_set(set1:Expression, set2:Expression, env: &Environment)
-->Result<Expression,ErrorMessage>{
-
-    let set1_eval = eval(set1,&env)?;
-    let set2_eval = eval(set2,&env)?;
-
-    match(set1_eval, set2_eval){
-
-        (Expression::Set(vec1),
-        Expression::Set(vec2))=>{
-            let set1: HashSet<_> = vec1.into_iter().collect();
-            let set2: HashSet<_> = vec2.into_iter().collect();
-
-            // Aplicar a disjuncao dos conjuntos
-            let disjuncao: HashSet<_> = set1.symmetric_difference(&set2).cloned().collect();
-
-            // Converter de volta para Vec e retornar
-            Ok(Expression::Set(disjuncao.into_iter().collect()))
-        }
-        _=>Err(String::from("Expected two sets as arguments."))
-    }
-
 }
 
 fn eval_union_set(set1:Expression, set2:Expression, env: &Environment)
@@ -877,6 +787,8 @@ pub fn execute(stmt: Statement, env: Environment) -> Result<Environment, ErrorMe
 
 #[cfg(test)]
 mod tests {
+
+    //use std::hash::Hash;
     use super::*;
     use crate::ir::ast::Expression::*;
     use crate::ir::ast::Statement::*;

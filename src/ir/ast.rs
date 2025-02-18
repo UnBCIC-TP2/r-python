@@ -14,6 +14,7 @@ pub enum Type {
     TList(Box<Type>),
     TTuple(Vec<Type>),
     TSet(Box<Type>),
+    // TDict(Box<Type>,Box<Type>),
     THash(Box<Type>, Box<Type>),
     TUnit,
 }
@@ -68,7 +69,7 @@ pub enum Expression {
     PopFront(Box<Expression>),
     Get(Box<Expression>,Box<Expression>),
     Len(Box<Expression>),
-
+    
     Hash(Option<HashMap<Expression, Expression>>),
     GetHash(Box<Expression>, Box<Expression>),
     SetHash(Box<Expression>, Box<Expression>, Box<Expression>),
@@ -111,8 +112,6 @@ impl PartialEq for Expression {
             (Expression::List(a1 ), Expression::List(a2)) => a1 == a2,
             (Expression::Tuple(a1), Expression::Tuple(a2)) => a1 == a2,
 
-            // Comparison of data structures (Dict, Hash)
-            // (Expression::Dict(a1), Expression::Dict(a2)) => a1 == a2,
             (Expression::Hash(a1), Expression::Hash(a2)) => {
                 match (a1, a2) {
                     (Some(map1), Some(map2)) => map1 == map2,
