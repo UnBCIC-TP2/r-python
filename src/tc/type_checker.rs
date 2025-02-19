@@ -28,7 +28,7 @@ pub fn check_exp(exp: Expression, env: &Environment) -> Result<Type, ErrorMessag
         Expression::LTE(l, r) => check_bin_relational_expression(*l, *r, env),
         Expression::Var(name) => check_var_name(name, env),
         Expression::FuncCall(name, args) => check_func_call(name, args, env),
-        Expression::MetaExp(_, args, return_type) => check_metastmt(args, return_type, env),
+        Expression::MetaExp(_, args, return_type) => check_metaexp(args, return_type, env),
     }
 }
 
@@ -155,17 +155,6 @@ pub fn check_stmt(
 
             Ok(ControlType::Return(exp_type))
         }
-
-        Statement::MetaStmt(_, args, return_type) => {
-            for arg in args {
-                check_exp(arg.clone(), env)?;
-            }
-            
-            let mut new_env = env.clone();
-            new_env.insert("metaResult".to_string(), (None, return_type.clone()));
-            Ok(ControlType::Continue(new_env))
-        }        
-        
         _ => Err(String::from("not implemented yet")),
     }
 }
@@ -270,7 +259,7 @@ fn check_bin_relational_expression(
     }
 }
 
-fn check_metastmt(
+fn check_metaexp(
     args: Vec<Expression>,
     return_type: Type,
     env: &Environment,
@@ -291,8 +280,8 @@ mod tests {
     use crate::ir::ast::Function;
     use crate::ir::ast::Statement::*;
     use crate::ir::ast::Type::*;
-    use crate::stdlib::math::sqrt;
-
+    use crate::stdlib::math::sqrt_impl;
+    
     #[test]
     fn check_tlist_comparison() {
         let t_list1 = TList(Box::new(TInteger));
@@ -809,96 +798,20 @@ mod tests {
     }
 
     #[test]
-    fn check_metastmt_valid() {
-        let mut env = Environment::new();
-        env.insert(
-            "x".to_string(),
-            (
-                Some(EnvValue::Exp(Expression::CReal(9.0))),
-                Type::TReal,
-            ),
-        );
-
-        let meta_stmt = Statement::MetaStmt(
-            sqrt,
-            vec![Expression::Var("x".to_string())],
-            Type::TReal,
-        );
-
-        let assign_stmt = Statement::Assignment(
-            "result".to_string(),
-            Box::new(Expression::Var("metaResult".to_string())),
-            Some(Type::TReal),
-        );
-
-        let program = Statement::Sequence(
-            Box::new(meta_stmt),
-            Box::new(assign_stmt),
-        );
-
-        match check_stmt(program, &env, None) {
-            Ok(ControlType::Continue(new_env)) => {
-                let meta_result_type = new_env
-                    .get("metaResult")
-                    .expect("metaResult was not found in the environment")
-                    .1
-                    .clone();
-                assert_eq!(meta_result_type, Type::TReal);
-            }
-            Ok(_) => panic!("Type checker should have returned a new environment"),
-            Err(err) => panic!("Type checker should not have failed: {}", err),
-        }
-    }
-
-    #[test]
-    fn check_metastmt_invalid_assignment() {
-        let mut env = Environment::new();
-        env.insert(
-            "x".to_string(),
-            (
-                Some(EnvValue::Exp(Expression::CReal(16.0))),
-                Type::TReal,
-            ),
-        );
-
-        let meta_stmt = Statement::MetaStmt(
-            sqrt,
-            vec![Expression::Var("x".to_string())],
-            Type::TReal,
-        );
-
-        let assign_stmt = Statement::Assignment(
-            "result".to_string(),
-            Box::new(Expression::Var("metaResult".to_string())),
-            Some(Type::TBool),
-        );
-
-        let program = Statement::Sequence(
-            Box::new(meta_stmt),
-            Box::new(assign_stmt),
-        );
-
-        match check_stmt(program, &env, None) {
-            Err(_err) => (),
-            Ok(_) => panic!("Type checker should have failed"),
-        }
-    }
-
-    #[test]
-    fn check_metaexp_sqrt_correct() {
-        let mut env = Environment::new();
+    fn check_metaexp_sqrt_impl() {
+        let mut env = HashMap::new();
         env.insert(
             "x".to_string(),
             (Some(EnvValue::Exp(Expression::CReal(25.0))), Type::TReal),
         );
 
         let meta_expr = Expression::MetaExp(
-            sqrt,
+            sqrt_impl,
             vec![Expression::Var("x".to_string())],
             Type::TReal,
         );
 
-        let ty = check_exp(meta_expr, &env).unwrap();
+        let ty = check_exp(meta_expr, &env).expect("Type checking failed");
         assert_eq!(ty, Type::TReal);
     }
 }

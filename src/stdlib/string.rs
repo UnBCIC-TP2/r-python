@@ -1,6 +1,126 @@
-use crate::ir::ast::{EnvValue, Expression};
+use std::collections::HashMap;
+use crate::ir::ast::{Function, Type, Statement, Expression, EnvValue};
 
-pub fn str_upper(args: Vec<EnvValue>) -> Result<EnvValue, String> {
+pub fn load_string_stdlib() -> HashMap<String, Function> {
+    let mut string_stdlib = HashMap::new();
+
+    string_stdlib.insert(
+        "str_upper".to_string(),
+        Function {
+            kind: Type::TString,
+            params: Some(vec![("s".to_string(), Type::TString)]),
+            body: Box::new(Statement::Return(Box::new(Expression::MetaExp(
+                str_upper_impl,
+                vec![Expression::Var("s".to_string())],
+                Type::TString,
+            )))),
+        },
+    );
+
+    string_stdlib.insert(
+        "str_lower".to_string(),
+        Function {
+            kind: Type::TString,
+            params: Some(vec![("s".to_string(), Type::TString)]),
+            body: Box::new(Statement::Return(Box::new(Expression::MetaExp(
+                str_lower_impl,
+                vec![Expression::Var("s".to_string())],
+                Type::TString,
+            )))),
+        },
+    );
+
+    string_stdlib.insert(
+        "str_length".to_string(),
+        Function {
+            kind: Type::TInteger,
+            params: Some(vec![("s".to_string(), Type::TString)]),
+            body: Box::new(Statement::Return(Box::new(Expression::MetaExp(
+                str_length_impl,
+                vec![Expression::Var("s".to_string())],
+                Type::TInteger,
+            )))),
+        },
+    );
+
+    string_stdlib.insert(
+        "str_reverse".to_string(),
+        Function {
+            kind: Type::TString,
+            params: Some(vec![("s".to_string(), Type::TString)]),
+            body: Box::new(Statement::Return(Box::new(Expression::MetaExp(
+                str_reverse_impl,
+                vec![Expression::Var("s".to_string())],
+                Type::TString,
+            )))),
+        },
+    );
+
+    string_stdlib.insert(
+        "cont_chars".to_string(),
+        Function {
+            kind: Type::TInteger,
+            params: Some(vec![
+                ("s".to_string(), Type::TString),
+                ("c".to_string(), Type::TString),
+            ]),
+            body: Box::new(Statement::Return(Box::new(Expression::MetaExp(
+                cont_chars_impl,
+                vec![
+                    Expression::Var("s".to_string()),
+                    Expression::Var("c".to_string()),
+                ],
+                Type::TInteger,
+            )))),
+        },
+    );
+
+    string_stdlib.insert(
+        "filter_out_char".to_string(),
+        Function {
+            kind: Type::TString,
+            params: Some(vec![
+                ("s".to_string(), Type::TString),
+                ("c".to_string(), Type::TString),
+            ]),
+            body: Box::new(Statement::Return(Box::new(Expression::MetaExp(
+                filter_out_char_impl,
+                vec![
+                    Expression::Var("s".to_string()),
+                    Expression::Var("c".to_string()),
+                ],
+                Type::TString,
+            )))),
+        },
+    );
+
+    string_stdlib.insert(
+        "replace".to_string(),
+        Function {
+            kind: Type::TString,
+            params: Some(vec![
+                ("s".to_string(), Type::TString),
+                ("old".to_string(), Type::TString),
+                ("new".to_string(), Type::TString),
+                ("count".to_string(), Type::TInteger), 
+            ]),
+            body: Box::new(Statement::Return(Box::new(Expression::MetaExp(
+                replace_impl,
+                vec![
+                    Expression::Var("s".to_string()),
+                    Expression::Var("old".to_string()),
+                    Expression::Var("new".to_string()),
+                    Expression::Var("count".to_string()),
+                ],
+                Type::TString,
+            )))),
+        },
+    );
+
+    string_stdlib
+}
+
+pub fn str_upper_impl(args: Vec<EnvValue>) -> Result<EnvValue, String> {
     if args.len() != 1 {
         return Err("str_upper expects exactly one argument".to_string());
     }
@@ -12,7 +132,7 @@ pub fn str_upper(args: Vec<EnvValue>) -> Result<EnvValue, String> {
     }
 }
 
-pub fn str_lower(args: Vec<EnvValue>) -> Result<EnvValue, String> {
+pub fn str_lower_impl(args: Vec<EnvValue>) -> Result<EnvValue, String> {
     if args.len() != 1 {
         return Err("str_lower expects exactly one argument".to_string());
     }
@@ -23,7 +143,7 @@ pub fn str_lower(args: Vec<EnvValue>) -> Result<EnvValue, String> {
     }
 }
 
-pub fn str_length(args: Vec<EnvValue>) -> Result<EnvValue, String> {
+pub fn str_length_impl(args: Vec<EnvValue>) -> Result<EnvValue, String> {
     if args.len() != 1 {
         return Err("str_length expects exactly one argument".to_string());
     }
@@ -34,7 +154,7 @@ pub fn str_length(args: Vec<EnvValue>) -> Result<EnvValue, String> {
     }
 }
 
-pub fn str_reverse(args: Vec<EnvValue>) -> Result<EnvValue, String> {
+pub fn str_reverse_impl(args: Vec<EnvValue>) -> Result<EnvValue, String> {
     if args.len() != 1 {
         return Err("str_reverse expects exactly one argument".to_string());
     }
@@ -45,7 +165,7 @@ pub fn str_reverse(args: Vec<EnvValue>) -> Result<EnvValue, String> {
     }
 }
 
-pub fn cont_chars(args: Vec<EnvValue>) -> Result<EnvValue, String> {
+pub fn cont_chars_impl(args: Vec<EnvValue>) -> Result<EnvValue, String> {
     if args.len() != 2 {
         return Err("cont_chars expects exactly two arguments".to_string());
     }
@@ -60,7 +180,7 @@ pub fn cont_chars(args: Vec<EnvValue>) -> Result<EnvValue, String> {
     }
 }
 
-pub fn filter_out_char(args: Vec<EnvValue>) -> Result<EnvValue, String> {
+pub fn filter_out_char_impl(args: Vec<EnvValue>) -> Result<EnvValue, String> {
     if args.len() != 2 {
         return Err("filter_out_char expects exactly two arguments".to_string());
     }
@@ -75,7 +195,7 @@ pub fn filter_out_char(args: Vec<EnvValue>) -> Result<EnvValue, String> {
     }
 }
 
-pub fn replace(args: Vec<EnvValue>) -> Result<EnvValue, String> {
+pub fn replace_impl(args: Vec<EnvValue>) -> Result<EnvValue, String> {
     if args.len() < 3 || args.len() > 4 {
         return Err("replace expects between 3 and 4 arguments".to_string());
     }
@@ -120,7 +240,7 @@ mod tests {
 
     #[test]
     fn test_str_lower_valid_strings() {
-        let result = str_lower(vec![EnvValue::Exp(Expression::CString(String::from("HELLO")))]);
+        let result = str_lower_impl(vec![EnvValue::Exp(Expression::CString(String::from("HELLO")))]);
         assert!(result.is_ok());
         if let Ok(EnvValue::Exp(Expression::CString(res_value))) = result {
             assert_eq!(res_value, "hello");
@@ -129,7 +249,7 @@ mod tests {
 
     #[test]
     fn test_str_length_valid_string() {
-        let result = str_length(vec![EnvValue::Exp(Expression::CString(String::from("hello")))]);
+        let result = str_length_impl(vec![EnvValue::Exp(Expression::CString(String::from("hello")))]);
         assert!(result.is_ok());
         if let Ok(EnvValue::Exp(Expression::CInt(len))) = result {
             assert_eq!(len, 5);
@@ -138,7 +258,7 @@ mod tests {
 
     #[test]
     fn test_str_reverse_valid_string() {
-        let result = str_reverse(vec![EnvValue::Exp(Expression::CString(String::from("hello")))]);
+        let result = str_reverse_impl(vec![EnvValue::Exp(Expression::CString(String::from("hello")))]);
         assert!(result.is_ok());
         if let Ok(EnvValue::Exp(Expression::CString(res_value))) = result {
             assert_eq!(res_value, "olleh");
@@ -147,7 +267,7 @@ mod tests {
 
     #[test]
     fn test_cont_chars_valid_input() {
-        let result = cont_chars(vec![
+        let result = cont_chars_impl(vec![
             EnvValue::Exp(Expression::CString(String::from("banana"))),
             EnvValue::Exp(Expression::CString(String::from("a"))),
         ]);
@@ -159,7 +279,7 @@ mod tests {
 
     #[test]
     fn test_filter_out_char_valid_input() {
-        let result = filter_out_char(vec![
+        let result = filter_out_char_impl(vec![
             EnvValue::Exp(Expression::CString(String::from("banana"))),
             EnvValue::Exp(Expression::CString(String::from("a"))),
         ]);
@@ -171,7 +291,7 @@ mod tests {
 
     #[test]
     fn test_replace_valid_input() {
-        let result = replace(vec![
+        let result = replace_impl(vec![
             EnvValue::Exp(Expression::CString(String::from("banana"))),
             EnvValue::Exp(Expression::CString(String::from("a"))),
             EnvValue::Exp(Expression::CString(String::from("o"))),
