@@ -11,6 +11,7 @@ use std::io::Write;
 pub mod interpreter;
 pub mod ir;
 pub mod parser;
+pub mod stdlib;
 pub mod tc;
 
 fn run_test(name: &str, program: &str) -> String {
