@@ -111,7 +111,8 @@ impl PartialEq for Expression {
             // Comparison of data structures (List, Tuple)
             (Expression::List(a1 ), Expression::List(a2)) => a1 == a2,
             (Expression::Tuple(a1), Expression::Tuple(a2)) => a1 == a2,
-
+            
+            // Comparison of data structures (Hash)
             (Expression::Hash(a1), Expression::Hash(a2)) => {
                 match (a1, a2) {
                     (Some(map1), Some(map2)) => map1 == map2,
@@ -119,6 +120,7 @@ impl PartialEq for Expression {
                     _ => false,
                 }
             },
+            
             // Comparison of data structures (Set)
             (Expression::Set(a), Expression::Set(b)) => {
                 let set_a: HashSet<_> = a.iter().collect();

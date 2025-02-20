@@ -31,15 +31,6 @@ pub fn check(exp: Expression, env: &Environment) -> Result<Type, ErrorMessage> {
         Expression::Set(elements) =>
         check_create_set(elements,env),
 
-        // Expression::Dict(elements)=> 
-        // check_dict_creation(elements, env),
-        // Expression::GetDict(dict, key)=> 
-        // check_dict_get(*dict, *key, env),
-        // Expression::SetDict(dict, key, value)=> 
-        // check_dict_set(*dict, *key, *value, env),
-        // Expression::RemoveDict(dict, key)=> 
-        // check_dict_remove(*dict, *key, env),
-
         Expression::Hash(elements)=>
         check_hash_creation(elements, env),
 
@@ -214,95 +205,54 @@ fn check_hash_creation(elements: Option<HashMap<Expression, Expression>>, env: &
     }
 }
 
-// fn check_hash_get(hash: Expression, key: Expression, _env: &Environment) -> Result<Type, String> {
-//     match hash {
-//         Expression::Hash(Some(map)) => {
-//             if let Some(value) = map.get(&key) {
-//                 return match value {
-//                     Expression::CInt(_) => Ok(Type::TInteger),
-//                     Expression::CString(_) => Ok(Type::TString),
-//                     Expression::CReal(_) => Ok(Type::TReal),
-//                     Expression::CTrue | Expression::CFalse => Ok(Type::TBool),
-//                     Expression::List(_) => Ok(Type::TList(Box::new(Type::TInteger))),
-//                     Expression::Tuple(_) => Ok(Type::TTuple(vec![Type::TInteger])),
-//                     Expression::Hash(_) => Ok(Type::THash(Box::new(Type::TInteger), Box::new(Type::TString))),
-//                     _ => Err(String::from("Incompatible value type in Hash")),
-//                 };
-//             }
-//             Err(String::from("Key not found in Hash"))
-//         },
-//         _ => Err(String::from("Expected a Hash expression")),
-//     }
-// }
-
 fn check_hash_get(hash: Expression, key: Expression, env: &Environment) -> Result<Type, String> {
-    match hash {
-        Expression::Hash(Some(map)) => {
-            if let Some(value) = map.get(&key) {
-                check(value.clone(), env)
+    let hash_type = check(hash.clone(), env)?;
+    let key_type = check(key.clone(), env)?;
+
+    match hash_type {
+        Type::THash(boxed_key_type, boxed_value_type) => {
+            if *boxed_key_type == key_type {
+                Ok(*boxed_value_type)
             } else {
-                Err(String::from("Key not found in Hash"))
+                Err(String::from("Key type mismatch"))
             }
-        },
-        _ => Err(String::from("Expected a Hash expression")),
+        }
+        _ => Err(String::from("Expected a hash")),
     }
 }
 
-// fn check_hash_set(hash: Expression, key: Expression, value: Expression, _env: &Environment) -> Result<Type, String> {
-//     match hash {
-//         Expression::Hash(Some(map)) => {
-//             if let Some(existing_value) = map.iter().find(|(k, _)| **k == key) {
-//                 match (&existing_value.1, &value) {
-//                     (Expression::CInt(_), Expression::CInt(_)) => Ok(Type::TInteger),
-//                     (Expression::CString(_), Expression::CString(_)) => Ok(Type::TString),
-//                     (Expression::CReal(_), Expression::CReal(_)) => Ok(Type::TReal),
-//                     (Expression::CTrue | Expression::CFalse, Expression::CTrue | Expression::CFalse) => Ok(Type::TBool),
-//                     (Expression::List(_), Expression::List(_)) => Ok(Type::TList(Box::new(Type::TInteger))),
-//                     (Expression::Tuple(_), Expression::Tuple(_)) => Ok(Type::TTuple(vec![Type::TInteger])),
-//                     (Expression::Hash(_), Expression::Hash(_)) => Ok(Type::THash(Box::new(Type::TInteger), Box::new(Type::TString))),
-//                     _ => Err(String::from("Incompatible value type for Hash")),
-//                 }
-//             } else {
-//                 Err(String::from("Key not found in Hash"))
-//             }
-//         },
-//         _ => Err(String::from("Expected a Hash expression")),
-//     }
-// }
+fn check_hash_set(hash: Expression, key: Expression, value: Expression, env: &Environment) -> Result<Type, String> {
+    let hash_type = check(hash.clone(), env)?;
+    let key_type = check(key.clone(), env)?;
+    let value_type = check(value.clone(), env)?;
 
-fn check_hash_set(mut hash: Expression, key: Expression, value: Expression, env: &Environment) -> Result<Type, String> {
-    match hash {
-        Expression::Hash(Some(ref mut map)) => {
-            if let Some(existing_value) = map.iter().find(|(k, _)| **k == key) {
-                let existing_value_type = check(existing_value.1.clone(), env)?;
-                let new_value_type = check(value.clone(), env)?;
-
-                if existing_value_type == new_value_type {
-                    Ok(existing_value_type)
-                } else {
-                    Err(String::from("Incompatible value type for Hash"))
-                }
+    match hash_type {
+        Type::THash(boxed_key_type, boxed_value_type) => {
+            if *boxed_key_type != key_type {
+                Err(String::from("Key type mismatch"))
+            } else if *boxed_value_type != value_type {
+                Err(String::from("Incompatible value type for Hash"))
             } else {
-                let new_value_type = check(value.clone(), env)?;
-                map.insert(key.clone(), value);
-                Ok(new_value_type)
+                Ok(*boxed_value_type)
             }
-        },
-        _ => Err(String::from("Expected a Hash expression")),
+        }
+        _ => Err(String::from("Expected a Hash")),
     }
 }
 
-fn check_hash_remove(hash: &mut Expression, key: Expression, _env: &Environment) -> Result<Type, String> {
-    match hash {
-        Expression::Hash(Some(ref mut map)) => {
-            if map.contains_key(&key) {
-                map.remove(&key);
+fn check_hash_remove(hash: &Expression, key: Expression, env: &Environment) -> Result<Type, String> {
+    let hash_type = check(hash.clone(), env)?;
+    let key_type = check(key.clone(), env)?;
+
+    match hash_type {
+        Type::THash(boxed_key_type, _) => {
+            if *boxed_key_type == key_type {
                 Ok(Type::TUnit)
             } else {
-                Err(String::from("Key not found in Hash"))
+                Err(String::from("Key type mismatch"))
             }
-        },
-        _ => Err(String::from("Expected a Hash expression")),
+        }
+        _ => Err(String::from("Expected a Hash")),
     }
 }
 
@@ -716,17 +666,16 @@ mod tests {
         hash_elements.insert(Expression::CString("chave2".to_string()), Expression::CInt(20));
         
         let mut hash_expr = Expression::Hash(Some(hash_elements));
-        
         let key = Expression::CString("chave1".to_string());
-        
+    
         let result = check_hash_remove(&mut hash_expr, key.clone(), &env);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), Type::TUnit);
-        
-        let result = check_hash_get(hash_expr, key, &env);
-        assert_eq!(result, Err(String::from("Key not found in Hash")));
-    }
-        
+    
+        let result = check_hash_get(hash_expr.clone(), key, &env);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), Type::TInteger);
+    }       
 
     #[test]
     fn check_tlist_comparison_different_types() {
