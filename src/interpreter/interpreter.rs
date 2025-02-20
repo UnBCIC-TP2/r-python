@@ -479,7 +479,6 @@ fn meta(
     return_type: Type,
     env: &Environment,
 ) -> Result<EnvValue, ErrorMessage> {
-
     let mut args_values = Vec::new();
     for expr in &args {
         let env_value = eval(expr.clone(), env)?;
@@ -489,12 +488,12 @@ fn meta(
     let result_value = f(args_values)?;
 
     if get_type_env_value(&result_value) != return_type {
-                return Err(format!(
-                    "Tipo incorreto: esperado {:?}, mas a função retornou {:?}",
-                    return_type.clone(),
-                    get_type_env_value(&result_value)
-                ));
-            }
+        return Err(format!(
+            "Tipo incorreto: esperado {:?}, mas a função retornou {:?}",
+            return_type.clone(),
+            get_type_env_value(&result_value)
+        ));
+    }
     Ok(result_value)
 }
 
@@ -1101,13 +1100,13 @@ mod tests {
         let mut env = HashMap::new();
         env.insert(
             "x".to_string(),
-            (Some(EnvValue::Exp(Expression::CReal(25.0))), Type::TReal)
+            (Some(EnvValue::Exp(Expression::CReal(25.0))), Type::TReal),
         );
 
         let meta_expr = Expression::MetaExp(
             sqrt_impl,
             vec![Expression::Var("x".to_string())],
-            Type::TReal
+            Type::TReal,
         );
 
         let result = eval(meta_expr, &env).expect("Evaluation failed");

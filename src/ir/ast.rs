@@ -136,7 +136,11 @@ pub enum Expression {
 
     /* function call */
     FuncCall(Name, Vec<Expression>),
-    MetaExp(fn(Vec<EnvValue>) -> Result<EnvValue, String>, Vec<Expression>, Type),
+    MetaExp(
+        fn(Vec<EnvValue>) -> Result<EnvValue, String>,
+        Vec<Expression>,
+        Type,
+    ),
 
     /* arithmetic expressions over numbers */
     Add(Box<Expression>, Box<Expression>),

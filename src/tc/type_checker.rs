@@ -318,7 +318,7 @@ mod tests {
     use crate::ir::ast::Statement::*;
     use crate::ir::ast::Type::*;
     use crate::stdlib::math::sqrt_impl;
-    
+
     #[test]
     fn check_tlist_comparison() {
         let t_list1 = TList(Box::new(TInteger));

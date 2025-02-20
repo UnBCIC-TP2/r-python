@@ -1,5 +1,5 @@
+use crate::ir::ast::{EnvValue, Expression, Function, Statement, Type};
 use std::collections::HashMap;
-use crate::ir::ast::{Function, Type, Statement, Expression, EnvValue};
 
 pub fn load_string_stdlib() -> HashMap<String, Function> {
     let mut string_stdlib = HashMap::new();
@@ -102,7 +102,7 @@ pub fn load_string_stdlib() -> HashMap<String, Function> {
                 ("s".to_string(), Type::TString),
                 ("old".to_string(), Type::TString),
                 ("new".to_string(), Type::TString),
-                ("count".to_string(), Type::TInteger), 
+                ("count".to_string(), Type::TInteger),
             ]),
             body: Box::new(Statement::Return(Box::new(Expression::MetaExp(
                 replace_impl,
@@ -159,7 +159,9 @@ pub fn str_reverse_impl(args: Vec<EnvValue>) -> Result<EnvValue, String> {
         return Err("str_reverse expects exactly one argument".to_string());
     }
     if let EnvValue::Exp(Expression::CString(s)) = &args[0] {
-        Ok(EnvValue::Exp(Expression::CString(s.chars().rev().collect())))
+        Ok(EnvValue::Exp(Expression::CString(
+            s.chars().rev().collect(),
+        )))
     } else {
         Err("str_reverse expects a string argument".to_string())
     }
@@ -169,12 +171,16 @@ pub fn cont_chars_impl(args: Vec<EnvValue>) -> Result<EnvValue, String> {
     if args.len() != 2 {
         return Err("cont_chars expects exactly two arguments".to_string());
     }
-    if let (EnvValue::Exp(Expression::CString(s)), EnvValue::Exp(Expression::CString(c))) = (&args[0], &args[1]) {
+    if let (EnvValue::Exp(Expression::CString(s)), EnvValue::Exp(Expression::CString(c))) =
+        (&args[0], &args[1])
+    {
         if c.len() != 1 {
             return Err("cont_chars expects a single character as the second argument".to_string());
         }
         let target = c.chars().next().unwrap();
-        Ok(EnvValue::Exp(Expression::CInt(s.chars().filter(|&ch| ch == target).count() as i32)))
+        Ok(EnvValue::Exp(Expression::CInt(
+            s.chars().filter(|&ch| ch == target).count() as i32,
+        )))
     } else {
         Err("cont_chars expects a string and a character as arguments".to_string())
     }
@@ -184,12 +190,18 @@ pub fn filter_out_char_impl(args: Vec<EnvValue>) -> Result<EnvValue, String> {
     if args.len() != 2 {
         return Err("filter_out_char expects exactly two arguments".to_string());
     }
-    if let (EnvValue::Exp(Expression::CString(s)), EnvValue::Exp(Expression::CString(c))) = (&args[0], &args[1]) {
+    if let (EnvValue::Exp(Expression::CString(s)), EnvValue::Exp(Expression::CString(c))) =
+        (&args[0], &args[1])
+    {
         if c.len() != 1 {
-            return Err("filter_out_char expects a single character as the second argument".to_string());
+            return Err(
+                "filter_out_char expects a single character as the second argument".to_string(),
+            );
         }
         let target = c.chars().next().unwrap();
-        Ok(EnvValue::Exp(Expression::CString(s.chars().filter(|&ch| ch != target).collect())))
+        Ok(EnvValue::Exp(Expression::CString(
+            s.chars().filter(|&ch| ch != target).collect(),
+        )))
     } else {
         Err("filter_out_char expects a string and a character as arguments".to_string())
     }
@@ -199,7 +211,12 @@ pub fn replace_impl(args: Vec<EnvValue>) -> Result<EnvValue, String> {
     if args.len() < 3 || args.len() > 4 {
         return Err("replace expects between 3 and 4 arguments".to_string());
     }
-    if let (EnvValue::Exp(Expression::CString(s)), EnvValue::Exp(Expression::CString(old)), EnvValue::Exp(Expression::CString(new))) = (&args[0], &args[1], &args[2]) {
+    if let (
+        EnvValue::Exp(Expression::CString(s)),
+        EnvValue::Exp(Expression::CString(old)),
+        EnvValue::Exp(Expression::CString(new)),
+    ) = (&args[0], &args[1], &args[2])
+    {
         let count = if args.len() == 4 {
             if let EnvValue::Exp(Expression::CInt(n)) = &args[3] {
                 *n
@@ -232,15 +249,15 @@ pub fn replace_impl(args: Vec<EnvValue>) -> Result<EnvValue, String> {
     }
 }
 
-
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_str_lower_valid_strings() {
-        let result = str_lower_impl(vec![EnvValue::Exp(Expression::CString(String::from("HELLO")))]);
+        let result = str_lower_impl(vec![EnvValue::Exp(Expression::CString(String::from(
+            "HELLO",
+        )))]);
         assert!(result.is_ok());
         if let Ok(EnvValue::Exp(Expression::CString(res_value))) = result {
             assert_eq!(res_value, "hello");
@@ -249,7 +266,9 @@ mod tests {
 
     #[test]
     fn test_str_length_valid_string() {
-        let result = str_length_impl(vec![EnvValue::Exp(Expression::CString(String::from("hello")))]);
+        let result = str_length_impl(vec![EnvValue::Exp(Expression::CString(String::from(
+            "hello",
+        )))]);
         assert!(result.is_ok());
         if let Ok(EnvValue::Exp(Expression::CInt(len))) = result {
             assert_eq!(len, 5);
@@ -258,7 +277,9 @@ mod tests {
 
     #[test]
     fn test_str_reverse_valid_string() {
-        let result = str_reverse_impl(vec![EnvValue::Exp(Expression::CString(String::from("hello")))]);
+        let result = str_reverse_impl(vec![EnvValue::Exp(Expression::CString(String::from(
+            "hello",
+        )))]);
         assert!(result.is_ok());
         if let Ok(EnvValue::Exp(Expression::CString(res_value))) = result {
             assert_eq!(res_value, "olleh");
@@ -301,5 +322,4 @@ mod tests {
             assert_eq!(res_value, "bonono");
         }
     }
-
 }
