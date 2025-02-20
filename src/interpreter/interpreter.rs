@@ -1,4 +1,4 @@
-use crate::ir::ast::{EnvValue, Environment, Expression, Name, Statement};
+use crate::ir::ast::{EnvValue, Environment, Expression, Name, Statement, Type};
 use crate::tc::type_checker::{check_stmt, ControlType};
 use crate::HashMap;
 
@@ -26,6 +26,7 @@ pub fn eval(exp: Expression, env: &Environment) -> Result<EnvValue, ErrorMessage
         Expression::LTE(lhs, rhs) => lte(*lhs, *rhs, env),
         Expression::Var(name) => lookup(name, env),
         Expression::FuncCall(name, args) => call(name, args, env),
+        Expression::MetaExp(f, args, return_type) => meta(f, args, return_type, env),
         _ if is_constant(exp.clone()) => Ok(EnvValue::Exp(exp)),
         _ => Err(String::from("Not implemented yet.")),
     }
@@ -122,6 +123,7 @@ pub fn execute(
             let value = eval(*exp, &new_env)?;
             Ok(ControlFlow::Return(value))
         }
+
         _ => Err(String::from("not implemented yet")),
     }
 }
@@ -425,6 +427,42 @@ fn lte(lhs: Expression, rhs: Expression, env: &Environment) -> Result<EnvValue, 
     )
 }
 
+fn meta(
+    f: fn(Vec<EnvValue>) -> Result<EnvValue, String>,
+    args: Vec<Expression>,
+    return_type: Type,
+    env: &Environment,
+) -> Result<EnvValue, ErrorMessage> {
+
+    let mut args_values = Vec::new();
+    for expr in &args {
+        let env_value = eval(expr.clone(), env)?;
+        args_values.push(env_value);
+    }
+
+    let result_value = f(args_values)?;
+
+    if get_type_env_value(&result_value) != return_type {
+                return Err(format!(
+                    "Tipo incorreto: esperado {:?}, mas a função retornou {:?}",
+                    return_type.clone(),
+                    get_type_env_value(&result_value)
+                ));
+            }
+    Ok(result_value)
+}
+
+pub fn get_type_env_value(value: &EnvValue) -> Type {
+    match value {
+        EnvValue::Exp(Expression::CInt(_)) => Type::TInteger,
+        EnvValue::Exp(Expression::CReal(_)) => Type::TReal,
+        EnvValue::Exp(Expression::CString(_)) => Type::TString,
+        EnvValue::Exp(Expression::CTrue) | EnvValue::Exp(Expression::CFalse) => Type::TBool,
+        EnvValue::Func(_) => Type::TFunction,
+        _ => unreachable!(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
@@ -434,6 +472,8 @@ mod tests {
     use crate::ir::ast::Function;
     use crate::ir::ast::Statement::*;
     use crate::ir::ast::Type::*;
+    use crate::stdlib::math::sqrt_impl;
+
     use approx::relative_eq;
 
     #[test]
@@ -988,6 +1028,27 @@ mod tests {
             ),
             Ok(ControlFlow::Return(_)) => assert!(false),
             Err(s) => assert!(false, "{}", s),
+        }
+    }
+
+    #[test]
+    fn test_metaexp_sqrt() {
+        let mut env = HashMap::new();
+        env.insert(
+            "x".to_string(),
+            (Some(EnvValue::Exp(Expression::CReal(25.0))), Type::TReal)
+        );
+
+        let meta_expr = Expression::MetaExp(
+            sqrt_impl,
+            vec![Expression::Var("x".to_string())],
+            Type::TReal
+        );
+
+        let result = eval(meta_expr, &env).expect("Evaluation failed");
+        match result {
+            EnvValue::Exp(Expression::CReal(value)) => assert_eq!(value, 5.0),
+            _ => panic!("Expected a CReal with value 5.0"),
         }
     }
 }
