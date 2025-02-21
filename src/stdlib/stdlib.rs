@@ -245,6 +245,58 @@ mod stdlib_tests {
     }
     
     #[test]
+    fn test_load_math_stdlib_contains_degrees(){
+        let math_stdlib = load_math_stdlib();
+        let degrees_func = math_stdlib.get("degrees").expect("Function 'degrees' not found in math stdlib");
+
+        assert_eq!(degrees_func.kind, Type::TReal);
+
+        let params = degrees_func.params.as_ref().expect("Expected parameters for degrees");
+        assert_eq!(params.len(), 1);
+        assert_eq!(params[0].0, "rad");
+        assert_eq!(params[0].1, Type::TReal);
+
+        match *degrees_func.body {
+            Statement::Return(ref inner) => {
+                match **inner {
+                    Expression::MetaExp(_, ref args, ref ret_type) => {
+                        assert_eq!(args.len(), 1);
+                        assert_eq!(*ret_type, Type::TReal);
+                    },
+                    _ => panic!("Expected MetaExp inside Return for degrees"),
+                }
+            },
+            _ => panic!("Expected Return statement for degrees body"),
+        }
+    }
+
+    #[test]
+    fn test_load_math_stdlib_contains_radians(){
+        let math_stdlib = load_math_stdlib();
+        let radians_func = math_stdlib.get("radians").expect("Function 'radians' not found in math stdlib");
+
+        assert_eq!(radians_func.kind, Type::TReal);
+
+        let params = radians_func.params.as_ref().expect("Expected parameters for radians");
+        assert_eq!(params.len(), 1);
+        assert_eq!(params[0].0, "deg");
+        assert_eq!(params[0].1, Type::TReal);
+
+        match *radians_func.body {
+            Statement::Return(ref inner) => {
+                match **inner {
+                    Expression::MetaExp(_, ref args, ref ret_type) => {
+                        assert_eq!(args.len(), 1);
+                        assert_eq!(*ret_type, Type::TReal);
+                    },
+                    _ => panic!("Expected MetaExp inside Return for radians"),
+                }
+            },
+            _ => panic!("Expected Return statement for radians body"),
+        }
+    }
+
+    #[test]
     fn test_load_string_stdlib_contains_str_upper() {
         let string_stdlib = load_string_stdlib();
         let str_upper_func = string_stdlib.get("str_upper").expect("Function 'str_upper' not found in string stdlib");
@@ -267,6 +319,84 @@ mod stdlib_tests {
                 }
             },
             _ => panic!("Expected Return statement for str_upper body"),
+        }
+    }
+
+    #[test]
+    fn test_load_math_stdlib_contains_cos(){
+        let math_stdlib = load_math_stdlib();
+        let cos_func = math_stdlib.get("cos").expect("Function 'cos' not found in math stdlib");
+
+        assert_eq!(cos_func.kind, Type::TReal);
+
+        let params = cos_func.params.as_ref().expect("Expected parameters for cos");
+        assert_eq!(params.len(), 1);
+        assert_eq!(params[0].0, "x");
+        assert_eq!(params[0].1, Type::TReal);
+
+        match *cos_func.body {
+            Statement::Return(ref inner) => {
+                match **inner {
+                    Expression::MetaExp(_, ref args, ref ret_type) => {
+                        assert_eq!(args.len(), 1);
+                        assert_eq!(*ret_type, Type::TReal);
+                    },
+                    _ => panic!("Expected MetaExp inside Return for cos"),
+                }
+            },
+            _ => panic!("Expected Return statement for cos body"),
+        }
+    }
+    
+    #[test]
+    fn test_load_math_stdlib_contains_sin(){
+        let math_stdlib = load_math_stdlib();
+        let sin_func = math_stdlib.get("sin").expect("Function 'sin' not found in math stdlib");
+
+        assert_eq!(sin_func.kind, Type::TReal);
+
+        let params = sin_func.params.as_ref().expect("Expected parameters for sin");
+        assert_eq!(params.len(), 1);
+        assert_eq!(params[0].0, "x");
+        assert_eq!(params[0].1, Type::TReal);
+
+        match *sin_func.body {
+            Statement::Return(ref inner) => {
+                match **inner {
+                    Expression::MetaExp(_, ref args, ref ret_type) => {
+                        assert_eq!(args.len(), 1);
+                        assert_eq!(*ret_type, Type::TReal);
+                    },
+                    _ => panic!("Expected MetaExp inside Return for sin"),
+                }
+            },
+            _ => panic!("Expected Return statement for sin body"),
+        }
+    }
+    
+    #[test]
+    fn test_load_math_stdlib_contains_tan(){
+        let math_stdlib = load_math_stdlib();
+        let tan_func = math_stdlib.get("tan").expect("Function 'tan' not found in math stdlib");
+
+        assert_eq!(tan_func.kind, Type::TReal);
+
+        let params = tan_func.params.as_ref().expect("Expected parameters for tan");
+        assert_eq!(params.len(), 1);
+        assert_eq!(params[0].0, "x");
+        assert_eq!(params[0].1, Type::TReal);
+
+        match *tan_func.body {
+            Statement::Return(ref inner) => {
+                match **inner {
+                    Expression::MetaExp(_, ref args, ref ret_type) => {
+                        assert_eq!(args.len(), 1);
+                        assert_eq!(*ret_type, Type::TReal);
+                    },
+                    _ => panic!("Expected MetaExp inside Return for tan"),
+                }
+            },
+            _ => panic!("Expected Return statement for tan body"),
         }
     }
 
@@ -295,7 +425,6 @@ mod stdlib_tests {
             _ => panic!("Expected Return statement for str_lower body"),
         }
     }
-    
     #[test]
     fn test_load_string_stdlib_contains_str_length() {
         let string_stdlib = load_string_stdlib();

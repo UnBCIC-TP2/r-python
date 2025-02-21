@@ -77,6 +77,51 @@ pub fn load_math_stdlib() -> HashMap<String, Function> {
         }
     );
 
+    math_stdlib.insert(
+        "degrees".to_string(),
+        Function {
+            kind: Type::TReal,
+            params: Some(vec![("rad".to_string(), Type::TReal)]),
+            body: Box::new(Statement::Return(Box::new(Expression::MetaExp(degrees_impl, vec![Expression::Var("rad".to_string())], Type::TReal))))
+        }
+    );    
+
+    math_stdlib.insert(
+        "radians".to_string(),
+        Function {
+            kind: Type::TReal,
+            params: Some(vec![("deg".to_string(), Type::TReal)]),
+            body: Box::new(Statement::Return(Box::new(Expression::MetaExp(radians_impl, vec![Expression::Var("deg".to_string())], Type::TReal))))
+        }
+    );
+
+    math_stdlib.insert(
+        "cos".to_string(),
+        Function {
+            kind: Type::TReal,
+            params: Some(vec![("x".to_string(), Type::TReal)]),
+            body: Box::new(Statement::Return(Box::new(Expression::MetaExp(cos_impl, vec![Expression::Var("x".to_string())], Type::TReal))))
+        }
+    );
+
+    math_stdlib.insert(
+        "sin".to_string(),
+        Function {
+            kind: Type::TReal,
+            params: Some(vec![("x".to_string(), Type::TReal)]),
+            body: Box::new(Statement::Return(Box::new(Expression::MetaExp(sin_impl, vec![Expression::Var("x".to_string())], Type::TReal))))
+        }
+    );
+
+    math_stdlib.insert(
+        "tan".to_string(),
+        Function {
+            kind: Type::TReal,
+            params: Some(vec![("x".to_string(), Type::TReal)]),
+            body: Box::new(Statement::Return(Box::new(Expression::MetaExp(tan_impl, vec![Expression::Var("x".to_string())], Type::TReal))))
+        }
+    );
+
     math_stdlib
 }
 
@@ -256,6 +301,116 @@ pub fn log_impl(args: Vec<EnvValue>) -> Result<EnvValue, String> {
     }
 }
 
+// Constante de PI com precisão suficiente
+const PI: f64 = 3.141592653589793;
+const EPSILON: f64 = 1e-10;
+
+// Função para calcular o fatorial (usada em série de Taylor)
+fn factorial(n: i32) -> f64 {
+    (1..=n).fold(1, |acc, x| acc * x) as f64
+}
+
+// Função para converter radianos em graus
+pub fn degrees_impl(args: Vec<EnvValue>) -> Result<EnvValue, String> {
+    if args.len() != 1 {
+        return Err("degrees expects exactly one argument".to_string());
+    }
+
+    if let EnvValue::Exp(Expression::CReal(rad)) = &args[0] {
+        Ok(EnvValue::Exp(Expression::CReal(rad * (180.0 / PI))))
+    } else {
+        Err("degrees expects a real number argument".to_string())
+    }
+}
+
+// Função para converter graus em radianos
+pub fn radians_impl(args: Vec<EnvValue>) -> Result<EnvValue, String> {
+    if args.len() != 1 {
+        return Err("radians expects exactly one argument".to_string());
+    }
+
+    if let EnvValue::Exp(Expression::CReal(deg)) = &args[0] {
+        Ok(EnvValue::Exp(Expression::CReal(deg * (PI / 180.0))))
+    } else {
+        Err("radians expects a real number argument".to_string())
+    }
+}
+
+// Série de Taylor para cosseno
+fn taylor_cos(x: f64) -> f64 {
+    let mut sum = 0.0;
+    let mut term;
+    let mut n = 0;
+    loop {
+        term = ((-1.0f64).powi(n) * x.powi(2 * n)) / factorial(2 * n);
+        sum += term;
+        if term.abs() < EPSILON {
+            break;
+        }
+        n += 1;
+    }
+    sum
+}
+
+// Série de Taylor para seno
+fn taylor_sin(x: f64) -> f64 {
+    let mut sum = 0.0;
+    let mut term;
+    let mut n = 0;
+    loop {
+        term = ((-1.0f64).powi(n) * x.powi(2 * n + 1)) / factorial(2 * n + 1);
+        sum += term;
+        if term.abs() < EPSILON {
+            break;
+        }
+        n += 1;
+    }
+    sum
+}
+
+// Tangente usando seno e cosseno
+fn taylor_tan(x: f64) -> f64 {
+    taylor_sin(x) / taylor_cos(x)
+}
+
+// Função cosseno
+pub fn cos_impl(args: Vec<EnvValue>) -> Result<EnvValue, String> {
+    if args.len() != 1 {
+        return Err("cos expects exactly one argument".to_string());
+    }
+
+    if let EnvValue::Exp(Expression::CReal(x)) = &args[0] {
+        Ok(EnvValue::Exp(Expression::CReal(taylor_cos(*x))))
+    } else {
+        Err("cos expects a real number argument".to_string())
+    }
+}
+
+// Função seno
+pub fn sin_impl(args: Vec<EnvValue>) -> Result<EnvValue, String> {
+    if args.len() != 1 {
+        return Err("sin expects exactly one argument".to_string());
+    }
+
+    if let EnvValue::Exp(Expression::CReal(x)) = &args[0] {
+        Ok(EnvValue::Exp(Expression::CReal(taylor_sin(*x))))
+    } else {
+        Err("sin expects a real number argument".to_string())
+    }
+}
+
+// Função tangente
+pub fn tan_impl(args: Vec<EnvValue>) -> Result<EnvValue, String> {
+    if args.len() != 1 {
+        return Err("tan expects exactly one argument".to_string());
+    }
+
+    if let EnvValue::Exp(Expression::CReal(x)) = &args[0] {
+        Ok(EnvValue::Exp(Expression::CReal(taylor_tan(*x))))
+    } else {
+        Err("tan expects a real number argument".to_string())
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -769,4 +924,80 @@ mod tests {
         assert!(result.is_err());
         assert_eq!(result.unwrap_err(), "log expects two real arguments");
     }
+    #[test]
+fn test_degrees_impl() {
+    let arg = vec![EnvValue::Exp(Expression::CReal(PI))];
+    let result = degrees_impl(arg).unwrap();
+    if let EnvValue::Exp(Expression::CReal(deg)) = result {
+        assert!((deg - 180.0).abs() < EPSILON);
+    } else {
+        panic!("Unexpected result type");
+    }
+}
+
+#[test]
+fn test_radians_impl() {
+    let arg = vec![EnvValue::Exp(Expression::CReal(180.0))];
+    let result = radians_impl(arg).unwrap();
+    if let EnvValue::Exp(Expression::CReal(rad)) = result {
+        assert!((rad - PI).abs() < EPSILON);
+    } else {
+        panic!("Unexpected result type");
+    }
+}
+
+#[test]
+fn test_cos_impl() {
+    let arg = vec![EnvValue::Exp(Expression::CReal(0.0))];
+    let result = cos_impl(arg).unwrap();
+    if let EnvValue::Exp(Expression::CReal(value)) = result {
+        assert!((value - 1.0).abs() < EPSILON);
+    } else {
+        panic!("Unexpected result type");
+    }
+}
+
+#[test]
+fn test_sin_impl() {
+    let arg = vec![EnvValue::Exp(Expression::CReal(0.0))];
+    let result = sin_impl(arg).unwrap();
+    if let EnvValue::Exp(Expression::CReal(value)) = result {
+        assert!(value.abs() < EPSILON);
+    } else {
+        panic!("Unexpected result type");
+    }
+}
+
+#[test]
+fn test_tan_impl() {
+    let arg = vec![EnvValue::Exp(Expression::CReal(0.0))];
+    let result = tan_impl(arg).unwrap();
+    if let EnvValue::Exp(Expression::CReal(value)) = result {
+        assert!(value.abs() < EPSILON);
+    } else {
+        panic!("Unexpected result type");
+    }
+}
+
+#[test]
+fn test_invalid_args() {
+    // Teste com número errado de argumentos
+    let too_many_args = vec![
+        EnvValue::Exp(Expression::CReal(1.0)),
+        EnvValue::Exp(Expression::CReal(2.0))
+    ];
+    assert!(degrees_impl(too_many_args.clone()).is_err());
+    assert!(radians_impl(too_many_args.clone()).is_err());
+    assert!(cos_impl(too_many_args.clone()).is_err());
+    assert!(sin_impl(too_many_args.clone()).is_err());
+    assert!(tan_impl(too_many_args.clone()).is_err());
+
+    // Teste com tipo errado de argumento
+    let invalid_type_arg = vec![EnvValue::Exp(Expression::CString("invalid".to_string()))];
+    assert!(degrees_impl(invalid_type_arg.clone()).is_err());
+    assert!(radians_impl(invalid_type_arg.clone()).is_err());
+    assert!(cos_impl(invalid_type_arg.clone()).is_err());
+    assert!(sin_impl(invalid_type_arg.clone()).is_err());
+    assert!(tan_impl(invalid_type_arg.clone()).is_err());
+}
 }
