@@ -1,19 +1,25 @@
 use crate::interpreter::interpreter::eval;
+use crate::interpreter::interpreter::execute;
 use crate::interpreter::interpreter::execute_block;
+
 use crate::interpreter::interpreter::ControlFlow;
 use crate::interpreter::interpreter::EnvValue;
+use crate::tc::type_checker::check_stmt;
+use crate::tc::type_checker::ControlType;
 use crate::ir::ast::Statement;
 use crate::ir::ast::Environment;
 use crate::ir::ast::Expression;
+use crate::ir::ast::Type;
 use crate::parser::parser::*;
 use std::io::{self, Write};
 use std::process::Command;
 
-pub fn repl(env: Option<Environment<EnvValue>>) -> io::Result<()> {
+pub fn repl(env: Option<Environment<EnvValue>>, env_type: Option<Environment<Type>>) -> io::Result<()> {
     // Print welcome message
     println!("R-Python REPL");
     println!("Type !help' for more commands or '!exit' to quit'\n");
     let mut current_env = env.unwrap_or(Environment::new());
+    let mut current_env_type = env_type.unwrap_or(Environment::new());
     loop {
         // Display prompt
         print!("R-Python >>> ");
@@ -61,8 +67,11 @@ pub fn repl(env: Option<Environment<EnvValue>>) -> io::Result<()> {
             }
             Ok((_, _)) => {
                 // Try to parse statements in the input
-                match repl_parse_statements(&input, current_env.clone()) {
-                    Ok(new_env) => current_env = new_env,
+                match repl_parse_statements(&input, current_env.clone(), current_env_type.clone()) {
+                    Ok((new_env, new_env_type)) => {
+                        current_env = new_env;
+                        current_env_type = new_env_type;
+                    }
                     Err(e) => output = Err(e),
                 };
             }
@@ -124,7 +133,7 @@ fn repl_parse_expression(input: &str, current_env: &Environment<EnvValue>) -> Re
     }
 }
 
-fn repl_parse_statements(input: &str, mut current_env: Environment<EnvValue>) -> Result<Environment<EnvValue>, String> {
+fn repl_parse_statements(input: &str, mut current_env: Environment<EnvValue>, mut current_env_type: Environment<Type>) -> Result<(Environment<EnvValue>, Environment<Type>), String> {
     // Parse the input as a statement
     match parse(input) {
         Ok((remaining, statements)) => {
@@ -132,27 +141,25 @@ fn repl_parse_statements(input: &str, mut current_env: Environment<EnvValue>) ->
                 return Err(format!("Warning: Unparsed input remains: {:?}\n", remaining));
             }
 
-            match execute_block(statements.clone(), &current_env.clone()) {
+            let stmt = Statement::Block(statements.clone());
+            match check_stmt(stmt, &current_env_type.clone()){
+                Ok(ControlType::Continue(new_env)) => current_env_type = new_env,
+                Ok(ControlType::Return(_)) => {
+                    return Err(format!("Execution Error: Return value not in a Function"))
+                }
+                Err(e) => return Err(format!("Execution Error: {:?}", e)),
+            }
+
+            match execute_block(statements, &current_env.clone()) {
                 Ok(ControlFlow::Continue(new_env)) => current_env = new_env,
                 Ok(ControlFlow::Return(_)) => {
                     return Err(format!("Execution Error: Return value not in a Function"))
                 }
                 Err(e) => return Err(format!("Execution Error: {:?}", e)),
             }
-            
-
-            if let Some(last_statement) = statements.last() {
-                if let Statement::Assignment(ref var_name, _, _) = last_statement {
-                    if let Some(value) = current_env.get_variable(var_name) {
-                        println!("{}", format_env_value(value));
-                    } else {
-                        println!("Variable {} not found.", var_name);
-                    }
-                }
-            }
-            
-
-            Ok(current_env.clone())
+            println!("Contexto de valores atual: {:?}", current_env);
+            println!("Contexto de tipos atual: {:?}", current_env_type);
+            Ok((current_env.clone(), current_env_type.clone()))
         }
         Err(e) => Err(format!("Statement Parse Error: {}", e)),
     }

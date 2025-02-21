@@ -5,7 +5,10 @@ use std::process;
 
 use crate::io;
 use crate::interpreter::interpreter::EnvValue;
+use crate::ir::ast::Type;
 use crate::interpreter::interpreter::execute;
+use crate::tc::type_checker::ControlType;
+use crate::tc::type_checker::check_stmt;
 use crate::parser::parser::*;
 
 use crate::interpreter::interpreter::ControlFlow;
@@ -16,7 +19,7 @@ pub fn print_env(env: &Environment<EnvValue>) {
     }
 }
 
-pub fn cli(file_path: &String) -> io::Result<Environment<EnvValue>> {
+pub fn cli(file_path: &String) -> io::Result<(Environment<EnvValue>, Environment<Type>)> {
     let file_content = fs::read_to_string(file_path).unwrap_or_else(|err| {
         eprintln!("Error reading file {}: {}", file_path, err);
         process::exit(1);
@@ -35,11 +38,22 @@ pub fn cli(file_path: &String) -> io::Result<Environment<EnvValue>> {
     };
 
     let mut env: Environment<EnvValue> = Environment::new();
-
+    let mut env_type: Environment<Type> = Environment::new();
     println!("Environment before execution:");
     print_env(&env);
 
     for stmt in parsed_statements {
+        match check_stmt(stmt.clone(), &env_type){
+            Ok(ControlType::Continue(new_env)) => env_type = new_env,
+            Ok(ControlType::Return(_)) => {
+                eprintln!("Error during execution");
+                process::exit(1);
+            }
+            Err(err) => {
+                eprintln!("Error during execution: {:?}", err);
+                process::exit(1);
+            }
+        }
         match execute(stmt, &env) {
             Ok(ControlFlow::Continue(new_env)) => {
                 env = new_env;
@@ -53,9 +67,10 @@ pub fn cli(file_path: &String) -> io::Result<Environment<EnvValue>> {
                 process::exit(1);
             }
         }
+        
     }
 
     println!("\nEnvironment after execution:");
     print_env(&env);
-    Ok(env)
+    Ok((env, env_type))
 }

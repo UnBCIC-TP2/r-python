@@ -2,7 +2,7 @@ use crate::ir::ast::{Environment, Expression, Name, Statement, Type};
 
 type ErrorMessage = String;
 
-pub enum ControlFlow {
+pub enum ControlType {
     Continue(Environment<Type>),
     Return(Type),
 }
@@ -42,28 +42,21 @@ pub fn check_exp(exp: Expression, env: &Environment<Type>) -> Result<Type, Error
     }
 }
 
-pub fn check_stmt(stmt: Statement, env: &Environment<Type>) -> Result<ControlFlow, ErrorMessage> {
+pub fn check_stmt(stmt: Statement, env: &Environment<Type>) -> Result<ControlType, ErrorMessage> {
     let mut new_env = env.clone();
 
     match stmt {
         Statement::Assignment(name, exp, kind) => {
             let exp_type = check_exp(*exp, &new_env)?;
-
-            if let Some(state_type) = kind {
-                if exp_type != state_type {
-                    return Err(format!("[Type Error on '{}()'] '{}' has mismatched types: expected '{:?}', found '{:?}'.", new_env.scope_name(), name, state_type, exp_type));
-                }
-            } else {
-                let stated_type = check_var_name(name.clone(), &new_env, true)?;
-
+            if let Ok(stated_type) = check_var_name(name.clone(), &new_env, true){
                 if exp_type != stated_type {
                     return Err(format!("[Type Error on '{}()'] '{}' has mismatched types: expected '{:?}', found '{:?}'.", new_env.scope_name(), name, stated_type, exp_type));
                 }
             }
-
-            new_env.insert_variable(name, exp_type);
-
-            Ok(ControlFlow::Continue(new_env))
+            else{
+                new_env.insert_variable(name, exp_type);
+            }
+            Ok(ControlType::Continue(new_env))
         }
         Statement::IfThenElse(exp, stmt_then, option) => {
             let exp_type = check_exp(*exp, &new_env)?;
@@ -78,20 +71,20 @@ pub fn check_stmt(stmt: Statement, env: &Environment<Type>) -> Result<ControlFlo
             let stmt_then_result = check_stmt(*stmt_then, &new_env)?;
             let stmt_else_result = match option {
                 Some(stmt_else) => check_stmt(*stmt_else, &new_env)?,
-                None => return Ok(ControlFlow::Continue(new_env)),
+                None => return Ok(ControlType::Continue(new_env)),
             };
 
             match (stmt_then_result, stmt_else_result) {
-                (ControlFlow::Return(kind), ControlFlow::Continue(_)) => {
-                    Ok(ControlFlow::Return(kind))
+                (ControlType::Return(kind), ControlType::Continue(_)) => {
+                    Ok(ControlType::Return(kind))
                 }
-                (ControlFlow::Continue(_), ControlFlow::Return(kind)) => {
-                    Ok(ControlFlow::Return(kind))
+                (ControlType::Continue(_), ControlType::Return(kind)) => {
+                    Ok(ControlType::Return(kind))
                 }
-                (ControlFlow::Return(kind1), ControlFlow::Return(_)) => {
-                    Ok(ControlFlow::Return(kind1))
+                (ControlType::Return(kind1), ControlType::Return(_)) => {
+                    Ok(ControlType::Return(kind1))
                 }
-                _ => Ok(ControlFlow::Continue(new_env)),
+                _ => Ok(ControlType::Continue(new_env)),
             }
         }
         Statement::While(exp, stmt_while) => {
@@ -105,12 +98,28 @@ pub fn check_stmt(stmt: Statement, env: &Environment<Type>) -> Result<ControlFlo
             }
 
             match check_stmt(*stmt_while, &new_env)? {
-                ControlFlow::Continue(_) => Ok(ControlFlow::Continue(new_env)),
-                ControlFlow::Return(kind) => Ok(ControlFlow::Return(kind)),
+                ControlType::Continue(_) => Ok(ControlType::Continue(new_env)),
+                ControlType::Return(kind) => Ok(ControlType::Return(kind)),
             }
         }
+
+        Statement::Block(stmts) => {
+            for stmt in stmts {
+                let (check_env, stmt_type) = match check_stmt(stmt, &new_env)? {
+                    ControlType::Continue(control_env) => (control_env, None),
+                    ControlType::Return(control_type) => (new_env, Some(control_type)),
+                };
+                if let Some(kind) = stmt_type {
+                    return Ok(ControlType::Return(kind));
+                } else {
+                    new_env = check_env;
+                }
+            }
+            Ok(ControlType::Continue(new_env))
+        }
+
         Statement::Sequence(stmt1, stmt2) => {
-            if let ControlFlow::Continue(control_env) = check_stmt(*stmt1, &new_env)? {
+            if let ControlType::Continue(control_env) = check_stmt(*stmt1, &new_env)? {
                 new_env = control_env;
             }
             check_stmt(*stmt2, &new_env)
@@ -137,14 +146,14 @@ pub fn check_stmt(stmt: Statement, env: &Environment<Type>) -> Result<ControlFlo
             }
 
             match check_stmt(*func.body.unwrap(), &new_env)? {
-                ControlFlow::Continue(_) => Err(format!(
+                ControlType::Continue(_) => Err(format!(
                     "[Syntax Error] '{}()' does not have a return statement.",
                     func.name
                 )),
-                ControlFlow::Return(_) => {
+                ControlType::Return(_) => {
                     new_env.remove_frame();
                     new_env.insert_variable(func.name, func_type);
-                    Ok(ControlFlow::Continue(new_env))
+                    Ok(ControlType::Continue(new_env))
                 }
             }
         }
@@ -161,7 +170,7 @@ pub fn check_stmt(stmt: Statement, env: &Environment<Type>) -> Result<ControlFlo
                     ));
                 }
 
-                Ok(ControlFlow::Return(exp_type))
+                Ok(ControlType::Return(exp_type))
             } else {
                 Err(format!("[Syntax Error] return statement outside function."))
             }
@@ -673,7 +682,7 @@ mod tests {
         let assignment = Assignment("a".to_string(), Box::new(CTrue), Some(TBool));
 
         match check_stmt(assignment, &env) {
-            Ok(ControlFlow::Continue(new_env)) => {
+            Ok(ControlType::Continue(new_env)) => {
                 assert_eq!(new_env.search_frame("a".to_string()), Some(TBool).as_ref());
             }
             Ok(_) => assert!(false),
@@ -786,7 +795,7 @@ mod tests {
         });
 
         match check_stmt(func, &env) {
-            Ok(ControlFlow::Continue(new_env)) => {
+            Ok(ControlType::Continue(new_env)) => {
                 assert_eq!(
                     new_env.search_frame("add".to_string()),
                     Some(TFunction(
@@ -991,7 +1000,7 @@ mod tests {
         });
 
         match check_stmt(factorial, &env) {
-            Ok(ControlFlow::Continue(new_env)) => {
+            Ok(ControlType::Continue(new_env)) => {
                 assert_eq!(
                     new_env.search_frame("factorial".to_string()),
                     Some(TFunction(Box::new(Some(TInteger)), vec![TInteger])).as_ref()
@@ -1024,7 +1033,7 @@ mod tests {
         });
 
         match check_stmt(func, &env) {
-            Ok(ControlFlow::Continue(_)) => assert!(true),
+            Ok(ControlType::Continue(_)) => assert!(true),
             _ => assert!(false, "Multiple return paths function failed"),
         }
     }

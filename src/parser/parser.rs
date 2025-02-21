@@ -440,18 +440,9 @@ fn assignment(input: &str) -> IResult<&str, Statement> {
     let (input, _) = delimited(space0, char('='), space0)(input)?;
     let (input, expr) = expression(input)?;
 
-    // Infer type from expression
-    let inferred_type = match &expr {
-        Expression::CInt(_) => Some(Type::TInteger),
-        Expression::CReal(_) => Some(Type::TReal),
-        Expression::CString(_) => Some(Type::TString),
-        Expression::CTrue | Expression::CFalse => Some(Type::TBool),
-        _ => None,
-    };
-
     Ok((
         input,
-        Statement::Assignment(name, Box::new(expr), inferred_type),
+        Statement::Assignment(name, Box::new(expr), Some(Type::TAny)),
     ))
 }
 

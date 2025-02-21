@@ -21,7 +21,7 @@ fn main() -> io::Result<()> {
             _ => eprintln!("Invalid option: {}", args[1]),
         };
     } else {
-        repl(None)?;
+        repl(None, None)?;
     }
 
     Ok(())
@@ -45,7 +45,7 @@ fn handle_exec_option(args: &[String]) -> io::Result<()> {
     if args.len() >= 3 && args[2].ends_with(".rpy") {
         if args[3..].contains(&"-i".to_owned()) {
             match cli(&args[2]) {
-                Ok(env) => repl(Some(env))?,
+                Ok((env, env_type)) => repl(Some(env), Some(env_type))?,
                 Err(e) => {
                     eprintln!("Error: {}", e);
                     process::exit(1);
