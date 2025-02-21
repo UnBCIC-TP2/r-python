@@ -99,6 +99,11 @@ impl<A> Environment<A> {
             frame.tests.insert(name, test);
         }
     }
+
+    pub fn get_variable(&self, name: &str) -> Option<&A> {
+        self.stack.get(&self.scope_key())?.variables.get(name)
+    }
+    
 }
 
 #[derive(Clone, Debug, PartialEq)]
