@@ -14,9 +14,7 @@ pub enum Type {
     TList(Box<Type>),
     TTuple(Vec<Type>),
     TSet(Box<Type>),
-    // TDict(Box<Type>,Box<Type>),
     THash(Box<Type>, Box<Type>),
-    TUnit,
 }
 
 //#[derive(Debug, PartialEq, Clone)]

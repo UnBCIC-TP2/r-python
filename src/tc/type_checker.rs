@@ -245,9 +245,9 @@ fn check_hash_remove(hash: &Expression, key: Expression, env: &Environment) -> R
     let key_type = check(key.clone(), env)?;
 
     match hash_type {
-        Type::THash(boxed_key_type, _) => {
+        Type::THash(boxed_key_type, value_type) => {
             if *boxed_key_type == key_type {
-                Ok(Type::TUnit)
+                Ok(Type::THash(boxed_key_type, value_type))
             } else {
                 Err(String::from("Key type mismatch"))
             }
@@ -656,7 +656,7 @@ mod tests {
         let result = check_hash_get(hash, key, &env);
         assert_eq!(result, Ok(Type::TInteger));
     }
-    
+
     #[test]
     fn check_hash_remove_t() {
         let env = Environment::new();
@@ -670,12 +670,12 @@ mod tests {
     
         let result = check_hash_remove(&mut hash_expr, key.clone(), &env);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), Type::TUnit);
+        assert_eq!(result.unwrap(), Type::THash(Box::new(Type::TString), Box::new(Type::TInteger))); // Alterado
     
         let result = check_hash_get(hash_expr.clone(), key, &env);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), Type::TInteger);
-    }       
+    }           
 
     #[test]
     fn check_tlist_comparison_different_types() {
