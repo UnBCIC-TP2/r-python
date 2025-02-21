@@ -51,7 +51,7 @@ pub fn run(stmt: Statement, env: &Environment<EnvValue>) -> Result<ControlFlow, 
     }
 }
 
-fn execute(stmt: Statement, env: &Environment<EnvValue>) -> Result<ControlFlow, ErrorMessage> {
+pub fn execute(stmt: Statement, env: &Environment<EnvValue>) -> Result<ControlFlow, ErrorMessage> {
     let mut new_env = env.clone();
 
     let result = match stmt {
@@ -216,7 +216,7 @@ fn execute(stmt: Statement, env: &Environment<EnvValue>) -> Result<ControlFlow, 
 }
 
 //helper function for executing blocks
-fn execute_block(
+pub fn execute_block(
     stmts: Vec<Statement>,
     env: &Environment<EnvValue>,
 ) -> Result<ControlFlow, ErrorMessage> {

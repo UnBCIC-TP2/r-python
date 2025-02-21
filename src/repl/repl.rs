@@ -111,6 +111,7 @@ fn handle_inline_command(input: &str, env: &mut Environment<EnvValue>) -> io::Re
 fn repl_parse_expression(input: &str, current_env: &Environment<EnvValue>) -> Result<String, String> {
     // Parse the input as an expression
     match expression(input) {
+        
         Ok(("", expr)) => {
             // Evaluate the expression
             match eval(expr, &current_env.clone()) {
@@ -210,15 +211,8 @@ fn handle_execution_output(output: Result<String, String>) -> io::Result<()> {
 
 // For formatting values
 fn format_env_value(value: &EnvValue) -> String {
-    match value {
-        EnvValue::Exp(Expression::CInt(val)) => val.to_string(),
-        EnvValue::Exp(Expression::CReal(val)) => val.to_string(),
-        EnvValue::Exp(Expression::CString(val)) => val.clone(),
-        EnvValue::Exp(Expression::CTrue) => "True".to_string(),
-        EnvValue::Exp(Expression::CFalse) => "False".to_string(),
-        EnvValue::Func(_) => "<function>".to_string(),
-        _ => "NonExistent Type".to_string(),
-    }
+    let EnvValue::Exp(expr) = value else {todo!()};
+    format!("{}", expr)
 }
 
 mod tests {

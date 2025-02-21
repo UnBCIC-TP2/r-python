@@ -108,7 +108,7 @@ fn statement(input: &str) -> IResult<&str, Statement> {
 }
 
 // Parse basic expressions
-fn expression(input: &str) -> IResult<&str, Expression> {
+pub fn expression(input: &str) -> IResult<&str, Expression> {
     alt((
         boolean_expression,
         comparison_expression,
