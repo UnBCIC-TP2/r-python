@@ -32,10 +32,16 @@ fn import_statement(input: &str) -> IResult<&str, Statement> {
                 opt(preceded(space0, preceded(tag("as"), identifier))),
             )),
         )(input)?;
-        
-        let imports = imports.into_iter().map(|(name, alias)| (name.to_string(), alias.map(|a| a.to_string()))).collect();
 
-        Ok((input, Statement::ImportFromModule(module_name.to_string(), imports)))
+        let imports = imports
+            .into_iter()
+            .map(|(name, alias)| (name.to_string(), alias.map(|a| a.to_string())))
+            .collect();
+
+        Ok((
+            input,
+            Statement::ImportFromModule(module_name.to_string(), imports),
+        ))
     } else {
         let (input, _) = tag("import")(input)?;
         let (input, _) = space1(input)?;
@@ -654,21 +660,29 @@ mod tests {
     #[test]
     fn test_parse_import_inside_module() {
         let input = "import mymodule\nx = 5\ny = 10\n";
-        
+
         let parse_result = parse(input);
 
         match parse_result {
             Ok((_, parsed_statements)) => {
                 println!("Parsed statements: {:?}", parsed_statements);
                 assert_eq!(parsed_statements.len(), 3, "");
-                assert!(matches!(parsed_statements[0], Statement::ImportModule(_)), "");
-                assert!(matches!(parsed_statements[1], Statement::Assignment(_, _, _)), "");
-                assert!(matches!(parsed_statements[2], Statement::Assignment(_, _, _)), "");
+                assert!(
+                    matches!(parsed_statements[0], Statement::ImportModule(_)),
+                    ""
+                );
+                assert!(
+                    matches!(parsed_statements[1], Statement::Assignment(_, _, _)),
+                    ""
+                );
+                assert!(
+                    matches!(parsed_statements[2], Statement::Assignment(_, _, _)),
+                    ""
+                );
             }
             Err(err) => panic!("Error analysing string statements: {:?}", err),
         }
     }
-
 
     #[test]
     fn test_operator_precedence() {

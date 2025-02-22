@@ -1,8 +1,8 @@
 use crate::ir::ast::Type;
 use crate::ir::ast::{EnvValue, Environment, Expression, Name, Statement};
+use crate::parser::parser::parse;
 use crate::tc::type_checker::{check_stmt, ControlType};
 use crate::HashMap;
-use crate::parser::parser::{parse};
 use std::fs;
 use std::path::Path;
 
@@ -50,7 +50,11 @@ fn execute_block(stmts: Vec<Statement>, env: &Environment) -> Result<ControlFlow
 }
 
 //helper function for executing nested modules
-fn execute_module(module_name: &str, env: &Environment, visited_modules: &mut Vec<String>,) -> Result<Environment, String> {
+fn execute_module(
+    module_name: &str,
+    env: &Environment,
+    visited_modules: &mut Vec<String>,
+) -> Result<Environment, String> {
     if visited_modules.contains(&module_name.to_string()) {
         return Ok(env.clone());
     }
@@ -64,8 +68,8 @@ fn execute_module(module_name: &str, env: &Environment, visited_modules: &mut Ve
     let module_code = fs::read_to_string(&module_path)
         .map_err(|_| format!("Error opening module '{}'", module_name))?;
 
-    let (_, parsed_statements) = parse(&module_code)
-        .map_err(|_| format!("Error parsing module '{}'", module_name))?;
+    let (_, parsed_statements) =
+        parse(&module_code).map_err(|_| format!("Error parsing module '{}'", module_name))?;
 
     let mut current_env = env.clone();
 
@@ -81,27 +85,24 @@ fn execute_module(module_name: &str, env: &Environment, visited_modules: &mut Ve
                         let key = alias.unwrap_or(name);
                         current_env.insert(key, (value.clone(), tipo.clone()));
                     } else {
-                        return Err(format!("Symbol '{}' not found in module '{}'.", name, imported_module));
+                        return Err(format!(
+                            "Symbol '{}' not found in module '{}'.",
+                            name, imported_module
+                        ));
                     }
                 }
             }
-            _ => {
-                match execute(statement, &current_env, true)? {
-                    ControlFlow::Continue(new_env) => current_env = new_env,
-                    ControlFlow::Return(value) => return Err("Unexpected return in module".to_string()),
-                }
-            }
+            _ => match execute(statement, &current_env, true)? {
+                ControlFlow::Continue(new_env) => current_env = new_env,
+                ControlFlow::Return(value) => return Err("Unexpected return in module".to_string()),
+            },
         }
     }
 
     Ok(current_env)
 }
-    
-pub fn execute(
-    stmt: Statement,
-    env: &Environment,
-    mut init: bool,
-) -> Result<ControlFlow, String> {
+
+pub fn execute(stmt: Statement, env: &Environment, mut init: bool) -> Result<ControlFlow, String> {
     let mut new_env = env.clone();
 
     if init {
@@ -119,7 +120,7 @@ pub fn execute(
                 Ok(module_env) => Ok(ControlFlow::Continue(module_env)),
                 Err(e) => Err(e),
             }
-        },
+        }
 
         Statement::ImportFromModule(module_name, imports) => {
             let module_path = format!("./modules/{}.rpy", module_name);
@@ -128,14 +129,17 @@ pub fn execute(
                     .map_err(|_| format!("Error opening module '{}'", module_name))?;
                 let (_, parsed_statements) = parse(&module_code)
                     .map_err(|_| format!("Error parsing module '{}'", module_name))?;
-    
+
                 let mut module_env = env.clone();
-    
+
                 for statement in parsed_statements.iter() {
                     match statement {
                         Statement::Assignment(var_name, _, var_type) => {
-                            module_env.insert(var_name.clone(), (None, var_type.clone().unwrap_or(Type::TInteger)));
-                        },
+                            module_env.insert(
+                                var_name.clone(),
+                                (None, var_type.clone().unwrap_or(Type::TInteger)),
+                            );
+                        }
                         _ => {}
                     }
                 }
@@ -146,20 +150,22 @@ pub fn execute(
                             let submodule_stmt = Statement::ImportModule(submodule_name);
                             match execute(submodule_stmt, &module_env, false)? {
                                 ControlFlow::Continue(new_env) => module_env = new_env,
-                                ControlFlow::Return(_) => return Err("Unexpected return in module".to_string()),
-                            }
-                        },
-                        _ => {
-                            match execute(statement, &module_env, false)? {
-                                ControlFlow::Continue(new_env) => module_env = new_env,
-                                ControlFlow::Return(_) => return Err("Unexpected return in module".to_string()),
+                                ControlFlow::Return(_) => {
+                                    return Err("Unexpected return in module".to_string())
+                                }
                             }
                         }
+                        _ => match execute(statement, &module_env, false)? {
+                            ControlFlow::Continue(new_env) => module_env = new_env,
+                            ControlFlow::Return(_) => {
+                                return Err("Unexpected return in module".to_string())
+                            }
+                        },
                     }
                 }
-    
+
                 let mut current_env = env.clone();
-    
+
                 for (name, alias) in imports {
                     if let Some((value, tipo)) = module_env.get(&name) {
                         let key = alias.unwrap_or(name);
@@ -176,13 +182,13 @@ pub fn execute(
                         ));
                     }
                 }
-    
+
                 Ok(ControlFlow::Continue(current_env))
             } else {
                 Err(format!("Module '{}' not found", module_name))
             }
-        },
-        
+        }
+
         Statement::Assignment(name, exp, _) => {
             let value = eval(*exp, &new_env)?;
             new_env.entry(name).and_modify(|e| e.0 = Some(value));
@@ -558,7 +564,6 @@ mod tests {
     use crate::ir::ast::Statement::*;
     use crate::ir::ast::Type::*;
     use approx::relative_eq;
-
 
     #[test]
     fn eval_constant() {
@@ -1064,12 +1069,8 @@ mod tests {
     #[test]
     fn test_import_from_module() {
         let env = HashMap::new();
-        let import_stmt = Statement::ImportFromModule(
-            String::from("my_module"),
-            vec![
-                (String::from("y"), None),
-            ],
-        );
+        let import_stmt =
+            Statement::ImportFromModule(String::from("my_module"), vec![(String::from("y"), None)]);
 
         match execute(import_stmt, &env, false) {
             Ok(ControlFlow::Continue(new_env)) => {
