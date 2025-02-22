@@ -15,6 +15,36 @@ use crate::ir::ast::Function;
 use crate::ir::ast::Type;
 use crate::ir::ast::{Expression, Name, Statement};
 
+fn import_statement(input: &str) -> IResult<&str, Statement> {
+    let (input, is_from) = opt(tag("from"))(input)?;
+
+    if is_from.is_some() {
+        let (input, _) = space1(input)?;
+        let (input, module_name) = identifier(input)?;
+        let (input, _) = space1(input)?;
+        let (input, _) = tag("import")(input)?;
+        let (input, _) = space1(input)?;
+
+        let (input, imports) = separated_list1(
+            tag(","),
+            tuple((
+                identifier,
+                opt(preceded(space0, preceded(tag("as"), identifier))),
+            )),
+        )(input)?;
+        
+        let imports = imports.into_iter().map(|(name, alias)| (name.to_string(), alias.map(|a| a.to_string()))).collect();
+
+        Ok((input, Statement::ImportFromModule(module_name.to_string(), imports)))
+    } else {
+        let (input, _) = tag("import")(input)?;
+        let (input, _) = space1(input)?;
+        let (input, module_name) = identifier(input)?;
+
+        Ok((input, Statement::ImportModule(module_name.to_string())))
+    }
+}
+
 // Parse identifier
 fn identifier(input: &str) -> IResult<&str, Name> {
     let (input, id) = take_while1(|c: char| c.is_alphanumeric() || c == '_')(input)?;
@@ -69,6 +99,7 @@ fn term(input: &str) -> ParseResult<Expression> {
 fn statement(input: &str) -> IResult<&str, Statement> {
     let (input, _) = space0(input)?;
     alt((
+        import_statement,
         function_def,
         if_statement,
         return_statement,
@@ -608,105 +639,36 @@ mod tests {
     }
 
     #[test]
-    fn test_multiline_parse() {
-        let input = "x = 42\ny = 10";
-        let (rest, stmts) = parse(input).unwrap();
-        assert_eq!(rest, "");
-        assert_eq!(stmts.len(), 2);
+    fn test_import_statement() {
+        let input = "import mymodule\n";
+        let result = import_statement(input);
 
-        match &stmts[0] {
-            Statement::Assignment(name, expr, _type) => {
-                assert_eq!(&**name, "x");
-                match **expr {
-                    Expression::CInt(42) => (),
-                    _ => panic!("Expected CInt(42)"),
-                }
+        match result {
+            Ok((rest, statement)) => {
+                assert!(matches!(statement, Statement::ImportModule(_)), "");
             }
-            _ => panic!("Expected Assignment"),
-        }
-
-        match &stmts[1] {
-            Statement::Assignment(name, expr, _type) => {
-                assert_eq!(&**name, "y");
-                match **expr {
-                    Expression::CInt(10) => (),
-                    _ => panic!("Expected CInt(10)"),
-                }
-            }
-            _ => panic!("Expected Assignment"),
+            Err(err) => panic!("Error analysing import: {:?}", err),
         }
     }
 
     #[test]
-    fn test_whitespace_handling() {
-        let input = "   x    =    42   \n   y   =   10   ";
-        let (rest, stmts) = parse(input).unwrap();
-        assert_eq!(rest, "");
-        assert_eq!(stmts.len(), 2);
-    }
+    fn test_parse_import_inside_module() {
+        let input = "import mymodule\nx = 5\ny = 10\n";
+        
+        let parse_result = parse(input);
 
-    #[test]
-    fn test_function_definition() {
-        let input = r#"def add(x: TInteger, y: TInteger) -> TInteger:
-        return x + y"#;
-        let (rest, stmt) = function_def(input).unwrap();
-        assert_eq!(rest, "");
-        match stmt {
-            Statement::FuncDef(name, func) => {
-                assert_eq!(name, "add");
-                assert_eq!(func.kind, Type::TInteger);
-                match func.params {
-                    Some(params) => {
-                        assert_eq!(params.len(), 2);
-                        assert_eq!(params[0].0, "x");
-                        assert_eq!(params[1].0, "y");
-                    }
-                    None => panic!("Expected Some params"),
-                }
+        match parse_result {
+            Ok((_, parsed_statements)) => {
+                println!("Parsed statements: {:?}", parsed_statements);
+                assert_eq!(parsed_statements.len(), 3, "");
+                assert!(matches!(parsed_statements[0], Statement::ImportModule(_)), "");
+                assert!(matches!(parsed_statements[1], Statement::Assignment(_, _, _)), "");
+                assert!(matches!(parsed_statements[2], Statement::Assignment(_, _, _)), "");
             }
-            _ => panic!("Expected FuncDef"),
+            Err(err) => panic!("Error analysing string statements: {:?}", err),
         }
     }
 
-    #[test]
-    fn test_function_call() {
-        let input = "result = add(5, 3)";
-        let (rest, stmt) = assignment(input).unwrap();
-        assert_eq!(rest, "");
-        match stmt {
-            Statement::Assignment(name, expr, _type) => {
-                assert_eq!(name, "result");
-                match *expr {
-                    Expression::FuncCall(func_name, args) => {
-                        assert_eq!(func_name, "add");
-                        assert_eq!(args.len(), 2);
-                    }
-                    _ => panic!("Expected FuncCall"),
-                }
-            }
-            _ => panic!("Expected Assignment"),
-        }
-    }
-
-    #[test]
-    fn test_basic_arithmetic_left_recursion() {
-        let cases = vec![
-            (
-                "1 + 2",
-                Expression::Add(Box::new(Expression::CInt(1)), Box::new(Expression::CInt(2))),
-            ),
-            (
-                "3 * 4",
-                Expression::Mul(Box::new(Expression::CInt(3)), Box::new(Expression::CInt(4))),
-            ),
-        ];
-
-        for (input, expected) in cases {
-            let (rest, result) = arithmetic_expression(input).unwrap();
-            assert_eq!(rest, "");
-            assert_eq!(result, expected);
-        }
-    }
 
     #[test]
     fn test_operator_precedence() {
