@@ -74,6 +74,8 @@ pub enum Statement {
     Sequence(Box<Statement>, Box<Statement>),
     FuncDef(Name, Function),
     Return(Box<Expression>),
+    ImportModule(Name),
+    ImportFromModule(Name, Vec<(Name, Option<Name>)>),
 }
 
 #[derive(Debug)]
