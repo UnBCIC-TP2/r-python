@@ -70,6 +70,7 @@ pub fn execute(stmt: &Statement, env: Environment) -> Result<Environment, ErrorM
 Funcionalidades Implementadas
 ✅ Expressões aritméticas
 ✅ Variáveis e atribuições
+✅ Sistema de módulos
 ✅ Estruturas if-else
 ✅ Blocos indentados
 ✅ Operadores de comparação
@@ -81,6 +82,7 @@ Testes
 O projeto inclui testes extensivos para todas as funcionalidades:
 
 Testes do Parser:
+Importação de módulos
 Atribuições simples
 Expressões complexas
 Estruturas if-else
@@ -92,6 +94,7 @@ Avaliação de expressões
 Execução de comandos
 Manipulação do ambiente
 Fluxo de controle
+Importação de módulos (aninhados, inclusive)
 
 Exemplos de Código Suportado
 # Exemplo 1: Operações Aritméticas
@@ -158,6 +161,12 @@ fn comparison_expression(input: &str) -> IResult<&str, Expression>
 -> Gera Expression::Comparison com operador e operandos
 
 # 4. Statements e Blocos
+
+fn import_statement(input: &str) -> IResult<&str, Statement>
+
+-> Parse de importações 
+-> Suporta a sintaxe import e import from
+-> Lida com erros de sintaxe
 
 fn assignment(input: &str) -> IResult<&str, Statement>
 
