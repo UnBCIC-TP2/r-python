@@ -65,7 +65,7 @@ pub fn repl(env: Option<Environment<EnvValue>>, env_type: Option<Environment<Typ
                 // Evaluate the expression
                 output = repl_parse_expression(&input, &current_env);
             }
-            Ok((_, _)) => {
+            _ => {
                 // Try to parse statements in the input
                 match repl_parse_statements(&input, current_env.clone(), current_env_type.clone()) {
                     Ok((new_env, new_env_type)) => {
@@ -75,7 +75,6 @@ pub fn repl(env: Option<Environment<EnvValue>>, env_type: Option<Environment<Typ
                     Err(e) => output = Err(e),
                 };
             }
-            Err(e) => output = Err(e.to_string()),
         }
 
         // Print the output
