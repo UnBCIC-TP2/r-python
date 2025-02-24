@@ -1,16 +1,7 @@
-use crate::interpreter::interpreter::eval;
-use crate::interpreter::interpreter::execute;
-use crate::interpreter::interpreter::execute_block;
-
-use crate::interpreter::interpreter::ControlFlow;
-use crate::interpreter::interpreter::EnvValue;
-use crate::ir::ast::Environment;
-use crate::ir::ast::Expression;
-use crate::ir::ast::Statement;
-use crate::ir::ast::Type;
+use crate::interpreter::interpreter::{eval, execute_block, ControlFlow, EnvValue};
+use crate::ir::ast::{Environment, Expression, Statement, Type};
 use crate::parser::parser::*;
-use crate::tc::type_checker::check_stmt;
-use crate::tc::type_checker::ControlType;
+use crate::tc::type_checker::{check_exp, check_stmt, ControlType};
 use std::io::{self, Write};
 use std::process::Command;
 
@@ -66,7 +57,7 @@ pub fn repl(
         match expression(&input) {
             Ok(("", _expr)) => {
                 // Evaluate the expression
-                output = repl_parse_expression(&input, &current_env);
+                output = repl_parse_expression(&input, &current_env, &current_env_type);
             }
             _ => {
                 // Try to parse statements in the input
@@ -122,14 +113,18 @@ fn handle_inline_command(input: &str, env: &mut Environment<EnvValue>) -> io::Re
 fn repl_parse_expression(
     input: &str,
     current_env: &Environment<EnvValue>,
+    current_env_type: &Environment<Type>,
 ) -> Result<String, String> {
     // Parse the input as an expression
     match expression(input) {
         Ok(("", expr)) => {
             // Evaluate the expression
-            match eval(expr, &current_env.clone()) {
-                Ok(evaluated_expression) => Ok(format_env_value(&evaluated_expression)),
-                Err(e) => Err(format!("Evaluation Error: {:?}", e)),
+            match check_exp(expr.clone(), &current_env_type.clone()) {
+                Ok(_) => match eval(expr, &current_env.clone()) {
+                    Ok(evaluated_expression) => Ok(format_env_value(&evaluated_expression)),
+                    Err(e) => Err(format!("Evaluation Error: {:?}", e)),
+                },
+                Err(e) => Err(e),
             }
         }
         Ok((_, _)) => Err(format!("Parsing Expression Error")),
