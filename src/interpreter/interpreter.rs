@@ -1692,7 +1692,10 @@ mod tests {
                         let cur_scope1 = mod_test.env.scope_key();
                         let frame1 = mod_test.env.get_frame(cur_scope1);
 
-                        assert_eq!(frame1.tests, real_hash);
+                        let left_str = format!("{:?}", frame1.tests);
+                        let right_str = format!("{:?}", real_hash);
+                        assert_eq!(left_str, right_str);
+                        //assert_eq!(frame1.tests, real_hash); // modificamos para integração do PR
                     }
                     _ => assert!(false),
                 }
