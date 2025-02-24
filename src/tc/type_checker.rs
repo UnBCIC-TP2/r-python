@@ -930,7 +930,7 @@ mod tests {
     
         let result = check_hash_remove(&mut hash_expr, key.clone(), &env);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), Type::THash(Box::new(Type::TString), Box::new(Type::TInteger))); // Alterado
+        assert_eq!(result.unwrap(), Type::THash(Box::new(Type::TString), Box::new(Type::TInteger)));
     
         let result = check_hash_get(hash_expr.clone(), key, &env);
         assert!(result.is_ok());

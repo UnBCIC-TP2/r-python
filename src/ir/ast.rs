@@ -151,7 +151,7 @@ pub enum Type {
     TSet(Box<Type>),
     THash(Box<Type>, Box<Type>),
     TMaybe(Box<Type>),
-    TResult(Box<Type>, Box<Type>), // Ok, Error
+    TResult(Box<Type>, Box<Type>),
     TAny,
 }
 

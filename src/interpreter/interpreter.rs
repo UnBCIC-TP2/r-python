@@ -2713,7 +2713,7 @@ mod tests {
                         let left_str = format!("{:?}", frame1.tests);
                         let right_str = format!("{:?}", real_hash);
                         assert_eq!(left_str, right_str);
-                        //assert_eq!(frame1.tests, real_hash); // modificamos para integração do PR
+                        //assert_eq!(frame1.tests, real_hash);
                     }
                     _ => assert!(false),
                 }
