@@ -235,7 +235,7 @@ mod tests {
         let input = "10 + 10";
         let env: Environment<EnvValue> = Environment::new();
         let env_type: Environment<Type> = Environment::new();
-        let output = repl_parse_expression(input, &env,&env_type);
+        let output = repl_parse_expression(input, &env, &env_type);
         match output {
             Ok(result) => assert_eq!("20", result),
             Err(e) => panic!("Error: {}", e),
@@ -247,7 +247,7 @@ mod tests {
         let input = "(10+100) * (500/100)";
         let env: Environment<EnvValue> = Environment::new();
         let env_type: Environment<Type> = Environment::new();
-        let output = repl_parse_expression(input, &env,&env_type);
+        let output = repl_parse_expression(input, &env, &env_type);
         match output {
             Ok(result) => assert_eq!("550", result),
             Err(e) => panic!("Error: {}", e),
@@ -259,7 +259,7 @@ mod tests {
         let input = "10-100";
         let env: Environment<EnvValue> = Environment::new();
         let env_type: Environment<Type> = Environment::new();
-        let output = repl_parse_expression(input, &env,&env_type);
+        let output = repl_parse_expression(input, &env, &env_type);
         match output {
             Ok(result) => assert_eq!("-90", result),
             Err(e) => panic!("Error: {}", e),
@@ -271,7 +271,7 @@ mod tests {
         let input = "90 -                                                           (100)";
         let env: Environment<EnvValue> = Environment::new();
         let env_type: Environment<Type> = Environment::new();
-        let output = repl_parse_expression(input, &env,&env_type);
+        let output = repl_parse_expression(input, &env, &env_type);
         match output {
             Ok(result) => assert_eq!("-10", result),
             Err(e) => panic!("Error: {}", e),
@@ -283,7 +283,7 @@ mod tests {
         let input = "(-90)*(-20) - (100)";
         let env: Environment<EnvValue> = Environment::new();
         let env_type: Environment<Type> = Environment::new();
-        let output = repl_parse_expression(input, &env,&env_type);
+        let output = repl_parse_expression(input, &env, &env_type);
         match output {
             Ok(result) => assert_eq!("1700", result),
             Err(e) => panic!("Error: {}", e),
@@ -295,7 +295,7 @@ mod tests {
         let input = "- 90*(- 20) - (200)";
         let env: Environment<EnvValue> = Environment::new();
         let env_type: Environment<Type> = Environment::new();
-        let output = repl_parse_expression(input, &env,&env_type);
+        let output = repl_parse_expression(input, &env, &env_type);
         match output {
             Ok(result) => assert_eq!("1600", result),
             Err(e) => panic!("Error: {}", e),
@@ -307,7 +307,7 @@ mod tests {
         let input = "a + b";
         let env: Environment<EnvValue> = Environment::new();
         let env_type: Environment<Type> = Environment::new();
-        let output = repl_parse_expression(input, &env,&env_type);
+        let output = repl_parse_expression(input, &env, &env_type);
         match output {
             Ok(_) => panic!("Error was expected"),
             Err(e) => assert_eq!("[Name Error on '__main__'] 'a' is not defined.", e),
@@ -319,7 +319,7 @@ mod tests {
         let input = "exit";
         let env: Environment<EnvValue> = Environment::new();
         let env_type: Environment<Type> = Environment::new();
-        let output = repl_parse_expression(input, &env,&env_type);
+        let output = repl_parse_expression(input, &env, &env_type);
         match output {
             Ok(_) => panic!("Error was expected"),
             Err(e) => assert_eq!("[Name Error on '__main__'] 'exit' is not defined.", e),
@@ -335,7 +335,7 @@ mod tests {
         env.insert_variable(String::from("b"), EnvValue::Exp(CReal(20.1)));
         env_type.insert_variable(String::from("a"), TReal);
         env_type.insert_variable(String::from("b"), TReal);
-        let output = repl_parse_expression(input, &env,&env_type);
+        let output = repl_parse_expression(input, &env, &env_type);
         match output {
             Ok(result) => assert_eq!("30.6", result),
             Err(e) => panic!("Error: {}", e),
@@ -351,7 +351,7 @@ mod tests {
         env.insert_variable(String::from("b"), EnvValue::Exp(CInt(20)));
         env_type.insert_variable(String::from("a"), TInteger);
         env_type.insert_variable(String::from("b"), TInteger);
-        let output = repl_parse_expression(input, &env,&env_type);
+        let output = repl_parse_expression(input, &env, &env_type);
         match output {
             Ok(result) => assert_eq!("30", result),
             Err(e) => panic!("Error: {}", e),
@@ -365,7 +365,7 @@ mod tests {
         let mut env_type: Environment<Type> = Environment::new();
         env.insert_variable(String::from("a"), EnvValue::Exp(CReal(10.0)));
         env_type.insert_variable(String::from("a"), TReal);
-        let output = repl_parse_expression(input, &env,&env_type);
+        let output = repl_parse_expression(input, &env, &env_type);
         match output {
             Ok(result) => assert_eq!("5000.0", result),
             Err(e) => panic!("Error: {}", e),
@@ -381,13 +381,10 @@ mod tests {
         env.insert_variable(String::from("b"), EnvValue::Exp(CInt(20)));
         env_type.insert_variable(String::from("a"), TBool);
         env_type.insert_variable(String::from("b"), TInteger);
-        let output = repl_parse_expression(input, &env,&env_type);
+        let output = repl_parse_expression(input, &env, &env_type);
         match output {
             Ok(_) => panic!("Error was expected"),
-            Err(e) => assert_eq!(
-                "[Type Error] expecting numeric type values.",
-                e
-            ),
+            Err(e) => assert_eq!("[Type Error] expecting numeric type values.", e),
         }
     }
 
@@ -396,7 +393,7 @@ mod tests {
         let input = "-10-100";
         let env: Environment<EnvValue> = Environment::new();
         let env_type: Environment<Type> = Environment::new();
-        let output = repl_parse_expression(input, &env,&env_type);
+        let output = repl_parse_expression(input, &env, &env_type);
         match output {
             Ok(result) => assert_eq!("-110", result),
             Err(e) => panic!("Error: {}", e),
@@ -408,12 +405,12 @@ mod tests {
         let input = "a = 10";
         let env: Environment<EnvValue> = Environment::new();
         let env_type: Environment<Type> = Environment::new();
-        let env_output = repl_parse_statements(input, env,env_type);
+        let env_output = repl_parse_statements(input, env, env_type);
         match env_output {
             Ok(new_env) => assert_eq!(
                 new_env.0.search_frame("a".to_string()),
-                Some(&EnvValue::Exp(CInt(10))))
-            ,
+                Some(&EnvValue::Exp(CInt(10)))
+            ),
             Err(_) => panic!("New enviroment was expected"),
         }
     }
@@ -423,12 +420,12 @@ mod tests {
         let input = "a = 10 + 30";
         let env: Environment<EnvValue> = Environment::new();
         let env_type: Environment<Type> = Environment::new();
-        let env_output = repl_parse_statements(input, env,env_type);
+        let env_output = repl_parse_statements(input, env, env_type);
         match env_output {
             Ok(new_env) => assert_eq!(
                 new_env.0.search_frame("a".to_string()),
-                Some(&EnvValue::Exp(CInt(40))))
-            ,
+                Some(&EnvValue::Exp(CInt(40)))
+            ),
             Err(_) => panic!("New enviroment was expected"),
         }
     }
@@ -436,19 +433,15 @@ mod tests {
     #[test]
     fn test_repl_parse_assigment4() {
         let input = "a = 10 > 10";
-        let env:Environment<EnvValue> = Environment::new();
+        let env: Environment<EnvValue> = Environment::new();
         let env_type: Environment<Type> = Environment::new();
-        let mut env_expected:Environment<EnvValue> = Environment::new();
+        let mut env_expected: Environment<EnvValue> = Environment::new();
         let mut env_type_expected: Environment<Type> = Environment::new();
-        env_expected.insert_variable(
-            String::from("a"),
-            EnvValue::Exp(Expression::CFalse));
-        env_type_expected.insert_variable(
-                String::from("a"),
-                Type::TBool);
-        let env_output = repl_parse_statements(input, env,env_type);
+        env_expected.insert_variable(String::from("a"), EnvValue::Exp(Expression::CFalse));
+        env_type_expected.insert_variable(String::from("a"), Type::TBool);
+        let env_output = repl_parse_statements(input, env, env_type);
         match env_output {
-            Ok(new_env) => assert_eq!(new_env, (env_expected,env_type_expected)),
+            Ok(new_env) => assert_eq!(new_env, (env_expected, env_type_expected)),
             Err(_) => panic!("New enviroment was expected"),
         }
     }
@@ -456,22 +449,18 @@ mod tests {
     #[test]
     fn test_repl_parse_assigment5() {
         let input = "a = 10 == 10";
-        let env:Environment<EnvValue> = Environment::new();
+        let env: Environment<EnvValue> = Environment::new();
         let env_type: Environment<Type> = Environment::new();
-        let mut env_expected:Environment<EnvValue> = Environment::new();
-        let mut env_type_expected:Environment<Type> = Environment::new();
+        let mut env_expected: Environment<EnvValue> = Environment::new();
+        let mut env_type_expected: Environment<Type> = Environment::new();
 
-        env_expected.insert_variable(
-            String::from("a"),
-            EnvValue::Exp(Expression::CTrue));
+        env_expected.insert_variable(String::from("a"), EnvValue::Exp(Expression::CTrue));
 
-        env_type_expected.insert_variable(
-                String::from("a"),
-                Type::TBool);
-        
-        let env_output = repl_parse_statements(input, env,env_type);
+        env_type_expected.insert_variable(String::from("a"), Type::TBool);
+
+        let env_output = repl_parse_statements(input, env, env_type);
         match env_output {
-            Ok(new_env) => assert_eq!(new_env, (env_expected,env_type_expected)),
+            Ok(new_env) => assert_eq!(new_env, (env_expected, env_type_expected)),
             Err(_) => panic!("New enviroment was expected"),
         }
     }
@@ -482,26 +471,18 @@ mod tests {
         // R-Python >> b = a
 
         let input = "a = 10";
-        let mut env:Environment<EnvValue> = Environment::new();
+        let mut env: Environment<EnvValue> = Environment::new();
         let mut env_type: Environment<Type> = Environment::new();
-        let mut env_expected:Environment<EnvValue> = Environment::new();
-        let mut env_type_expected:Environment<Type> = Environment::new();
+        let mut env_expected: Environment<EnvValue> = Environment::new();
+        let mut env_type_expected: Environment<Type> = Environment::new();
 
-        
-        env_expected.insert_variable(
-            String::from("a"),
-            EnvValue::Exp(Expression::CInt(10))
-        );
+        env_expected.insert_variable(String::from("a"), EnvValue::Exp(Expression::CInt(10)));
 
-        env_type_expected.insert_variable(
-            String::from("a"),
-            Type::TInteger
-        );
-        
+        env_type_expected.insert_variable(String::from("a"), Type::TInteger);
 
-        match repl_parse_statements(input, env,env_type) {
+        match repl_parse_statements(input, env, env_type) {
             Ok(new_env) => {
-                assert_eq!(new_env, (env_expected.clone(),env_type_expected.clone()));
+                assert_eq!(new_env, (env_expected.clone(), env_type_expected.clone()));
                 env = new_env.0;
                 env_type = new_env.1
             }
@@ -510,21 +491,13 @@ mod tests {
 
         let input = "b = a";
 
-        
-        env_expected.insert_variable(
-            String::from("b"),
-            EnvValue::Exp(Expression::CInt(10))
-        );
-        env_type_expected.insert_variable(
-            String::from("b"),
-            Type::TInteger
-        );
-        
+        env_expected.insert_variable(String::from("b"), EnvValue::Exp(Expression::CInt(10)));
+        env_type_expected.insert_variable(String::from("b"), Type::TInteger);
 
-        let result = repl_parse_statements(input, env,env_type);
+        let result = repl_parse_statements(input, env, env_type);
 
         match result {
-            Ok(new_env) => assert_eq!(new_env, (env_expected.clone(),env_type_expected.clone())),
+            Ok(new_env) => assert_eq!(new_env, (env_expected.clone(), env_type_expected.clone())),
             Err(_) => panic!("New enviroment was expected"),
         }
     }

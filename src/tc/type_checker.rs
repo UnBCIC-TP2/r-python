@@ -728,11 +728,7 @@ mod tests {
 
         let ifthenelse = IfThenElse(
             Box::new(CInt(1)),
-            Box::new(Assignment(
-                "a".to_string(),
-                Box::new(CInt(1)),
-                Some(TAny),
-            )),
+            Box::new(Assignment("a".to_string(), Box::new(CInt(1)), Some(TAny))),
             Some(Box::new(Assignment(
                 "b".to_string(),
                 Box::new(CReal(2.0)),
