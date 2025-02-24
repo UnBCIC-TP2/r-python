@@ -28,7 +28,6 @@ pub fn check_exp(exp: Expression, env: &Environment<Type>) -> Result<Type, Error
         Expression::GTE(l, r) => check_bin_relational_expression(*l, *r, env),
         Expression::LTE(l, r) => check_bin_relational_expression(*l, *r, env),
         Expression::Var(name) => check_var_name(name, env, false),
-
         Expression::COk(e) => check_result_ok(*e, env),
         Expression::CErr(e) => check_result_err(*e, env),
         Expression::CJust(e) => check_maybe_just(*e, env),
@@ -38,7 +37,13 @@ pub fn check_exp(exp: Expression, env: &Environment<Type>) -> Result<Type, Error
         Expression::Unwrap(e) => check_unwrap_type(*e, env),
         Expression::Propagate(e) => check_propagate_type(*e, env),
         Expression::FuncCall(name, args) => check_func_call(name, args, env),
-        //_ => Err(String::from("not implemented yet")),
+        Expression::Dict(entries) => check_dictionary(entries, env),
+        Expression::DictMerge(var_exp, new_entries) => {
+            check_dictionary_merge_expression(var_exp, new_entries, env)
+        }
+        Expression::In(_, var_exp) => check_membership_expression(var_exp, env),
+        Expression::NotIn(_, var_exp) => check_membership_expression(var_exp, env),
+        _ => Err(String::from("not implemented yet")),
     }
 }
 
@@ -278,6 +283,91 @@ fn check_bin_boolean_expression(
     match (left_type, right_type) {
         (Type::TBool, Type::TBool) => Ok(Type::TBool),
         _ => Err(String::from("[Type Error] expecting boolean type values.")),
+    }
+}
+
+/// Only accepts keys that are a CString.
+fn check_dictionary(
+    dict_entries: Vec<(Box<Expression>, Box<Expression>)>,
+    env: &Environment<Type>,
+) -> Result<Type, ErrorMessage> {
+    let mut dict_entries_type: Vec<(Name, Type)> = Vec::new();
+
+    for (key_expr, value_exp) in dict_entries {
+        let key = match *key_expr {
+            Expression::CString(s) => s,
+            _ => {
+                return Err(String::from(
+                    "[Type Error] dictionary key must be a string literal.",
+                ))
+            }
+        };
+        let value_type = check_exp(*value_exp, env)?;
+        dict_entries_type.push((key, value_type));
+    }
+    Ok(Type::TDict(dict_entries_type))
+}
+
+fn check_dictionary_merge_expression(
+    var_exp: Box<Expression>,
+    new_entries: Vec<(Box<Expression>, Box<Expression>)>,
+    env: &Environment<Type>,
+) -> Result<Type, ErrorMessage> {
+    let dict_name = match *var_exp {
+        Expression::Var(s) => s,
+        _ => {
+            return Err(String::from(
+                "[Type Error] expected a variable on the left side.",
+            ))
+        }
+    };
+
+    let old_entries = match env.search_frame(dict_name.clone()) {
+        Some(Type::TDict(entries)) => entries,
+        Some(_) => return Err(format!("[Type Error] '{}' is not a dictionary.", dict_name)),
+        None => return Err(format!("[Type Error] '{}' is not defined.", dict_name)),
+    };
+
+    let new_entries_checked = match check_dictionary(new_entries, env) {
+        Ok(Type::TDict(entries)) => entries,
+        Err(msg) => return Err(msg),
+        _ => unreachable!(),
+    };
+
+    let mut merged_types = old_entries.clone();
+
+    for (key, value_type) in new_entries_checked.iter() {
+        if let Some(index) = merged_types
+            .iter()
+            .position(|(existing_key, _)| **existing_key == **key)
+        {
+            merged_types[index] = (key.clone(), value_type.clone());
+        } else {
+            merged_types.push((key.clone(), value_type.clone()));
+        }
+    }
+
+    Ok(Type::TDict(merged_types))
+}
+
+fn check_membership_expression(
+    var_exp: Box<Expression>,
+    env: &Environment<Type>,
+) -> Result<Type, ErrorMessage> {
+    let collection_name = match *var_exp {
+        Expression::Var(s) => s,
+        _ => {
+            return Err(String::from(
+                "[Type Error] expected a variable on the left side.",
+            ))
+        }
+    };
+
+    match env.search_frame(collection_name) {
+        Some(Type::TDict(_)) => Ok(Type::TBool),
+        _ => Err(String::from(
+            "[Type Error] expecting a collection type on the right side.",
+        )),
     }
 }
 
@@ -1067,5 +1157,143 @@ mod tests {
             Ok(_) => panic!("Should not accept duplicate parameter names"),
             Err(msg) => assert_eq!(msg, "[Parameter Error] Duplicate parameter name 'x'"),
         }
+    }
+
+    #[test]
+    fn check_dictionary_expression() {
+        /*
+         * For:
+         *  dict = { x: 10 + 12 + 20, y: true && false || true, z: 50.0 }
+         *
+         * Expected:
+         *  TDict([(String::from("x"), TInteger), (String::from("y"), TBool), (String::from("z"), TReal)])
+         */
+        let env: Environment<Type> = Environment::new();
+        let dict = Dict(vec![
+            (
+                Box::new(CString(String::from("x"))),
+                Box::new(Add(
+                    Box::new(Add(Box::new(CInt(10)), Box::new(CInt(12)))),
+                    Box::new(CInt(20)),
+                )),
+            ),
+            (
+                Box::new(CString(String::from("y"))),
+                Box::new(Or(
+                    Box::new(And(Box::new(CTrue), Box::new(CFalse))),
+                    Box::new(CTrue),
+                )),
+            ),
+            (Box::new(CString(String::from("z"))), Box::new(CReal(50.0))),
+        ]);
+
+        let dict_type = check_exp(dict, &env);
+        assert_eq!(
+            dict_type,
+            Ok(TDict(vec![
+                (String::from("x"), TInteger),
+                (String::from("y"), TBool),
+                (String::from("z"), TReal)
+            ]))
+        );
+    }
+
+    #[test]
+    fn check_dictionary_merge_expression() {
+        /*
+         * For:
+         *  dict = { x: 10, y: 20 }
+         *  new_dict = dict with { y: true, z: 30 }
+         *
+         * Expected:
+         *  TDict([(String::from("x"), TInteger), (String::from("y"), TBool), (String::from("z"), TInteger)])
+         */
+        let mut env: Environment<Type> = Environment::new();
+        env.insert_variable(
+            String::from("dict"),
+            TDict(vec![
+                (String::from("x"), TInteger),
+                (String::from("y"), TInteger),
+            ]),
+        );
+
+        let merge_exp = DictMerge(
+            // The dictionary name is now an Expression
+            Box::new(Expression::Var(String::from("dict"))),
+            vec![
+                (Box::new(CString(String::from("y"))), Box::new(CTrue)),
+                (Box::new(CString(String::from("z"))), Box::new(CInt(30))),
+            ],
+        );
+
+        let dict_type = check_exp(merge_exp, &env);
+        assert_eq!(
+            dict_type,
+            Ok(TDict(vec![
+                (String::from("x"), TInteger),
+                (String::from("y"), TBool),
+                (String::from("z"), TInteger)
+            ]))
+        );
+    }
+
+    #[test]
+    fn check_in_expression() {
+        let mut env: Environment<Type> = Environment::new();
+        env.insert_variable(String::from("dict"), TDict(vec![]));
+
+        let in_exp = In(
+            Box::new(CString(String::from("key"))),
+            Box::new(Expression::Var(String::from("dict"))),
+        );
+        assert_eq!(check_exp(in_exp, &env), Ok(TBool));
+    }
+
+    #[test]
+    fn check_not_in_expression() {
+        let mut env: Environment<Type> = Environment::new();
+        env.insert_variable(String::from("dict"), TDict(vec![]));
+
+        let not_in_exp = NotIn(
+            Box::new(CString(String::from("key"))),
+            Box::new(Expression::Var(String::from("dict"))),
+        );
+        assert_eq!(check_exp(not_in_exp, &env), Ok(TBool));
+    }
+
+    #[test]
+    fn check_type_error_in_expression() {
+        let mut env: Environment<Type> = Environment::new();
+        env.insert_variable(String::from("var"), TInteger);
+
+        let in_exp = In(
+            Box::new(CString(String::from("key"))),
+            Box::new(Var(String::from("var"))),
+        );
+
+        assert_eq!(
+            check_exp(in_exp, &env),
+            Err(String::from(
+                "[Type Error] expecting a collection type on the right side."
+            ))
+        );
+    }
+
+    #[test]
+    fn check_type_error_not_in_expression() {
+        let mut env: Environment<Type> = Environment::new();
+        env.insert_variable(String::from("var"), TInteger);
+
+        let not_in_exp = NotIn(
+            Box::new(CString(String::from("key"))),
+            Box::new(Var(String::from("var"))),
+        );
+
+        assert_eq!(
+            check_exp(not_in_exp, &env),
+            Err(String::from(
+                "[Type Error] expecting a collection type on the right side."
+            ))
+        );
     }
 }

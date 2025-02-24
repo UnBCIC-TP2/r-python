@@ -144,6 +144,7 @@ pub enum Type {
     TFunction(Box<Option<Type>>, Vec<Type>),
     TList(Box<Type>),
     TTuple(Vec<Type>),
+    TDict(Vec<(Name, Type)>),
     TMaybe(Box<Type>),
     TResult(Box<Type>, Box<Type>), // Ok, Error
     TAny,
@@ -183,6 +184,15 @@ pub enum Expression {
     GTE(Box<Expression>, Box<Expression>),
     LTE(Box<Expression>, Box<Expression>),
 
+    /* data structures */
+    Dict(Vec<(Box<Expression>, Box<Expression>)>),
+    DictAccess(Box<Expression>, Box<Expression>),
+    DictMerge(Box<Expression>, Vec<(Box<Expression>, Box<Expression>)>),
+
+    /* membership checks over collections */
+    In(Box<Expression>, Box<Expression>),
+    NotIn(Box<Expression>, Box<Expression>),
+
     /* error expressions */
     COk(Box<Expression>),
     CErr(Box<Expression>),
@@ -214,6 +224,8 @@ pub enum Statement {
     AssertFails(String),
     FuncDef(Function),
     Return(Box<Expression>),
+    DictAssigment(Box<Expression>, Box<Expression>, Box<Expression>),
+    DictDel(Box<Expression>, Box<Expression>),
 }
 
 #[derive(Debug)]

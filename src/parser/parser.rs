@@ -11,6 +11,7 @@ use nom::{
 
 type ParseResult<'a, T> = IResult<&'a str, T, Error<&'a str>>;
 
+// Parse identifier
 const KEYWORDS: &[&str] = &[
     "if",
     "else",
@@ -104,6 +105,8 @@ fn statement(input: &str) -> IResult<&str, Statement> {
         return_statement,
         assignment,
         declaration,
+        dict_assignment,
+        dict_del_statement,
     ))(input)
 }
 
@@ -114,6 +117,11 @@ fn expression(input: &str) -> IResult<&str, Expression> {
         comparison_expression,
         arithmetic_expression,
         real,
+        dict_expression,
+        dict_access_expression,
+        dict_merge_expression,
+        in_expression,
+        not_in_expression,
         integer,
         ok_expression,
         err_expression,
@@ -194,7 +202,8 @@ fn arithmetic_expression(input: &str) -> ParseResult<Expression> {
 }
 
 // Add to imports
-use nom::character::complete::char as char_parser;
+use nom::character::complete::{char as char_parser, multispace0};
+use nom::sequence::separated_pair;
 
 // Parse boolean literals
 fn boolean(input: &str) -> IResult<&str, Expression> {
@@ -379,6 +388,93 @@ fn factor(input: &str) -> IResult<&str, Expression> {
     ))(input)
 }
 
+/// Parses a dictionary expression.
+/// Exemplo: `{x: 42, y: 10}`
+fn dict_expression(input: &str) -> IResult<&str, Expression> {
+    let (input, _) = delimited(space0, char('{'), multispace0)(input)?;
+    let (input, key_value_pairs) = separated_list0(
+        delimited(space0, char(','), multispace0),
+        separated_pair(identifier, delimited(space0, char(':'), space0), expression),
+    )(input)?;
+    let (input, _) = preceded(multispace0, char('}'))(input)?;
+    Ok((
+        input,
+        Expression::Dict(
+            key_value_pairs
+                .iter()
+                .map(|(key, value)| {
+                    (
+                        Box::new(Expression::CString(key.clone())),
+                        Box::new(value.clone()),
+                    )
+                })
+                .collect(),
+        ),
+    ))
+}
+
+/// Parses a dictionary access expression.
+/// Exemplo: `dict.key`
+fn dict_access_expression(input: &str) -> IResult<&str, Expression> {
+    let (input, (dict_name, key_name)) = separated_pair(identifier, char('.'), identifier)(input)?;
+    Ok((
+        input,
+        Expression::DictAccess(
+            Box::new(Expression::Var(dict_name)),
+            Box::new(Expression::CString(key_name)),
+        ),
+    ))
+}
+
+/// Parses a merge expression que cria um novo dicionário atualizado.
+/// Exemplo: `dict with { x: 42, y: 10 }`
+fn dict_merge_expression(input: &str) -> IResult<&str, Expression> {
+    let (input, (dict_name, new_dict)) = separated_pair(
+        identifier,
+        tuple((space0, tag("with"), space0)),
+        dict_expression,
+    )(input)?;
+    let new_entries = match new_dict {
+        Expression::Dict(entries) => entries,
+        _ => unreachable!(),
+    };
+    Ok((
+        input,
+        Expression::DictMerge(Box::new(Expression::Var(dict_name)), new_entries),
+    ))
+}
+
+/// Parses uma expressão `in`.
+/// Exemplo: `key in dict`
+fn in_expression(input: &str) -> IResult<&str, Expression> {
+    let (input, (item_name, collection_name)) =
+        separated_pair(identifier, tuple((space0, tag("in"), space0)), identifier)(input)?;
+    Ok((
+        input,
+        Expression::In(
+            Box::new(Expression::CString(item_name)),
+            Box::new(Expression::Var(collection_name)),
+        ),
+    ))
+}
+
+/// Parses uma expressão `not in`.
+/// Exemplo: `key not in dict`
+fn not_in_expression(input: &str) -> IResult<&str, Expression> {
+    let (input, (item_name, collection_name)) = separated_pair(
+        identifier,
+        tuple((space0, tag("not"), space0, tag("in"), space0)),
+        identifier,
+    )(input)?;
+    Ok((
+        input,
+        Expression::NotIn(
+            Box::new(Expression::CString(item_name)),
+            Box::new(Expression::Var(collection_name)),
+        ),
+    ))
+}
+
 //indented block parser
 fn indented_block(input: &str) -> IResult<&str, Vec<Statement>> {
     let (input, _) = line_ending(input)?;
@@ -415,6 +511,20 @@ fn if_statement(input: &str) -> IResult<&str, Statement> {
             Box::new(condition),
             Box::new(Statement::Block(then_block)),
             else_block.map(|stmts| Box::new(Statement::Block(stmts))),
+        ),
+    ))
+}
+
+/// Parses um statement de delete para dicionários.
+/// Exemplo: `del dict.key`
+fn dict_del_statement(input: &str) -> IResult<&str, Statement> {
+    let (input, _) = tuple((tag("del"), space1))(input)?;
+    let (input, (dict_name, key_name)) = separated_pair(identifier, char('.'), identifier)(input)?;
+    Ok((
+        input,
+        Statement::DictDel(
+            Box::new(Expression::Var(dict_name)),
+            Box::new(Expression::CString(key_name)),
         ),
     ))
 }
@@ -498,6 +608,22 @@ fn function_def(input: &str) -> IResult<&str, Statement> {
             ),
             body: Some(Box::new(Statement::Block(body))), // Wrap in Some
         }),
+    ))
+}
+
+/// Parses um statement de atribuição em dicionários.
+/// Exemplo: `dict.key = exp`
+fn dict_assignment(input: &str) -> IResult<&str, Statement> {
+    let (input, (dict_name, key_name)) = separated_pair(identifier, char('.'), identifier)(input)?;
+    let (input, _) = delimited(space0, char('='), space0)(input)?;
+    let (input, expr) = expression(input)?;
+    Ok((
+        input,
+        Statement::DictAssigment(
+            Box::new(Expression::Var(dict_name)),
+            Box::new(Expression::CString(key_name)),
+            Box::new(expr),
+        ),
     ))
 }
 
@@ -1031,6 +1157,314 @@ mod tests {
         let (rest, result) = boolean_expression(input).unwrap();
         assert_eq!(rest, "");
         assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_dictionary_expression() {
+        let input = "{x: 42, y: 10}";
+
+        let (rest, dict) = dict_expression(input).unwrap();
+        assert_eq!(rest, "");
+
+        let expected_pairs = vec![("x", 42), ("y", 10)];
+
+        match dict {
+            Expression::Dict(pairs) => {
+                assert_eq!(pairs.len(), 2, "Expected 2 pairs in dictionary");
+
+                for (i, pair) in pairs.iter().enumerate() {
+                    match *pair.0 {
+                        Expression::CString(ref key) => assert_eq!(key, expected_pairs[i].0),
+                        _ => panic!("Expected key '{}' of type CString", expected_pairs[i].0),
+                    }
+
+                    match *pair.1 {
+                        Expression::CInt(ref value) => assert_eq!(*value, expected_pairs[i].1),
+                        _ => panic!(
+                            "Expected CInt for the value of key '{}'",
+                            expected_pairs[i].0
+                        ),
+                    }
+                }
+            }
+            _ => panic!("Expected Dictionary"),
+        }
+    }
+
+    #[test]
+    fn test_empty_dictionary_expression() {
+        let input = "{}";
+
+        let (rest, dict) = dict_expression(input).unwrap();
+        assert_eq!(rest, "");
+
+        match dict {
+            Expression::Dict(pairs) => {
+                assert_eq!(pairs.len(), 0, "Expected 0 pairs in dictionary");
+            }
+            _ => panic!("Expected Dictionary"),
+        }
+    }
+
+    #[test]
+    fn test_dictionary_exp_with_whitespace() {
+        let input = r#"{
+        w:    12,      x   : 42   ,
+            y :    11,
+        z:14
+               }"#;
+
+        let (rest, dict) = dict_expression(input).unwrap();
+        assert_eq!(rest, "");
+
+        let expected_pairs = vec![("w", 12), ("x", 42), ("y", 11), ("z", 14)];
+
+        match dict {
+            Expression::Dict(pairs) => {
+                assert_eq!(pairs.len(), 4, "Expected 4 pairs in dictionary");
+
+                for (i, pair) in pairs.iter().enumerate() {
+                    match *pair.0 {
+                        Expression::CString(ref key) => assert_eq!(key, expected_pairs[i].0),
+                        _ => panic!("Expected key '{}' of type CString", expected_pairs[i].0),
+                    }
+
+                    match *pair.1 {
+                        Expression::CInt(value) => assert_eq!(value, expected_pairs[i].1),
+                        _ => panic!(
+                            "Expected CInt for the value of key '{}'",
+                            expected_pairs[i].0
+                        ),
+                    }
+                }
+            }
+            _ => panic!("Expected Dictionary"),
+        }
+    }
+
+    #[test]
+    fn test_dictionary_with_complex_expressions() {
+        let input = "{x: 42 + 10 + 12, y: 10 - 2 * 3}";
+
+        let (rest, dict) = dict_expression(input).unwrap();
+        assert_eq!(rest, "");
+
+        let expected_pairs = vec![
+            (
+                "x",
+                Box::new(Expression::CString(String::from("x"))),
+                Box::new(Expression::Add(
+                    Box::new(Expression::Add(
+                        Box::new(Expression::CInt(42)),
+                        Box::new(Expression::CInt(10)),
+                    )),
+                    Box::new(Expression::CInt(12)),
+                )),
+            ),
+            (
+                "y",
+                Box::new(Expression::CString(String::from("y"))),
+                Box::new(Expression::Sub(
+                    Box::new(Expression::CInt(10)),
+                    Box::new(Expression::Mul(
+                        Box::new(Expression::CInt(2)),
+                        Box::new(Expression::CInt(3)),
+                    )),
+                )),
+            ),
+        ];
+
+        match dict {
+            Expression::Dict(pairs) => {
+                assert_eq!(pairs.len(), 2, "Expected 2 pairs in dictionary");
+
+                for (i, pair) in pairs.iter().enumerate() {
+                    assert_eq!(
+                        pair.0, expected_pairs[i].1,
+                        "Expected key '{}'",
+                        expected_pairs[i].0
+                    );
+
+                    assert_eq!(
+                        pair.1, expected_pairs[i].2,
+                        "Key '{}' has a different type than expected",
+                        expected_pairs[i].0,
+                    );
+                }
+            }
+            _ => panic!("Expected Dictionary"),
+        }
+    }
+
+    #[test]
+    fn test_dictionary_access_expression() {
+        let input = "dict.key";
+
+        let (rest, access_exp) = dict_access_expression(input).unwrap();
+        assert_eq!(rest, "");
+
+        match access_exp {
+            Expression::DictAccess(dict_name, key_name) => {
+                assert_eq!(dict_name, Box::new(Expression::Var(String::from("dict"))));
+                assert_eq!(key_name, Box::new(Expression::CString(String::from("key"))));
+            }
+            _ => panic!("Expected dictionary access expression"),
+        }
+    }
+
+    #[test]
+    fn test_dict_assignment() {
+        let input = "dict.key = 42";
+        let (rest, stmt) = dict_assignment(input).unwrap();
+        assert_eq!(rest, "");
+
+        match stmt {
+            Statement::DictAssigment(dict_name, key_name, exp) => {
+                assert_eq!(dict_name, Box::new(Expression::Var(String::from("dict"))));
+                assert_eq!(key_name, Box::new(Expression::CString(String::from("key"))));
+
+                match *exp {
+                    Expression::CInt(val) => assert_eq!(val, 42),
+                    _ => panic!("Expected CInt"),
+                }
+            }
+            _ => panic!("Expected dictionary key assignment"),
+        }
+    }
+
+    #[test]
+    fn test_dict_assignment_with_complex_expressions() {
+        let input = "dict.key = 42 * (10 - (2 / 1))";
+        let (rest, stmt) = dict_assignment(input).unwrap();
+        assert_eq!(rest, "");
+
+        match stmt {
+            Statement::DictAssigment(dict_name, key_name, exp) => {
+                assert_eq!(dict_name, Box::new(Expression::Var(String::from("dict"))));
+                assert_eq!(key_name, Box::new(Expression::CString(String::from("key"))));
+
+                let expected_exp = Box::new(Expression::Mul(
+                    Box::new(Expression::CInt(42)),
+                    Box::new(Expression::Sub(
+                        Box::new(Expression::CInt(10)),
+                        Box::new(Expression::Div(
+                            Box::new(Expression::CInt(2)),
+                            Box::new(Expression::CInt(1)),
+                        )),
+                    )),
+                ));
+
+                assert_eq!(
+                    exp, expected_exp,
+                    "Expression has a different type than expected"
+                );
+            }
+            _ => panic!("Expected dictionary key assignment"),
+        }
+    }
+
+    #[test]
+    fn test_dictionary_merge_expression() {
+        let input = "dict with {x: 42, y: 10}";
+
+        let (rest, dict) = dict_merge_expression(input).unwrap();
+        assert_eq!(rest, "");
+
+        let expected_var_exp = Box::new(Expression::Var(String::from("dict")));
+        let expected_new_entries = vec![
+            (
+                "x",
+                Box::new(Expression::CString(String::from("x"))),
+                Box::new(Expression::CInt(42)),
+            ),
+            (
+                "y",
+                Box::new(Expression::CString(String::from("y"))),
+                Box::new(Expression::CInt(10)),
+            ),
+        ];
+
+        match dict {
+            Expression::DictMerge(var_exp, new_entries) => {
+                assert_eq!(var_exp, expected_var_exp);
+                assert_eq!(new_entries.len(), 2, "Expected 2 new entries");
+
+                for (i, pair) in new_entries.iter().enumerate() {
+                    assert_eq!(
+                        pair.0, expected_new_entries[i].1,
+                        "Expected new key '{}'",
+                        expected_new_entries[i].0
+                    );
+
+                    assert_eq!(
+                        pair.1, expected_new_entries[i].2,
+                        "Key '{}' has a different type than expected",
+                        expected_new_entries[i].0,
+                    );
+                }
+            }
+            _ => panic!("Expected dictionary merge expression"),
+        }
+    }
+
+    #[test]
+    fn test_dictionary_del_expression() {
+        let input = "del dict.key";
+
+        let (rest, del_stmt) = dict_del_statement(input).unwrap();
+        assert_eq!(rest, "");
+
+        match del_stmt {
+            Statement::DictDel(dict_name, key_name) => {
+                assert_eq!(dict_name, Box::new(Expression::Var(String::from("dict"))));
+                assert_eq!(key_name, Box::new(Expression::CString(String::from("key"))));
+            }
+            _ => panic!("Expected dictionary del expression"),
+        }
+    }
+
+    #[test]
+    fn test_in_expression() {
+        let input = "key in dict";
+
+        let (rest, access_exp) = in_expression(input).unwrap();
+        assert_eq!(rest, "");
+
+        match access_exp {
+            Expression::In(item_name, collection_name) => {
+                assert_eq!(
+                    item_name,
+                    Box::new(Expression::CString(String::from("key")))
+                );
+                assert_eq!(
+                    collection_name,
+                    Box::new(Expression::Var(String::from("dict")))
+                );
+            }
+            _ => panic!("Expected 'in' expression"),
+        }
+    }
+
+    #[test]
+    fn test_not_in_expression() {
+        let input = "key not in dict";
+
+        let (rest, access_exp) = not_in_expression(input).unwrap();
+        assert_eq!(rest, "");
+
+        match access_exp {
+            Expression::NotIn(item_name, collection_name) => {
+                assert_eq!(
+                    item_name,
+                    Box::new(Expression::CString(String::from("key")))
+                );
+                assert_eq!(
+                    collection_name,
+                    Box::new(Expression::Var(String::from("dict")))
+                );
+            }
+            _ => panic!("Expected 'not in' expression"),
+        }
     }
 
     #[test]

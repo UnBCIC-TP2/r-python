@@ -39,6 +39,12 @@ pub fn eval(exp: Expression, env: &Environment<EnvValue>) -> Result<EnvValue, Er
         Expression::IsError(e) => eval_iserror_expression(*e, env),
         Expression::IsNothing(e) => eval_isnothing_expression(*e, env),
         Expression::FuncCall(name, args) => call(name, args, env),
+        Expression::Dict(entries) => eval_dictionary(entries, env),
+        Expression::DictMerge(var_exp, new_entries) => {
+            eval_dictionary_merge(var_exp, new_entries, env)
+        }
+        Expression::In(item_expr, var_exp) => eval_in_expression(item_expr, var_exp, env),
+        Expression::NotIn(item_expr, var_exp) => eval_not_in_expression(item_expr, var_exp, env),
         _ if is_constant(exp.clone()) => Ok(EnvValue::Exp(exp)),
         _ => Err((String::from("Not implemented yet."), None)),
     }
@@ -199,6 +205,37 @@ fn execute(stmt: Statement, env: &Environment<EnvValue>) -> Result<ControlFlow, 
         Statement::Return(exp) => {
             let exp_value = eval(*exp, &new_env)?;
             Ok(ControlFlow::Return(exp_value))
+        }
+        Statement::DictDel(var_exp, key_expr) => {
+            let dict_name = match *var_exp {
+                Expression::Var(dict_name) => dict_name,
+                _ => return Err((String::from("expected a variable on the left side."), None)),
+            };
+
+            let mut new_env = env.clone();
+
+            let mut dict_entries = match new_env.search_frame(dict_name.clone()) {
+                Some(EnvValue::Exp(Expression::Dict(entries))) => entries.clone(),
+                _ => {
+                    return Err((
+                        String::from("cannot delete an item from a non-dictionary value"),
+                        None,
+                    ))
+                }
+            };
+
+            let entry_index = dict_entries.iter().position(|(k, _)| *k == key_expr);
+
+            match entry_index {
+                Some(index) => {
+                    dict_entries.remove(index);
+                }
+                None => return Err((String::from("key not found"), None)),
+            };
+
+            new_env.insert_variable(dict_name, EnvValue::Exp(Expression::Dict(dict_entries)));
+
+            Ok(ControlFlow::Continue(new_env))
         }
         _ => Err((String::from("not implemented yet"), None)),
     };
@@ -737,6 +774,155 @@ fn lte(
             }
         },
         "(<=) is only defined for numbers (integers and real).",
+    )
+}
+
+fn eval_dictionary(
+    dict_entries: Vec<(Box<Expression>, Box<Expression>)>,
+    env: &Environment<EnvValue>,
+) -> Result<EnvValue, ErrorMessage> {
+    let mut evaluated_dic: Vec<(Box<Expression>, Box<Expression>)> = Vec::new();
+
+    for (key_expr, value_exp) in dict_entries {
+        let evaluated_key = match eval(*key_expr, env) {
+            Ok(EnvValue::Exp(key_exp)) => key_exp,
+            _ => return Err((String::from("'key' is needs to be an expression."), None)),
+        };
+        let evaluated_value = match eval(*value_exp, env) {
+            Ok(EnvValue::Exp(key_exp)) => key_exp,
+            _ => return Err((String::from("'key' is needs to be an expression."), None)),
+        };
+
+        evaluated_dic.push((Box::new(evaluated_key), Box::new(evaluated_value)));
+    }
+
+    Ok(EnvValue::Exp(Expression::Dict(evaluated_dic)))
+}
+
+fn eval_dictionary_merge(
+    var_exp: Box<Expression>,
+    new_entries: Vec<(Box<Expression>, Box<Expression>)>,
+    env: &Environment<EnvValue>,
+) -> Result<EnvValue, ErrorMessage> {
+    let dict_name = match *var_exp {
+        Expression::Var(dict_name) => dict_name,
+        _ => return Err((String::from("expected a variable on the left side."), None)),
+    };
+
+    let old_entries = match env.search_frame(dict_name.clone()) {
+        Some(EnvValue::Exp(Expression::Dict(entries))) => entries,
+        Some(_) => {
+            return Err((
+                format!("operator (with) is not defined for '{}'.", dict_name),
+                None,
+            ))
+        }
+        None => return Err((format!("Variable {} not found", dict_name), None)),
+    };
+
+    let new_entries = match eval_dictionary(new_entries, env) {
+        Ok(EnvValue::Exp(Expression::Dict(entries))) => entries,
+        Err(msg) => return Err(msg),
+        _ => unreachable!(),
+    };
+
+    let mut merged_entries = old_entries.clone();
+
+    for (key_exp, value_exp) in new_entries.iter() {
+        if let Some(index) = merged_entries
+            .iter()
+            .position(|(existing_key, _)| **existing_key == **key_exp)
+        {
+            merged_entries[index] = (key_exp.clone(), value_exp.clone());
+        } else {
+            merged_entries.push((key_exp.clone(), value_exp.clone()));
+        }
+    }
+
+    Ok(EnvValue::Exp(Expression::Dict(merged_entries)))
+}
+
+fn eval_membership_expression<F>(
+    item_expr: Box<Expression>,
+    var_exp: Box<Expression>,
+    operator: &str,
+    check_membership: F,
+    env: &Environment<EnvValue>,
+) -> Result<EnvValue, ErrorMessage>
+where
+    F: Fn(bool) -> Expression,
+{
+    let collection_name = match *var_exp {
+        Expression::Var(collection_name) => collection_name,
+        _ => return Err((String::from("expected a variable on the right side."), None)),
+    };
+
+    let collection_exp = match env.search_frame(collection_name.clone()) {
+        Some(EnvValue::Exp(value)) => value,
+        Some(_) => {
+            return Err((
+                format!(
+                    "membership operator is not defined for '{}'.",
+                    collection_name
+                ),
+                None,
+            ))
+        }
+        None => return Err((format!("Variable {} not found", collection_name), None)),
+    };
+
+    match collection_exp {
+        Expression::Dict(entries) => match entries.iter().find(|(item, _)| *item == item_expr) {
+            Some(_) => Ok(EnvValue::Exp(check_membership(true))),
+            None => Ok(EnvValue::Exp(check_membership(false))),
+        },
+        _ => Err((
+            format!(
+                "operator ({}) is not defined for {}.",
+                operator, collection_name
+            ),
+            None,
+        )),
+    }
+}
+
+fn eval_in_expression(
+    item_expr: Box<Expression>,
+    var_exp: Box<Expression>,
+    env: &Environment<EnvValue>,
+) -> Result<EnvValue, ErrorMessage> {
+    eval_membership_expression(
+        item_expr,
+        var_exp,
+        "in",
+        |item_found| {
+            if item_found {
+                Expression::CTrue
+            } else {
+                Expression::CFalse
+            }
+        },
+        env,
+    )
+}
+
+fn eval_not_in_expression(
+    item_expr: Box<Expression>,
+    var_exp: Box<Expression>,
+    env: &Environment<EnvValue>,
+) -> Result<EnvValue, ErrorMessage> {
+    eval_membership_expression(
+        item_expr,
+        var_exp,
+        "not in",
+        |item_found| {
+            if item_found {
+                Expression::CFalse
+            } else {
+                Expression::CTrue
+            }
+        },
+        env,
     )
 }
 
@@ -2157,6 +2343,328 @@ mod tests {
             },
             Ok(ControlFlow::Return(_)) => assert!(false),
             Err(s) => assert!(false, "{}", s),
+        }
+    }
+
+    #[test]
+    fn eval_dictionary() {
+        /*
+         * Test for dictionary with expressions
+         *
+         * > var = 26
+         * > dict = {
+         * >    x: 10 + 12 + 20,
+         * >    y: true && false || true,
+         * >    z: var + 50
+         * > }
+         *
+         * After executing, 'dict' should be {
+         * > { x: 42, y: true,  z: 76 }
+         */
+
+        let mut env: Environment<EnvValue> = Environment::new();
+        env.insert_variable(String::from("var"), EnvValue::Exp(CInt(26)));
+
+        let dict_exp = Dict(vec![
+            (
+                Box::new(CString(String::from("x"))),
+                Box::new(Add(
+                    Box::new(Add(Box::new(CInt(10)), Box::new(CInt(12)))),
+                    Box::new(CInt(20)),
+                )),
+            ),
+            (
+                Box::new(CString(String::from("y"))),
+                Box::new(Or(
+                    Box::new(And(Box::new(CTrue), Box::new(CFalse))),
+                    Box::new(CTrue),
+                )),
+            ),
+            (
+                Box::new(CString(String::from("z"))),
+                Box::new(Add(Box::new(Var(String::from("var"))), Box::new(CInt(50)))),
+            ),
+        ]);
+
+        let evaluated_dict = eval(dict_exp, &env);
+
+        assert_eq!(
+            evaluated_dict,
+            Ok(EnvValue::Exp(Dict(vec![
+                (Box::new(CString(String::from("x"))), Box::new(CInt(42))),
+                (Box::new(CString(String::from("y"))), Box::new(CTrue)),
+                (Box::new(CString(String::from("z"))), Box::new(CInt(76))),
+            ]))),
+            "Dictionary not evaluated correctly"
+        );
+    }
+
+    #[test]
+    fn eval_nested_dictionaries() {
+        /*
+         * Test for nested dictionaries expressions
+         *
+         * > var = 10
+         * > dict = { x: 10 + 12, y: { y1: 12, y2: var + 20 } }
+         *
+         * After executing, 'dict' should be {
+         * > { x: 22, y: { y1: 12, y2: 30 } }
+         */
+
+        let mut env: Environment<EnvValue> = Environment::new();
+        env.insert_variable(String::from("var"), EnvValue::Exp(CInt(10)));
+
+        let dict_exp = Dict(vec![
+            (
+                Box::new(CString(String::from("x"))),
+                Box::new(Add(Box::new(CInt(10)), Box::new(CInt(12)))),
+            ),
+            (
+                Box::new(CString(String::from("y"))),
+                Box::new(Dict(vec![
+                    (Box::new(CString(String::from("y1"))), Box::new(CInt(12))),
+                    (
+                        Box::new(CString(String::from("y2"))),
+                        Box::new(Add(Box::new(Var(String::from("var"))), Box::new(CInt(20)))),
+                    ),
+                ])),
+            ),
+        ]);
+
+        let evaluated_dict = eval(dict_exp, &env);
+
+        assert_eq!(
+            evaluated_dict,
+            Ok(EnvValue::Exp(Dict(vec![
+                (Box::new(CString(String::from("x"))), Box::new(CInt(22))),
+                (
+                    Box::new(CString(String::from("y"))),
+                    Box::new(Dict(vec![
+                        (Box::new(CString(String::from("y1"))), Box::new(CInt(12))),
+                        (Box::new(CString(String::from("y2"))), Box::new(CInt(30))),
+                    ])),
+                ),
+            ]))),
+            "Dictionary not evaluated correctly"
+        );
+    }
+
+    #[test]
+    fn check_dictionary_merge_expression() {
+        /*
+         * Test for dictionary merge expression:
+         *
+         * > dict = {x: 10, y: 20}
+         * > new_dict = dict with {y: true, z: 30}
+         *
+         * 'new_dict' should be {x: 10, y: true, z: 30}
+         */
+
+        let mut env: Environment<EnvValue> = Environment::new();
+        env.insert_variable(
+            String::from("dict"),
+            EnvValue::Exp(Dict(vec![
+                (Box::new(CString(String::from("x"))), Box::new(CInt(10))),
+                (Box::new(CString(String::from("y"))), Box::new(CInt(20))),
+            ])),
+        );
+
+        let merge_exp = DictMerge(
+            Box::new(Var(String::from("dict"))),
+            vec![
+                (Box::new(CString(String::from("y"))), Box::new(CTrue)),
+                (Box::new(CString(String::from("z"))), Box::new(CInt(30))),
+            ],
+        );
+
+        let new_dict = eval(merge_exp, &env);
+
+        assert_eq!(
+            new_dict,
+            Ok(EnvValue::Exp(Dict(vec![
+                (Box::new(CString(String::from("x"))), Box::new(CInt(10))),
+                (Box::new(CString(String::from("y"))), Box::new(CTrue)),
+                (Box::new(CString(String::from("z"))), Box::new(CInt(30)))
+            ])))
+        );
+    }
+
+    #[test]
+    fn eval_dictionary_delete_statement() {
+        /*
+         * Test for dictionary delete statement
+         * > dict = {x: 10}
+         * > del dict.x
+         * After executing, 'dict' should be equal to '{}'
+         */
+        let mut env: Environment<EnvValue> = Environment::new();
+        env.insert_variable(
+            String::from("dict"),
+            EnvValue::Exp(Dict(vec![(
+                Box::new(CString(String::from("x"))),
+                Box::new(CInt(10)),
+            )])),
+        );
+
+        let del_stmts = DictDel(
+            Box::new(Var(String::from("dict"))),
+            Box::new(CString(String::from("x"))),
+        );
+
+        match execute(del_stmts, &env) {
+            Ok(ControlFlow::Continue(new_env)) => {
+                let dict = new_env.search_frame("dict".to_string()).unwrap();
+
+                assert_eq!(*dict, EnvValue::Exp(Dict(vec![])));
+            }
+            _ => assert!(false),
+        }
+    }
+
+    #[test]
+    fn eval_in_expression_item_found() {
+        /*
+         * Test for 'in' expression when the item is found
+         * > dict = {x: 10}
+         * After executing, 'x in dict' should return 'true'.
+         */
+        let mut env: Environment<EnvValue> = Environment::new();
+        env.insert_variable(
+            String::from("dict"),
+            EnvValue::Exp(Dict(vec![(
+                Box::new(CString(String::from("x"))),
+                Box::new(CInt(10)),
+            )])),
+        );
+
+        let in_exp = In(
+            Box::new(CString(String::from("x"))),
+            Box::new(Var(String::from("dict"))),
+        );
+
+        match eval(in_exp, &env) {
+            Ok(EnvValue::Exp(CTrue)) => assert!(true),
+            _ => assert!(false),
+        }
+    }
+
+    #[test]
+    fn eval_in_expression_item_not_found() {
+        /*
+         * Test for 'in' expression when the item is not found
+         * > dict = {}
+         * After executing, 'x in dict' should return 'false'.
+         */
+        let mut env: Environment<EnvValue> = Environment::new();
+        env.insert_variable(String::from("dict"), EnvValue::Exp(Dict(vec![])));
+
+        let in_exp = In(
+            Box::new(CString(String::from("x"))),
+            Box::new(Var(String::from("dict"))),
+        );
+
+        match eval(in_exp, &env) {
+            Ok(EnvValue::Exp(CFalse)) => assert!(true),
+            _ => assert!(false),
+        }
+    }
+
+    #[test]
+    fn eval_in_expression_not_collection_error() {
+        /*
+         * Test for 'in' expression when the variable is not a collection
+         * > var = 10
+         * After executing, 'x in var' should return an error.
+         */
+        let mut env: Environment<EnvValue> = Environment::new();
+        env.insert_variable(String::from("var"), EnvValue::Exp(CInt(10)));
+
+        let in_exp = In(
+            Box::new(CString(String::from("x"))),
+            Box::new(Var(String::from("var"))),
+        );
+
+        match eval(in_exp, &env) {
+            Err(msg) => assert_eq!(
+                msg,
+                (String::from("operator (in) is not defined for var."), None)
+            ),
+            _ => assert!(false),
+        }
+    }
+
+    #[test]
+    fn eval_not_in_expression_item_found() {
+        /*
+         * Test for 'not in' expression when the item is found
+         * > dict = {x: 10}
+         * After executing, 'x not in dict' should return 'false'.
+         */
+        let mut env: Environment<EnvValue> = Environment::new();
+        env.insert_variable(
+            String::from("dict"),
+            EnvValue::Exp(Dict(vec![(
+                Box::new(CString(String::from("x"))),
+                Box::new(CInt(10)),
+            )])),
+        );
+
+        let not_in_exp = NotIn(
+            Box::new(CString(String::from("x"))),
+            Box::new(Var(String::from("dict"))),
+        );
+
+        match eval(not_in_exp, &env) {
+            Ok(EnvValue::Exp(CFalse)) => assert!(true),
+            _ => assert!(false),
+        }
+    }
+
+    #[test]
+    fn eval_not_in_expression_item_not_found() {
+        /*
+         * Test for 'not in' expression when the item is not found
+         * > dict = {}
+         * After executing, 'x not in dict' should return 'true'.
+         */
+        let mut env: Environment<EnvValue> = Environment::new();
+        env.insert_variable(String::from("dict"), EnvValue::Exp(Dict(vec![])));
+
+        let in_exp = NotIn(
+            Box::new(CString(String::from("x"))),
+            Box::new(Var(String::from("dict"))),
+        );
+
+        match eval(in_exp, &env) {
+            Ok(EnvValue::Exp(CTrue)) => assert!(true),
+            _ => assert!(false),
+        }
+    }
+
+    #[test]
+    fn eval_not_in_expression_not_collection_error() {
+        /*
+         * Test for 'not in' expression when the variable is not a collection
+         * > var = 10
+         * After executing, 'x not in var' should return an error.
+         */
+        let mut env: Environment<EnvValue> = Environment::new();
+        env.insert_variable(String::from("var"), EnvValue::Exp(CInt(10)));
+
+        let in_exp = NotIn(
+            Box::new(CString(String::from("x"))),
+            Box::new(Var(String::from("var"))),
+        );
+
+        match eval(in_exp, &env) {
+            Err(msg) => assert_eq!(
+                msg,
+                (
+                    String::from("operator (not in) is not defined for var."),
+                    None
+                )
+            ),
+            _ => assert!(false),
         }
     }
 }
