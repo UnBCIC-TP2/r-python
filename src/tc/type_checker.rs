@@ -48,12 +48,11 @@ pub fn check_stmt(stmt: Statement, env: &Environment<Type>) -> Result<ControlTyp
     match stmt {
         Statement::Assignment(name, exp, kind) => {
             let exp_type = check_exp(*exp, &new_env)?;
-            if let Ok(stated_type) = check_var_name(name.clone(), &new_env, true){
+            if let Ok(stated_type) = check_var_name(name.clone(), &new_env, true) {
                 if exp_type != stated_type {
                     return Err(format!("[Type Error on '{}()'] '{}' has mismatched types: expected '{:?}', found '{:?}'.", new_env.scope_name(), name, stated_type, exp_type));
                 }
-            }
-            else{
+            } else {
                 new_env.insert_variable(name, exp_type);
             }
             Ok(ControlType::Continue(new_env))

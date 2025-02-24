@@ -4,17 +4,20 @@ use crate::interpreter::interpreter::execute_block;
 
 use crate::interpreter::interpreter::ControlFlow;
 use crate::interpreter::interpreter::EnvValue;
-use crate::tc::type_checker::check_stmt;
-use crate::tc::type_checker::ControlType;
-use crate::ir::ast::Statement;
 use crate::ir::ast::Environment;
 use crate::ir::ast::Expression;
+use crate::ir::ast::Statement;
 use crate::ir::ast::Type;
 use crate::parser::parser::*;
+use crate::tc::type_checker::check_stmt;
+use crate::tc::type_checker::ControlType;
 use std::io::{self, Write};
 use std::process::Command;
 
-pub fn repl(env: Option<Environment<EnvValue>>, env_type: Option<Environment<Type>>) -> io::Result<()> {
+pub fn repl(
+    env: Option<Environment<EnvValue>>,
+    env_type: Option<Environment<Type>>,
+) -> io::Result<()> {
     // Print welcome message
     println!("R-Python REPL");
     println!("Type !help' for more commands or '!exit' to quit'\n");
@@ -116,10 +119,12 @@ fn handle_inline_command(input: &str, env: &mut Environment<EnvValue>) -> io::Re
     Ok(())
 }
 
-fn repl_parse_expression(input: &str, current_env: &Environment<EnvValue>) -> Result<String, String> {
+fn repl_parse_expression(
+    input: &str,
+    current_env: &Environment<EnvValue>,
+) -> Result<String, String> {
     // Parse the input as an expression
     match expression(input) {
-        
         Ok(("", expr)) => {
             // Evaluate the expression
             match eval(expr, &current_env.clone()) {
@@ -132,16 +137,23 @@ fn repl_parse_expression(input: &str, current_env: &Environment<EnvValue>) -> Re
     }
 }
 
-fn repl_parse_statements(input: &str, mut current_env: Environment<EnvValue>, mut current_env_type: Environment<Type>) -> Result<(Environment<EnvValue>, Environment<Type>), String> {
+fn repl_parse_statements(
+    input: &str,
+    mut current_env: Environment<EnvValue>,
+    mut current_env_type: Environment<Type>,
+) -> Result<(Environment<EnvValue>, Environment<Type>), String> {
     // Parse the input as a statement
     match parse(input) {
         Ok((remaining, statements)) => {
             if !remaining.is_empty() {
-                return Err(format!("Warning: Unparsed input remains: {:?}\n", remaining));
+                return Err(format!(
+                    "Warning: Unparsed input remains: {:?}\n",
+                    remaining
+                ));
             }
 
             let stmt = Statement::Block(statements.clone());
-            match check_stmt(stmt, &current_env_type.clone()){
+            match check_stmt(stmt, &current_env_type.clone()) {
                 Ok(ControlType::Continue(new_env)) => current_env_type = new_env,
                 Ok(ControlType::Return(_)) => {
                     return Err(format!("Execution Error: Return value not in a Function"))
@@ -156,20 +168,16 @@ fn repl_parse_statements(input: &str, mut current_env: Environment<EnvValue>, mu
                 }
                 Err(e) => return Err(format!("Execution Error: {:?}", e)),
             }
-            println!("Contexto de valores atual: {:?}", current_env);
-            println!("Contexto de tipos atual: {:?}", current_env_type);
             Ok((current_env.clone(), current_env_type.clone()))
         }
         Err(e) => Err(format!("Statement Parse Error: {}", e)),
     }
 }
 
-
-
 // For "-c" inline commands
 pub fn execute_inline_command(command: &str) -> io::Result<()> {
     let env = Environment::new();
-    
+
     // First try to parse as an expression
     let output = match expression(command) {
         Ok(("", expr)) => evaluate_expression(expr, &env),
@@ -185,16 +193,17 @@ fn evaluate_expression(expr: Expression, env: &Environment<EnvValue>) -> Result<
         .map_err(|e| format!("Evaluation Error: {:?}", e))
 }
 
-fn parse_and_execute_statements(command: &str, env: &Environment<EnvValue>) -> Result<String, String> {
+fn parse_and_execute_statements(
+    command: &str,
+    env: &Environment<EnvValue>,
+) -> Result<String, String> {
     match parse(command) {
-        Ok(("", statements)) => {
-            execute_block(statements, env)
-                .map(|control_flow| match control_flow {
-                    ControlFlow::Return(value) => format_env_value(&value),
-                    _ => String::new(),
-                })
-                .map_err(|e| format!("Execution Error: {:?}", e))
-        }
+        Ok(("", statements)) => execute_block(statements, env)
+            .map(|control_flow| match control_flow {
+                ControlFlow::Return(value) => format_env_value(&value),
+                _ => String::new(),
+            })
+            .map_err(|e| format!("Execution Error: {:?}", e)),
         Ok((remaining, _)) => Err(format!("Unparsed input: {:?}", remaining)),
         Err(_) => Err("Parse Error: Invalid syntax".to_string()),
     }
@@ -214,10 +223,9 @@ fn handle_execution_output(output: Result<String, String>) -> io::Result<()> {
     }
 }
 
-
 // For formatting values
 fn format_env_value(value: &EnvValue) -> String {
-    let EnvValue::Exp(expr) = value else {todo!()};
+    let EnvValue::Exp(expr) = value else { todo!() };
     format!("{}", expr)
 }
 

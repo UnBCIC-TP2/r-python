@@ -3,13 +3,13 @@ use std::env;
 use std::fs;
 use std::process;
 
-use crate::io;
-use crate::interpreter::interpreter::EnvValue;
-use crate::ir::ast::Type;
 use crate::interpreter::interpreter::execute;
-use crate::tc::type_checker::ControlType;
-use crate::tc::type_checker::check_stmt;
+use crate::interpreter::interpreter::EnvValue;
+use crate::io;
+use crate::ir::ast::Type;
 use crate::parser::parser::*;
+use crate::tc::type_checker::check_stmt;
+use crate::tc::type_checker::ControlType;
 
 use crate::interpreter::interpreter::ControlFlow;
 use crate::ir::ast::{Environment, Expression, Statement};
@@ -43,7 +43,7 @@ pub fn cli(file_path: &String) -> io::Result<(Environment<EnvValue>, Environment
     print_env(&env);
 
     for stmt in parsed_statements {
-        match check_stmt(stmt.clone(), &env_type){
+        match check_stmt(stmt.clone(), &env_type) {
             Ok(ControlType::Continue(new_env)) => env_type = new_env,
             Ok(ControlType::Return(_)) => {
                 eprintln!("Error during execution");
@@ -67,7 +67,6 @@ pub fn cli(file_path: &String) -> io::Result<(Environment<EnvValue>, Environment
                 process::exit(1);
             }
         }
-        
     }
 
     println!("\nEnvironment after execution:");

@@ -104,7 +104,6 @@ impl<A> Environment<A> {
     pub fn get_variable(&self, name: &str) -> Option<&A> {
         self.stack.get(&self.scope_key())?.variables.get(name)
     }
-    
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -202,8 +201,8 @@ pub enum Expression {
     Propagate(Box<Expression>),
 }
 
-impl fmt::Display for Expression{
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result{
+impl fmt::Display for Expression {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Expression::CInt(val) => write!(f, "{:?}", val),
             Expression::CReal(val) => write!(f, "{:?}", val),
@@ -219,7 +218,7 @@ impl fmt::Display for Expression{
             Expression::IsError(exp) => write!(f, "IsError({})", exp.to_string()),
             Expression::IsNothing(exp) => write!(f, "IsNothing({})", exp.to_string()),
             Expression::Propagate(exp) => write!(f, "Propagate({})", exp.to_string()),
-            _ => todo!()
+            _ => todo!(),
         }
     }
 }
