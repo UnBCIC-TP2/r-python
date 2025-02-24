@@ -11,6 +11,7 @@ pub fn check_exp(exp: Expression, env: &Environment<Type>) -> Result<Type, Error
     match exp {
         Expression::CTrue => Ok(Type::TBool),
         Expression::CFalse => Ok(Type::TBool),
+        Expression::CVoid => Ok(Type::TVoid),
         Expression::CInt(_) => Ok(Type::TInteger),
         Expression::CReal(_) => Ok(Type::TReal),
         Expression::CString(_) => Ok(Type::TString),
@@ -25,8 +26,16 @@ pub fn check_exp(exp: Expression, env: &Environment<Type>) -> Result<Type, Error
         Expression::GT(l, r) => check_bin_relational_expression(*l, *r, env),
         Expression::LT(l, r) => check_bin_relational_expression(*l, *r, env),
         Expression::GTE(l, r) => check_bin_relational_expression(*l, *r, env),
-        Expression::LTE(l, r) => check_bin_boolean_expression(*l, *r, env),
+        Expression::LTE(l, r) => check_bin_relational_expression(*l, *r, env),
         Expression::Var(name) => check_var_name(name, env, false),
+        Expression::COk(e) => check_result_ok(*e, env),
+        Expression::CErr(e) => check_result_err(*e, env),
+        Expression::CJust(e) => check_maybe_just(*e, env),
+        Expression::CNothing => Ok(Type::TMaybe(Box::new(Type::TAny))),
+        Expression::IsError(e) => check_iserror_type(*e, env),
+        Expression::IsNothing(e) => check_isnothing_type(*e, env),
+        Expression::Unwrap(e) => check_unwrap_type(*e, env),
+        Expression::Propagate(e) => check_propagate_type(*e, env),
         Expression::FuncCall(name, args) => check_func_call(name, args, env),
         Expression::Dict(entries) => check_dictionary(entries, env),
         Expression::DictMerge(var_exp, new_entries) => {
@@ -388,6 +397,63 @@ fn check_bin_relational_expression(
     }
 }
 
+fn check_result_ok(exp: Expression, env: &Environment<Type>) -> Result<Type, ErrorMessage> {
+    let exp_type = check_exp(exp, env)?;
+    return Ok(Type::TResult(Box::new(exp_type), Box::new(Type::TAny)));
+}
+
+fn check_result_err(exp: Expression, env: &Environment<Type>) -> Result<Type, ErrorMessage> {
+    let exp_type = check_exp(exp, env)?;
+    return Ok(Type::TResult(Box::new(Type::TAny), Box::new(exp_type)));
+}
+
+fn check_unwrap_type(exp: Expression, env: &Environment<Type>) -> Result<Type, ErrorMessage> {
+    let exp_type = check_exp(exp, env)?;
+
+    match exp_type {
+        Type::TMaybe(t) => Ok(*t),
+        Type::TResult(tl, _) => Ok(*tl),
+        _ => Err(String::from(
+            "[Type Error] expecting a maybe or result type value.",
+        )),
+    }
+}
+
+fn check_propagate_type(exp: Expression, env: &Environment<Type>) -> Result<Type, ErrorMessage> {
+    let exp_type = check_exp(exp, env)?;
+
+    match exp_type {
+        Type::TMaybe(t) => Ok(*t),
+        Type::TResult(tl, _) => Ok(*tl),
+        _ => Err(String::from(
+            "[Type Error] expecting a maybe or result type value.",
+        )),
+    }
+}
+
+fn check_maybe_just(exp: Expression, env: &Environment<Type>) -> Result<Type, ErrorMessage> {
+    let exp_type = check_exp(exp, env)?;
+    Ok(Type::TMaybe(Box::new(exp_type)))
+}
+
+fn check_iserror_type(exp: Expression, env: &Environment<Type>) -> Result<Type, ErrorMessage> {
+    let v = check_exp(exp, env)?;
+
+    match v {
+        Type::TResult(_, _) => Ok(Type::TBool),
+        _ => Err(String::from("[Type Error] expecting a result type value.")),
+    }
+}
+
+fn check_isnothing_type(exp: Expression, env: &Environment<Type>) -> Result<Type, ErrorMessage> {
+    let exp_type = check_exp(exp, env)?;
+
+    match exp_type {
+        Type::TMaybe(_) => Ok(Type::TBool),
+        _ => Err(String::from("[Type Error] expecting a maybe type value.")),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -536,6 +602,158 @@ mod tests {
             check_exp(or, &env),
             Err(String::from("[Type Error] expecting boolean type values."))
         );
+    }
+
+    #[test]
+    fn check_ok_result() {
+        let env = Environment::new();
+        let f10 = CReal(10.0);
+        let ok = COk(Box::new(f10));
+
+        assert_eq!(
+            check_exp(ok, &env),
+            Ok(TResult(Box::new(TReal), Box::new(TAny)))
+        );
+    }
+
+    #[test]
+    fn check_err_result() {
+        let env = Environment::new();
+        let ecode = CInt(1);
+        let err = CErr(Box::new(ecode));
+
+        assert_eq!(
+            check_exp(err, &env),
+            Ok(TResult(Box::new(TAny), Box::new(TInteger)))
+        );
+    }
+
+    #[test]
+    fn check_just_integer() {
+        let env = Environment::new();
+        let c5 = CInt(5);
+        let just = CJust(Box::new(c5));
+
+        assert_eq!(check_exp(just, &env), Ok(TMaybe(Box::new(TInteger))))
+    }
+
+    #[test]
+    fn check_is_error_result_positive() {
+        let env = Environment::new();
+        let bool = CTrue;
+        let ok = COk(Box::new(bool));
+        let ie = IsError(Box::new(ok));
+
+        assert_eq!(check_exp(ie, &env), Ok(TBool));
+    }
+
+    #[test]
+    fn check_is_error_result_error() {
+        let env = Environment::new();
+        let bool = CTrue;
+        let ie = IsError(Box::new(bool));
+
+        assert_eq!(
+            check_exp(ie, &env),
+            Err(String::from("[Type Error] expecting a result type value."))
+        );
+    }
+
+    #[test]
+    fn check_nothing() {
+        let env = Environment::new();
+
+        assert_eq!(check_exp(CNothing, &env), Ok(TMaybe(Box::new(TAny))));
+    }
+
+    #[test]
+    fn check_is_nothing_on_maybe() {
+        let env = Environment::new();
+        let c5 = CInt(5);
+        let just = CJust(Box::new(c5));
+        let is_nothing = IsNothing(Box::new(just));
+
+        assert_eq!(check_exp(is_nothing, &env), Ok(TBool));
+    }
+
+    #[test]
+    fn check_is_nothing_type_error() {
+        let env = Environment::new();
+        let c5 = CInt(5);
+        let is_nothing = IsNothing(Box::new(c5));
+
+        assert_eq!(
+            check_exp(is_nothing, &env),
+            Err(String::from("[Type Error] expecting a maybe type value."))
+        );
+    }
+
+    #[test]
+    fn check_unwrap_maybe() {
+        let env = Environment::new();
+        let c5 = CInt(5);
+        let some = CJust(Box::new(c5));
+        let u = Unwrap(Box::new(some));
+
+        assert_eq!(check_exp(u, &env), Ok(TInteger));
+    }
+
+    #[test]
+    fn check_unwrap_maybe_type_error() {
+        let env = Environment::new();
+        let c5 = CInt(5);
+        let u = Unwrap(Box::new(c5));
+
+        assert_eq!(
+            check_exp(u, &env),
+            Err(String::from(
+                "[Type Error] expecting a maybe or result type value."
+            ))
+        );
+    }
+
+    #[test]
+    fn check_unwrap_result() {
+        let env = Environment::new();
+        let bool = CTrue;
+        let ok = COk(Box::new(bool));
+        let u = Unwrap(Box::new(ok));
+
+        assert_eq!(check_exp(u, &env), Ok(TBool));
+    }
+
+    #[test]
+    fn check_propagate_maybe() {
+        let env = Environment::new();
+        let c5 = CInt(5);
+        let some = CJust(Box::new(c5));
+        let u = Propagate(Box::new(some));
+
+        assert_eq!(check_exp(u, &env), Ok(TInteger));
+    }
+
+    #[test]
+    fn check_propagate_maybe_type_error() {
+        let env = Environment::new();
+        let c5 = CInt(5);
+        let u = Propagate(Box::new(c5));
+
+        assert_eq!(
+            check_exp(u, &env),
+            Err(String::from(
+                "[Type Error] expecting a maybe or result type value."
+            ))
+        );
+    }
+
+    #[test]
+    fn check_propagate_result() {
+        let env = Environment::new();
+        let bool = CTrue;
+        let ok = COk(Box::new(bool));
+        let u = Propagate(Box::new(ok));
+
+        assert_eq!(check_exp(u, &env), Ok(TBool));
     }
 
     #[test]
