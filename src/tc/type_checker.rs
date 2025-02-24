@@ -678,7 +678,7 @@ mod tests {
     fn check_assignment() {
         let env: Environment<Type> = Environment::new();
 
-        let assignment = Assignment("a".to_string(), Box::new(CTrue), Some(TBool));
+        let assignment = Assignment("a".to_string(), Box::new(CTrue), Some(TAny));
 
         match check_stmt(assignment, &env) {
             Ok(ControlType::Continue(new_env)) => {
@@ -692,10 +692,11 @@ mod tests {
     #[test]
     fn check_assignment_error1() {
         let env: Environment<Type> = Environment::new();
+        let assignment1 = Assignment("a".to_string(), Box::new(CInt(10)), Some(TAny));
+        let assignment2 = Assignment("a".to_string(), Box::new(CTrue), Some(TAny));
+        let program = Sequence(Box::new(assignment1), Box::new(assignment2));
 
-        let assignment = Assignment("a".to_string(), Box::new(CTrue), Some(TInteger));
-
-        match check_stmt(assignment, &env) {
+        match check_stmt(program, &env) {
             Ok(_) => assert!(false),
             Err(s) => assert_eq!(
                 s,
@@ -708,8 +709,8 @@ mod tests {
     fn check_assignment_error2() {
         let env: Environment<Type> = Environment::new();
 
-        let assignment1 = Assignment("a".to_string(), Box::new(CTrue), Some(TBool));
-        let assignment2 = Assignment("a".to_string(), Box::new(CInt(1)), None);
+        let assignment1 = Assignment("a".to_string(), Box::new(CTrue), Some(TAny));
+        let assignment2 = Assignment("a".to_string(), Box::new(CInt(1)), Some(TAny));
         let program = Sequence(Box::new(assignment1), Box::new(assignment2));
 
         match check_stmt(program, &env) {
@@ -730,12 +731,12 @@ mod tests {
             Box::new(Assignment(
                 "a".to_string(),
                 Box::new(CInt(1)),
-                Some(TInteger),
+                Some(TAny),
             )),
             Some(Box::new(Assignment(
                 "b".to_string(),
                 Box::new(CReal(2.0)),
-                Some(TReal),
+                Some(TAny),
             ))),
         );
 
@@ -752,8 +753,8 @@ mod tests {
     fn check_while_error() {
         let env: Environment<Type> = Environment::new();
 
-        let assignment1 = Assignment("a".to_string(), Box::new(CInt(3)), Some(TInteger));
-        let assignment2 = Assignment("b".to_string(), Box::new(CInt(0)), Some(TInteger));
+        let assignment1 = Assignment("a".to_string(), Box::new(CInt(3)), Some(TAny));
+        let assignment2 = Assignment("b".to_string(), Box::new(CInt(0)), Some(TAny));
         let while_stmt = While(
             Box::new(CInt(1)),
             Box::new(Assignment(

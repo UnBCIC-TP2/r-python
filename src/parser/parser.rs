@@ -1219,7 +1219,7 @@ mod tests {
                 Statement::Assignment(
                     String::from("x"),
                     Box::new(Expression::COk(Box::new(Expression::CTrue))),
-                    None
+                    Some(Type::TAny)
                 ),
                 Statement::IfThenElse(
                     Box::new(Expression::Unwrap(Box::new(Expression::Var(String::from(
@@ -1228,7 +1228,7 @@ mod tests {
                     Box::new(Statement::Block(vec![Statement::Assignment(
                         String::from("y"),
                         Box::new(Expression::CInt(1)),
-                        Some(Type::TInteger)
+                        Some(Type::TAny)
                     )])),
                     None
                 ),
@@ -1239,7 +1239,7 @@ mod tests {
                     Box::new(Statement::Block(vec![Statement::Assignment(
                         String::from("y"),
                         Box::new(Expression::CInt(1)),
-                        Some(Type::TInteger)
+                        Some(Type::TAny)
                     )])),
                     None
                 )

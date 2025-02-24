@@ -13,7 +13,14 @@ use crate::tc::type_checker::ControlType;
 
 use crate::interpreter::interpreter::ControlFlow;
 use crate::ir::ast::{Environment, Expression, Statement};
+
 pub fn print_env(env: &Environment<EnvValue>) {
+    for (key, value) in env.stack.iter() {
+        println!("{:?} = {:?}", key, value);
+    }
+}
+
+pub fn print_env_type(env: &Environment<Type>) {
     for (key, value) in env.stack.iter() {
         println!("{:?} = {:?}", key, value);
     }
@@ -42,6 +49,9 @@ pub fn cli(file_path: &String) -> io::Result<(Environment<EnvValue>, Environment
     println!("Environment before execution:");
     print_env(&env);
 
+    println!("Type Environment before execution:");
+    print_env_type(&env_type);
+
     for stmt in parsed_statements {
         match check_stmt(stmt.clone(), &env_type) {
             Ok(ControlType::Continue(new_env)) => env_type = new_env,
@@ -69,7 +79,10 @@ pub fn cli(file_path: &String) -> io::Result<(Environment<EnvValue>, Environment
         }
     }
 
-    println!("\nEnvironment after execution:");
+    println!("Environment before execution:");
     print_env(&env);
+
+    println!("Type Environment before execution:");
+    print_env_type(&env_type);
     Ok((env, env_type))
 }
