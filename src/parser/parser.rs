@@ -104,6 +104,8 @@ fn statement(input: &str) -> IResult<&str, Statement> {
         return_statement,
         assignment,
         declaration,
+        print_statement,
+        write_to_file_statement,
     ))(input)
 }
 
@@ -124,6 +126,9 @@ fn expression(input: &str) -> IResult<&str, Expression> {
         iserror_expression,
         isnothing_expression,
         string,
+        read_string,
+        read_int,
+        read_float,
         map(identifier, Expression::Var),
     ))(input)
 }
@@ -379,6 +384,8 @@ fn factor(input: &str) -> IResult<&str, Expression> {
     ))(input)
 }
 
+
+
 //indented block parser
 fn indented_block(input: &str) -> IResult<&str, Vec<Statement>> {
     let (input, _) = line_ending(input)?;
@@ -464,6 +471,8 @@ fn parse_type(type_name: &str) -> Type {
     }
 }
 
+
+
 // function definition parsing
 fn function_def(input: &str) -> IResult<&str, Statement> {
     let (input, _) = tag("def")(input)?;
@@ -500,6 +509,41 @@ fn function_def(input: &str) -> IResult<&str, Statement> {
         }),
     ))
 }
+
+//Parse IO functions
+fn read_string(input: &str) -> IResult<&str, Expression> {
+    map(tag("read_string"), |_| Expression::ReadString)(input)
+}
+
+fn read_int(input: &str) -> IResult<&str, Expression> {
+    map(tag("read_int"), |_| Expression::ReadInt)(input)
+}
+
+fn read_float(input: &str) -> IResult<&str, Expression> {
+    map(tag("read_float"), |_| Expression::ReadFloat)(input)
+}
+
+fn print_statement(input: &str) -> IResult<&str, Statement> {
+    let (input, _) = tag("print")(input)?;
+    let (input, _) = space1(input)?;
+    let (input, expr) = expression(input)?;
+    Ok((input, Statement::Print(Box::new(expr))))
+}
+
+fn write_to_file_statement(input: &str) -> IResult<&str, Statement> {
+    let (input, _) = tag("write_to_file")(input)?;
+    let (input, _) = space1(input)?; 
+
+    let (input, file_path) = expression(input)?;
+    let (input, _) = space0(input)?;
+    let (input, _) = char(',')(input)?;
+    let (input, _) = space0(input)?;
+
+    let (input, content) = expression(input)?;
+
+    Ok((input, Statement::WriteToFile(Box::new(file_path), Box::new(content))))
+}
+
 
 //return statement parsing
 fn return_statement(input: &str) -> IResult<&str, Statement> {

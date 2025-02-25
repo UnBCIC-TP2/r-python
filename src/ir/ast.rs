@@ -194,6 +194,12 @@ pub enum Expression {
     IsError(Box<Expression>),
     IsNothing(Box<Expression>),
     Propagate(Box<Expression>),
+
+    /* input expressions */
+    ReadFile(Box<Expression>),
+    ReadString,
+    ReadInt,
+    ReadFloat,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -214,6 +220,8 @@ pub enum Statement {
     AssertFails(String),
     FuncDef(Function),
     Return(Box<Expression>),
+    WriteToFile(Box<Expression>, Box<Expression>),
+    Print(Box<Expression>),
 }
 
 #[derive(Debug)]

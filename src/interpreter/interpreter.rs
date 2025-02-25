@@ -39,6 +39,11 @@ pub fn eval(exp: Expression, env: &Environment<EnvValue>) -> Result<EnvValue, Er
         Expression::IsError(e) => eval_iserror_expression(*e, env),
         Expression::IsNothing(e) => eval_isnothing_expression(*e, env),
         Expression::FuncCall(name, args) => call(name, args, env),
+        Expression::ReadFile(file_path_exp) => read_file(*file_path_exp, env),
+        Expression::ReadString => read_string(env),
+        Expression::ReadInt => read_int(env),
+        Expression::ReadFloat => read_float(env),
+
         _ if is_constant(exp.clone()) => Ok(EnvValue::Exp(exp)),
         _ => Err((String::from("Not implemented yet."), None)),
     }
@@ -200,6 +205,33 @@ fn execute(stmt: Statement, env: &Environment<EnvValue>) -> Result<ControlFlow, 
             let exp_value = eval(*exp, &new_env)?;
             Ok(ControlFlow::Return(exp_value))
         }
+
+        Statement::WriteToFile(file_path_exp, content_exp) => {
+            let file_path_value = eval(*file_path_exp, &new_env)?;
+            let content_value = eval(*content_exp, &new_env)?;
+
+            if let (EnvValue::Exp(Expression::CString(file_path)), EnvValue::Exp(Expression::CString(content))) = (file_path_value, content_value) {
+                std::fs::write(file_path, content).map_err(|e| (e.to_string(), None))?;
+                Ok(ControlFlow::Continue(new_env))
+            } else {
+                Err((String::from("write_to_file expects two string arguments"), None))
+            }
+        }
+
+        Statement::Print(exp) => {
+            let value = eval(*exp, &new_env)?;
+
+            match value {
+                EnvValue::Exp(Expression::CInt(i)) => println!("{}", i),
+                EnvValue::Exp(Expression::CReal(r)) => println!("{}", r),
+                EnvValue::Exp(Expression::CString(s)) => println!("{}", s),
+                EnvValue::Exp(Expression::CTrue) => println!("true"),
+                EnvValue::Exp(Expression::CFalse) => println!("false"),
+                _ => return Err((String::from("Cannot print this type of value"), None)),
+            }
+
+            Ok(ControlFlow::Continue(new_env))
+        }
         _ => Err((String::from("not implemented yet"), None)),
     };
 
@@ -323,6 +355,41 @@ fn propagate_error(
             Box::new(exp),
         ))));
     }
+}
+fn read_file(file_path_exp: Expression, env: &Environment<EnvValue>) -> Result<EnvValue, ErrorMessage> {
+    let file_path_value = eval(file_path_exp, env)?;
+    if let EnvValue::Exp(Expression::CString(file_path)) = file_path_value {
+        let content = std::fs::read_to_string(file_path).map_err(|e| (e.to_string(), None))?;
+        Ok(EnvValue::Exp(Expression::CString(content)))
+    } else {
+        Err((String::from("read_file expects a string as the file path"), None))
+    }
+}
+
+
+// IO helper functions
+fn read_string(_: &Environment<EnvValue>) -> Result<EnvValue, ErrorMessage> {
+    let mut input = String::new();
+    std::io::stdin().read_line(&mut input).map_err(|e| (e.to_string(), None))?;
+
+    let input = input.trim().to_string();
+    Ok(EnvValue::Exp(Expression::CString(input)))
+}
+
+fn read_int(_: &Environment<EnvValue>) -> Result<EnvValue, ErrorMessage> {
+    let mut input = String::new();
+    std::io::stdin().read_line(&mut input).map_err(|e| (e.to_string(), None))?;
+
+    let input = input.trim().parse::<i32>().map_err(|e| (e.to_string(), None))?;
+    Ok(EnvValue::Exp(Expression::CInt(input)))
+}
+
+fn read_float(_: &Environment<EnvValue>) -> Result<EnvValue, ErrorMessage> {
+    let mut input = String::new();
+    std::io::stdin().read_line(&mut input).map_err(|e| (e.to_string(), None))?;
+
+    let input = input.trim().parse::<f64>().map_err(|e| (e.to_string(), None))?;
+    Ok(EnvValue::Exp(Expression::CReal(input)))
 }
 
 fn execute_tests(
