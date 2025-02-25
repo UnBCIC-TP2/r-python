@@ -28,6 +28,7 @@ pub fn check_exp(exp: Expression, env: &Environment<Type>) -> Result<Type, Error
         Expression::LTE(l, r) => check_bin_relational_expression(*l, *r, env),
         Expression::Var(name) => check_var_name(name, env, false),
         Expression::FuncCall(name, args) => check_func_call(name, args, env),
+        Expression::MetaExp(_, args, return_type) => check_metaexp(args, return_type, env),
     }
 }
 
@@ -296,6 +297,17 @@ fn check_bin_relational_expression(
     }
 }
 
+fn check_metaexp(
+    args: Vec<Expression>,
+    return_type: Type,
+    env: &Environment,
+) -> Result<Type, ErrorMessage> {
+    for arg in args {
+        check_exp(arg.clone(), env)?;
+    }
+    Ok(return_type)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -305,7 +317,8 @@ mod tests {
     use crate::ir::ast::Function;
     use crate::ir::ast::Statement::*;
     use crate::ir::ast::Type::*;
-
+    use crate::stdlib::math::sqrt_impl;
+    
     #[test]
     fn check_tlist_comparison() {
         let t_list1 = TList(Box::new(TInteger));
@@ -847,5 +860,23 @@ mod tests {
             Ok(_) => panic!("Should not accept duplicate parameter names"),
             Err(msg) => assert_eq!(msg, "[Parameter Error] Duplicate parameter name 'x'"),
         }
+    }
+
+    #[test]
+    fn check_metaexp_sqrt_impl() {
+        let mut env = HashMap::new();
+        env.insert(
+            "x".to_string(),
+            (Some(EnvValue::Exp(Expression::CReal(25.0))), Type::TReal),
+        );
+
+        let meta_expr = Expression::MetaExp(
+            sqrt_impl,
+            vec![Expression::Var("x".to_string())],
+            Type::TReal,
+        );
+
+        let ty = check_exp(meta_expr, &env).expect("Type checking failed");
+        assert_eq!(ty, Type::TReal);
     }
 }
