@@ -1,6 +1,6 @@
-use std::collections::HashMap;
-use crate::ir::ast::{Expression, Function, Statement, Type};
 use crate::interpreter::interpreter::EnvValue;
+use crate::ir::ast::{Expression, Function, Statement, Type};
+use std::collections::HashMap;
 
 pub fn load_math_stdlib() -> HashMap<String, Function> {
     let mut math_stdlib = HashMap::new();
@@ -11,18 +11,26 @@ pub fn load_math_stdlib() -> HashMap<String, Function> {
             name: "sqrt".to_string(),
             kind: Some(Type::TReal),
             params: Some(vec![("x".to_string(), Type::TReal)]),
-            body: Some(Box::new(Statement::Return(Box::new(Expression::MetaExp(sqrt_impl, vec![Expression::Var("x".to_string())], Type::TReal))))),
-        }
+            body: Some(Box::new(Statement::Return(Box::new(Expression::MetaExp(
+                sqrt_impl,
+                vec![Expression::Var("x".to_string())],
+                Type::TReal,
+            ))))),
+        },
     );
-    
+
     math_stdlib.insert(
         "factorial".to_string(),
         Function {
             name: "factorial".to_string(),
             kind: Some(Type::TInteger),
             params: Some(vec![("n".to_string(), Type::TInteger)]),
-            body: Some(Box::new(Statement::Return(Box::new(Expression::MetaExp(factorial_impl, vec![Expression::Var("x".to_string())], Type::TInteger))))),
-        }
+            body: Some(Box::new(Statement::Return(Box::new(Expression::MetaExp(
+                factorial_impl,
+                vec![Expression::Var("x".to_string())],
+                Type::TInteger,
+            ))))),
+        },
     );
 
     math_stdlib.insert(
@@ -30,9 +38,19 @@ pub fn load_math_stdlib() -> HashMap<String, Function> {
         Function {
             name: "gcd".to_string(),
             kind: Some(Type::TInteger),
-            params: Some(vec![("a".to_string(), Type::TInteger), ("b".to_string(), Type::TInteger)]),
-            body: Some(Box::new(Statement::Return(Box::new(Expression::MetaExp(gcd_impl, vec![Expression::Var("a".to_string()), Expression::Var("b".to_string())], Type::TInteger))))),
-        }
+            params: Some(vec![
+                ("a".to_string(), Type::TInteger),
+                ("b".to_string(), Type::TInteger),
+            ]),
+            body: Some(Box::new(Statement::Return(Box::new(Expression::MetaExp(
+                gcd_impl,
+                vec![
+                    Expression::Var("a".to_string()),
+                    Expression::Var("b".to_string()),
+                ],
+                Type::TInteger,
+            ))))),
+        },
     );
 
     math_stdlib.insert(
@@ -40,9 +58,19 @@ pub fn load_math_stdlib() -> HashMap<String, Function> {
         Function {
             name: "lcm".to_string(),
             kind: Some(Type::TInteger),
-            params: Some(vec![("a".to_string(), Type::TInteger), ("b".to_string(), Type::TInteger)]),
-            body: Some(Box::new(Statement::Return(Box::new(Expression::MetaExp(lcm_impl, vec![Expression::Var("a".to_string()), Expression::Var("b".to_string())], Type::TInteger))))),
-        }
+            params: Some(vec![
+                ("a".to_string(), Type::TInteger),
+                ("b".to_string(), Type::TInteger),
+            ]),
+            body: Some(Box::new(Statement::Return(Box::new(Expression::MetaExp(
+                lcm_impl,
+                vec![
+                    Expression::Var("a".to_string()),
+                    Expression::Var("b".to_string()),
+                ],
+                Type::TInteger,
+            ))))),
+        },
     );
 
     math_stdlib.insert(
@@ -51,28 +79,52 @@ pub fn load_math_stdlib() -> HashMap<String, Function> {
             name: "is_prime".to_string(),
             kind: Some(Type::TBool),
             params: Some(vec![("x".to_string(), Type::TInteger)]),
-            body: Some(Box::new(Statement::Return(Box::new(Expression::MetaExp(is_prime_impl, vec![Expression::Var("x".to_string())], Type::TBool))))),
-        }
+            body: Some(Box::new(Statement::Return(Box::new(Expression::MetaExp(
+                is_prime_impl,
+                vec![Expression::Var("x".to_string())],
+                Type::TBool,
+            ))))),
+        },
     );
 
     math_stdlib.insert(
-        "comb".to_string(), 
+        "comb".to_string(),
         Function {
             name: "comb".to_string(),
             kind: Some(Type::TInteger),
-            params: Some(vec![("n".to_string(), Type::TInteger), ("k".to_string(), Type::TInteger)]),
-            body: Some(Box::new(Statement::Return(Box::new(Expression::MetaExp(comb_impl, vec![Expression::Var("n".to_string()), Expression::Var("r".to_string())], Type::TInteger)))))
-        }
+            params: Some(vec![
+                ("n".to_string(), Type::TInteger),
+                ("k".to_string(), Type::TInteger),
+            ]),
+            body: Some(Box::new(Statement::Return(Box::new(Expression::MetaExp(
+                comb_impl,
+                vec![
+                    Expression::Var("n".to_string()),
+                    Expression::Var("r".to_string()),
+                ],
+                Type::TInteger,
+            ))))),
+        },
     );
 
     math_stdlib.insert(
-        "perm".to_string(), 
+        "perm".to_string(),
         Function {
             name: "perm".to_string(),
             kind: Some(Type::TInteger),
-            params: Some(vec![("n".to_string(), Type::TInteger), ("k".to_string(), Type::TInteger)]),
-            body: Some(Box::new(Statement::Return(Box::new(Expression::MetaExp(perm_impl, vec![Expression::Var("n".to_string()), Expression::Var("r".to_string())], Type::TInteger)))))
-        }
+            params: Some(vec![
+                ("n".to_string(), Type::TInteger),
+                ("k".to_string(), Type::TInteger),
+            ]),
+            body: Some(Box::new(Statement::Return(Box::new(Expression::MetaExp(
+                perm_impl,
+                vec![
+                    Expression::Var("n".to_string()),
+                    Expression::Var("r".to_string()),
+                ],
+                Type::TInteger,
+            ))))),
+        },
     );
 
     math_stdlib.insert(
@@ -80,9 +132,19 @@ pub fn load_math_stdlib() -> HashMap<String, Function> {
         Function {
             name: "log".to_string(),
             kind: Some(Type::TReal),
-            params: Some(vec![("x".to_string(), Type::TReal), ("base".to_string(), Type::TReal)]),
-            body: Some(Box::new(Statement::Return(Box::new(Expression::MetaExp(log_impl, vec![Expression::Var("x".to_string()), Expression::Var("base".to_string())], Type::TReal)))))
-        }
+            params: Some(vec![
+                ("x".to_string(), Type::TReal),
+                ("base".to_string(), Type::TReal),
+            ]),
+            body: Some(Box::new(Statement::Return(Box::new(Expression::MetaExp(
+                log_impl,
+                vec![
+                    Expression::Var("x".to_string()),
+                    Expression::Var("base".to_string()),
+                ],
+                Type::TReal,
+            ))))),
+        },
     );
 
     math_stdlib.insert(
@@ -91,9 +153,13 @@ pub fn load_math_stdlib() -> HashMap<String, Function> {
             name: "degrees".to_string(),
             kind: Some(Type::TReal),
             params: Some(vec![("rad".to_string(), Type::TReal)]),
-            body: Some(Box::new(Statement::Return(Box::new(Expression::MetaExp(degrees_impl, vec![Expression::Var("rad".to_string())], Type::TReal)))))
-        }
-    );    
+            body: Some(Box::new(Statement::Return(Box::new(Expression::MetaExp(
+                degrees_impl,
+                vec![Expression::Var("rad".to_string())],
+                Type::TReal,
+            ))))),
+        },
+    );
 
     math_stdlib.insert(
         "radians".to_string(),
@@ -101,8 +167,12 @@ pub fn load_math_stdlib() -> HashMap<String, Function> {
             name: "radians".to_string(),
             kind: Some(Type::TReal),
             params: Some(vec![("deg".to_string(), Type::TReal)]),
-            body: Some(Box::new(Statement::Return(Box::new(Expression::MetaExp(radians_impl, vec![Expression::Var("deg".to_string())], Type::TReal)))))
-        }
+            body: Some(Box::new(Statement::Return(Box::new(Expression::MetaExp(
+                radians_impl,
+                vec![Expression::Var("deg".to_string())],
+                Type::TReal,
+            ))))),
+        },
     );
 
     math_stdlib.insert(
@@ -111,8 +181,12 @@ pub fn load_math_stdlib() -> HashMap<String, Function> {
             name: "cos".to_string(),
             kind: Some(Type::TReal),
             params: Some(vec![("x".to_string(), Type::TReal)]),
-            body: Some(Box::new(Statement::Return(Box::new(Expression::MetaExp(cos_impl, vec![Expression::Var("x".to_string())], Type::TReal)))))
-        }
+            body: Some(Box::new(Statement::Return(Box::new(Expression::MetaExp(
+                cos_impl,
+                vec![Expression::Var("x".to_string())],
+                Type::TReal,
+            ))))),
+        },
     );
 
     math_stdlib.insert(
@@ -121,8 +195,12 @@ pub fn load_math_stdlib() -> HashMap<String, Function> {
             name: "sin".to_string(),
             kind: Some(Type::TReal),
             params: Some(vec![("x".to_string(), Type::TReal)]),
-            body: Some(Box::new(Statement::Return(Box::new(Expression::MetaExp(sin_impl, vec![Expression::Var("x".to_string())], Type::TReal)))))
-        }
+            body: Some(Box::new(Statement::Return(Box::new(Expression::MetaExp(
+                sin_impl,
+                vec![Expression::Var("x".to_string())],
+                Type::TReal,
+            ))))),
+        },
     );
 
     math_stdlib.insert(
@@ -131,8 +209,12 @@ pub fn load_math_stdlib() -> HashMap<String, Function> {
             name: "tan".to_string(),
             kind: Some(Type::TReal),
             params: Some(vec![("x".to_string(), Type::TReal)]),
-            body: Some(Box::new(Statement::Return(Box::new(Expression::MetaExp(tan_impl, vec![Expression::Var("x".to_string())], Type::TReal)))))
-        }
+            body: Some(Box::new(Statement::Return(Box::new(Expression::MetaExp(
+                tan_impl,
+                vec![Expression::Var("x".to_string())],
+                Type::TReal,
+            ))))),
+        },
     );
 
     math_stdlib
@@ -190,7 +272,6 @@ pub fn gcd_impl(args: Vec<EnvValue>) -> Result<EnvValue, String> {
     }
 }
 
-
 pub fn lcm_impl(args: Vec<EnvValue>) -> Result<EnvValue, String> {
     if args.len() != 2 {
         return Err("lcm expects exactly two arguments".to_string());
@@ -217,7 +298,9 @@ pub fn comb_impl(args: Vec<EnvValue>) -> Result<EnvValue, String> {
         return Err("comb expects exactly two arguments".to_string());
     }
 
-    if let (EnvValue::Exp(Expression::CInt(n)), EnvValue::Exp(Expression::CInt(k))) = (&args[0], &args[1]) {
+    if let (EnvValue::Exp(Expression::CInt(n)), EnvValue::Exp(Expression::CInt(k))) =
+        (&args[0], &args[1])
+    {
         if *n < 0 || *k < 0 {
             return Err("comb expects non-negative integers".to_string());
         }
@@ -241,7 +324,9 @@ pub fn perm_impl(args: Vec<EnvValue>) -> Result<EnvValue, String> {
         return Err("perm expects exactly two arguments".to_string());
     }
 
-    if let (EnvValue::Exp(Expression::CInt(n)), EnvValue::Exp(Expression::CInt(k))) = (&args[0], &args[1]) {
+    if let (EnvValue::Exp(Expression::CInt(n)), EnvValue::Exp(Expression::CInt(k))) =
+        (&args[0], &args[1])
+    {
         if *n < 0 || *k < 0 {
             return Err("perm expects non-negative integers".to_string());
         }
@@ -299,7 +384,6 @@ pub fn is_prime_impl(args: Vec<EnvValue>) -> Result<EnvValue, String> {
         Err("is_prime expects an integer argument".to_string())
     }
 }
-
 
 pub fn log_impl(args: Vec<EnvValue>) -> Result<EnvValue, String> {
     if args.len() != 2 {
@@ -429,7 +513,7 @@ pub fn tan_impl(args: Vec<EnvValue>) -> Result<EnvValue, String> {
 mod tests {
     use super::*;
 
-//TESTES FUNCAO SQRT
+    //TESTES FUNCAO SQRT
     #[test]
     fn test_sqrt_positive_real() {
         let result = sqrt_impl(vec![EnvValue::Exp(Expression::CReal(9.0))]);
@@ -483,7 +567,7 @@ mod tests {
         assert!(result.is_err());
         assert_eq!(result.unwrap_err(), "sqrt expects a real number argument");
     }
-//TESTES FUNCAO FACTORIAL
+    //TESTES FUNCAO FACTORIAL
     #[test]
     fn test_factorial_valid_inputs() {
         let result = factorial_impl(vec![EnvValue::Exp(Expression::CInt(0))]);
@@ -515,7 +599,10 @@ mod tests {
     fn test_factorial_invalid_number_of_arguments() {
         let result = factorial_impl(vec![]);
         assert!(result.is_err());
-        assert_eq!(result.unwrap_err(), "factorial expects exactly one argument");
+        assert_eq!(
+            result.unwrap_err(),
+            "factorial expects exactly one argument"
+        );
     }
 
     #[test]
@@ -525,7 +612,10 @@ mod tests {
             EnvValue::Exp(Expression::CInt(2)),
         ]);
         assert!(result.is_err());
-        assert_eq!(result.unwrap_err(), "factorial expects exactly one argument");
+        assert_eq!(
+            result.unwrap_err(),
+            "factorial expects exactly one argument"
+        );
     }
 
     #[test]
@@ -539,9 +629,12 @@ mod tests {
     fn test_factorial_negative_argument() {
         let result = factorial_impl(vec![EnvValue::Exp(Expression::CInt(-1))]);
         assert!(result.is_err());
-        assert_eq!(result.unwrap_err(), "factorial expects a non-negative integer argument");
+        assert_eq!(
+            result.unwrap_err(),
+            "factorial expects a non-negative integer argument"
+        );
     }
-//TESTES FUNCAO GCD
+    //TESTES FUNCAO GCD
     #[test]
     fn test_gcd_valid_inputs() {
         let result = gcd_impl(vec![
@@ -608,7 +701,7 @@ mod tests {
         assert!(result.is_err());
         assert_eq!(result.unwrap_err(), "gcd expects two integer arguments");
     }
-//TESTES PARA LCM
+    //TESTES PARA LCM
     #[test]
     fn test_lcm_valid_inputs() {
         let result = lcm_impl(vec![
@@ -676,7 +769,7 @@ mod tests {
         assert_eq!(result.unwrap_err(), "lcm expects two integer arguments");
     }
 
-//TESTES PARA COMB
+    //TESTES PARA COMB
     #[test]
     fn test_comb_valid_inputs() {
         let result = comb_impl(vec![
@@ -745,7 +838,7 @@ mod tests {
         assert_eq!(result.unwrap_err(), "comb expects non-negative integers");
     }
 
-//TESTES PARA PERM
+    //TESTES PARA PERM
     #[test]
     fn test_perm_valid_inputs() {
         let result = perm_impl(vec![
@@ -814,7 +907,7 @@ mod tests {
         assert_eq!(result.unwrap_err(), "perm expects non-negative integers");
     }
 
-//=================================================================================================
+    //=================================================================================================
     #[test]
     fn test_is_prime_valid_inputs() {
         let result = is_prime_impl(vec![EnvValue::Exp(Expression::CInt(2))]);
@@ -876,10 +969,13 @@ mod tests {
     fn test_is_prime_negative_argument() {
         let result = is_prime_impl(vec![EnvValue::Exp(Expression::CInt(-1))]);
         assert!(result.is_err());
-        assert_eq!(result.unwrap_err(), "is_prime expects a non-negative integer");
+        assert_eq!(
+            result.unwrap_err(),
+            "is_prime expects a non-negative integer"
+        );
     }
 
-//=================================================================================================
+    //=================================================================================================
     #[test]
     fn test_log_valid_inputs() {
         let result = log_impl(vec![
@@ -938,79 +1034,79 @@ mod tests {
         assert_eq!(result.unwrap_err(), "log expects two real arguments");
     }
     #[test]
-fn test_degrees_impl() {
-    let arg = vec![EnvValue::Exp(Expression::CReal(PI))];
-    let result = degrees_impl(arg).unwrap();
-    if let EnvValue::Exp(Expression::CReal(deg)) = result {
-        assert!((deg - 180.0).abs() < EPSILON);
-    } else {
-        panic!("Unexpected result type");
+    fn test_degrees_impl() {
+        let arg = vec![EnvValue::Exp(Expression::CReal(PI))];
+        let result = degrees_impl(arg).unwrap();
+        if let EnvValue::Exp(Expression::CReal(deg)) = result {
+            assert!((deg - 180.0).abs() < EPSILON);
+        } else {
+            panic!("Unexpected result type");
+        }
     }
-}
 
-#[test]
-fn test_radians_impl() {
-    let arg = vec![EnvValue::Exp(Expression::CReal(180.0))];
-    let result = radians_impl(arg).unwrap();
-    if let EnvValue::Exp(Expression::CReal(rad)) = result {
-        assert!((rad - PI).abs() < EPSILON);
-    } else {
-        panic!("Unexpected result type");
+    #[test]
+    fn test_radians_impl() {
+        let arg = vec![EnvValue::Exp(Expression::CReal(180.0))];
+        let result = radians_impl(arg).unwrap();
+        if let EnvValue::Exp(Expression::CReal(rad)) = result {
+            assert!((rad - PI).abs() < EPSILON);
+        } else {
+            panic!("Unexpected result type");
+        }
     }
-}
 
-#[test]
-fn test_cos_impl() {
-    let arg = vec![EnvValue::Exp(Expression::CReal(0.0))];
-    let result = cos_impl(arg).unwrap();
-    if let EnvValue::Exp(Expression::CReal(value)) = result {
-        assert!((value - 1.0).abs() < EPSILON);
-    } else {
-        panic!("Unexpected result type");
+    #[test]
+    fn test_cos_impl() {
+        let arg = vec![EnvValue::Exp(Expression::CReal(0.0))];
+        let result = cos_impl(arg).unwrap();
+        if let EnvValue::Exp(Expression::CReal(value)) = result {
+            assert!((value - 1.0).abs() < EPSILON);
+        } else {
+            panic!("Unexpected result type");
+        }
     }
-}
 
-#[test]
-fn test_sin_impl() {
-    let arg = vec![EnvValue::Exp(Expression::CReal(0.0))];
-    let result = sin_impl(arg).unwrap();
-    if let EnvValue::Exp(Expression::CReal(value)) = result {
-        assert!(value.abs() < EPSILON);
-    } else {
-        panic!("Unexpected result type");
+    #[test]
+    fn test_sin_impl() {
+        let arg = vec![EnvValue::Exp(Expression::CReal(0.0))];
+        let result = sin_impl(arg).unwrap();
+        if let EnvValue::Exp(Expression::CReal(value)) = result {
+            assert!(value.abs() < EPSILON);
+        } else {
+            panic!("Unexpected result type");
+        }
     }
-}
 
-#[test]
-fn test_tan_impl() {
-    let arg = vec![EnvValue::Exp(Expression::CReal(0.0))];
-    let result = tan_impl(arg).unwrap();
-    if let EnvValue::Exp(Expression::CReal(value)) = result {
-        assert!(value.abs() < EPSILON);
-    } else {
-        panic!("Unexpected result type");
+    #[test]
+    fn test_tan_impl() {
+        let arg = vec![EnvValue::Exp(Expression::CReal(0.0))];
+        let result = tan_impl(arg).unwrap();
+        if let EnvValue::Exp(Expression::CReal(value)) = result {
+            assert!(value.abs() < EPSILON);
+        } else {
+            panic!("Unexpected result type");
+        }
     }
-}
 
-#[test]
-fn test_invalid_args() {
-    // Teste com número errado de argumentos
-    let too_many_args = vec![
-        EnvValue::Exp(Expression::CReal(1.0)),
-        EnvValue::Exp(Expression::CReal(2.0))
-    ];
-    assert!(degrees_impl(too_many_args.clone()).is_err());
-    assert!(radians_impl(too_many_args.clone()).is_err());
-    assert!(cos_impl(too_many_args.clone()).is_err());
-    assert!(sin_impl(too_many_args.clone()).is_err());
-    assert!(tan_impl(too_many_args.clone()).is_err());
+    #[test]
+    fn test_invalid_args() {
+        // Teste com número errado de argumentos
+        let too_many_args = vec![
+            EnvValue::Exp(Expression::CReal(1.0)),
+            EnvValue::Exp(Expression::CReal(2.0)),
+        ];
+        assert!(degrees_impl(too_many_args.clone()).is_err());
+        assert!(radians_impl(too_many_args.clone()).is_err());
+        assert!(cos_impl(too_many_args.clone()).is_err());
+        assert!(sin_impl(too_many_args.clone()).is_err());
+        assert!(tan_impl(too_many_args.clone()).is_err());
 
-    // Teste com tipo errado de argumento
-    let invalid_type_arg = vec![EnvValue::Exp(Expression::CString("invalid".to_string()))];
-    assert!(degrees_impl(invalid_type_arg.clone()).is_err());
-    assert!(radians_impl(invalid_type_arg.clone()).is_err());
-    assert!(cos_impl(invalid_type_arg.clone()).is_err());
-    assert!(sin_impl(invalid_type_arg.clone()).is_err());
-    assert!(tan_impl(invalid_type_arg.clone()).is_err());
-}
+        // Teste com tipo errado de argumento
+        let invalid_type_arg = vec![EnvValue::Exp(Expression::CString("invalid".to_string()))];
+        assert!(degrees_impl(invalid_type_arg.clone()).is_err());
+        assert!(radians_impl(invalid_type_arg.clone()).is_err());
+        assert!(cos_impl(invalid_type_arg.clone()).is_err());
+        assert!(sin_impl(invalid_type_arg.clone()).is_err());
+        assert!(tan_impl(invalid_type_arg.clone()).is_err());
+    }
 }

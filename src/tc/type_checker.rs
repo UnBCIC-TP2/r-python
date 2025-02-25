@@ -1081,18 +1081,18 @@ mod tests {
             Err(msg) => assert_eq!(msg, "[Parameter Error] Duplicate parameter name 'x'"),
         }
     }
-    
+
     #[test]
     fn check_metaexp_sqrt() {
         let mut env = Environment::<Type>::new();
         env.insert_variable("x".to_string(), Type::TReal);
-        
+
         let meta_expr = Expression::MetaExp(
             sqrt_impl,
             vec![Expression::Var("x".to_string())],
             Type::TReal,
         );
-        
+
         let result_type = check_exp(meta_expr, &env).expect("Type checking failed");
         assert_eq!(result_type, Type::TReal);
     }

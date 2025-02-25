@@ -13,8 +13,8 @@ use std::io::Write;*/
 pub mod interpreter;
 pub mod ir;
 pub mod parser;
-pub mod tc;
 pub mod stdlib;
+pub mod tc;
 
 fn main() {
     println!("Hello, world!");

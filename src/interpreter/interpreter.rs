@@ -834,7 +834,7 @@ fn meta(
         args_values.push(value);
     }
     let result_value = f(args_values).map_err(|s| (s, None))?;
-    
+
     Ok(result_value)
 }
 
@@ -2182,17 +2182,19 @@ mod tests {
     fn interpreter_metaexp_sqrt_returns_correct_value() {
         let mut env = Environment::<EnvValue>::new();
         env.insert_variable("x".to_string(), EnvValue::Exp(Expression::CReal(25.0)));
-        
+
         let meta_expr = Expression::MetaExp(
             sqrt_impl,
             vec![Expression::Var("x".to_string())],
             Type::TReal,
         );
-        
+
         let result_value = eval(meta_expr, &env).expect("Evaluation failed");
-        
+
         match result_value {
-            EnvValue::Exp(Expression::CReal(v)) => assert!((v - 5.0).abs() < 0.0001, "Expected 5.0, got {}", v),
+            EnvValue::Exp(Expression::CReal(v)) => {
+                assert!((v - 5.0).abs() < 0.0001, "Expected 5.0, got {}", v)
+            }
             _ => panic!("Expected a CReal result"),
         }
     }
