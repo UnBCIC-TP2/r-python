@@ -1,6 +1,6 @@
 use std::collections::HashMap;
-use crate::ir::ast::{EnvValue, Expression, Function, Statement, Type};
-
+use crate::ir::ast::{Expression, Function, Statement, Type};
+use crate::interpreter::interpreter::EnvValue;
 
 pub fn load_math_stdlib() -> HashMap<String, Function> {
     let mut math_stdlib = HashMap::new();
@@ -8,117 +8,130 @@ pub fn load_math_stdlib() -> HashMap<String, Function> {
     math_stdlib.insert(
         "sqrt".to_string(),
         Function {
-            kind: Type::TReal,
+            name: "sqrt".to_string(),
+            kind: Some(Type::TReal),
             params: Some(vec![("x".to_string(), Type::TReal)]),
-            body: Box::new(Statement::Return(Box::new(Expression::MetaExp(sqrt_impl, vec![Expression::Var("x".to_string())], Type::TReal)))),
+            body: Some(Box::new(Statement::Return(Box::new(Expression::MetaExp(sqrt_impl, vec![Expression::Var("x".to_string())], Type::TReal))))),
         }
     );
     
     math_stdlib.insert(
         "factorial".to_string(),
         Function {
-            kind: Type::TInteger,
+            name: "factorial".to_string(),
+            kind: Some(Type::TInteger),
             params: Some(vec![("n".to_string(), Type::TInteger)]),
-            body: Box::new(Statement::Return(Box::new(Expression::MetaExp(factorial_impl, vec![Expression::Var("x".to_string())], Type::TInteger)))),
+            body: Some(Box::new(Statement::Return(Box::new(Expression::MetaExp(factorial_impl, vec![Expression::Var("x".to_string())], Type::TInteger))))),
         }
     );
 
     math_stdlib.insert(
         "gcd".to_string(),
         Function {
-            kind: Type::TInteger,
+            name: "gcd".to_string(),
+            kind: Some(Type::TInteger),
             params: Some(vec![("a".to_string(), Type::TInteger), ("b".to_string(), Type::TInteger)]),
-            body: Box::new(Statement::Return(Box::new(Expression::MetaExp(gcd_impl, vec![Expression::Var("a".to_string()), Expression::Var("b".to_string())], Type::TInteger)))),
+            body: Some(Box::new(Statement::Return(Box::new(Expression::MetaExp(gcd_impl, vec![Expression::Var("a".to_string()), Expression::Var("b".to_string())], Type::TInteger))))),
         }
     );
 
     math_stdlib.insert(
         "lcm".to_string(),
         Function {
-            kind: Type::TInteger,
+            name: "lcm".to_string(),
+            kind: Some(Type::TInteger),
             params: Some(vec![("a".to_string(), Type::TInteger), ("b".to_string(), Type::TInteger)]),
-            body: Box::new(Statement::Return(Box::new(Expression::MetaExp(lcm_impl, vec![Expression::Var("a".to_string()), Expression::Var("b".to_string())], Type::TInteger)))),
+            body: Some(Box::new(Statement::Return(Box::new(Expression::MetaExp(lcm_impl, vec![Expression::Var("a".to_string()), Expression::Var("b".to_string())], Type::TInteger))))),
         }
     );
 
     math_stdlib.insert(
         "is_prime".to_string(),
         Function {
-            kind: Type::TBool,
+            name: "is_prime".to_string(),
+            kind: Some(Type::TBool),
             params: Some(vec![("x".to_string(), Type::TInteger)]),
-            body: Box::new(Statement::Return(Box::new(Expression::MetaExp(is_prime_impl, vec![Expression::Var("x".to_string())], Type::TBool)))),
+            body: Some(Box::new(Statement::Return(Box::new(Expression::MetaExp(is_prime_impl, vec![Expression::Var("x".to_string())], Type::TBool))))),
         }
     );
 
     math_stdlib.insert(
         "comb".to_string(), 
         Function {
-            kind: Type::TInteger,
+            name: "comb".to_string(),
+            kind: Some(Type::TInteger),
             params: Some(vec![("n".to_string(), Type::TInteger), ("k".to_string(), Type::TInteger)]),
-            body: Box::new(Statement::Return(Box::new(Expression::MetaExp(comb_impl, vec![Expression::Var("n".to_string()), Expression::Var("r".to_string())], Type::TInteger))))
+            body: Some(Box::new(Statement::Return(Box::new(Expression::MetaExp(comb_impl, vec![Expression::Var("n".to_string()), Expression::Var("r".to_string())], Type::TInteger)))))
         }
     );
 
     math_stdlib.insert(
         "perm".to_string(), 
         Function {
-            kind: Type::TInteger,
+            name: "perm".to_string(),
+            kind: Some(Type::TInteger),
             params: Some(vec![("n".to_string(), Type::TInteger), ("k".to_string(), Type::TInteger)]),
-            body: Box::new(Statement::Return(Box::new(Expression::MetaExp(perm_impl, vec![Expression::Var("n".to_string()), Expression::Var("r".to_string())], Type::TInteger))))
+            body: Some(Box::new(Statement::Return(Box::new(Expression::MetaExp(perm_impl, vec![Expression::Var("n".to_string()), Expression::Var("r".to_string())], Type::TInteger)))))
         }
     );
 
     math_stdlib.insert(
         "log".to_string(),
         Function {
-            kind: Type::TReal,
+            name: "log".to_string(),
+            kind: Some(Type::TReal),
             params: Some(vec![("x".to_string(), Type::TReal), ("base".to_string(), Type::TReal)]),
-            body: Box::new(Statement::Return(Box::new(Expression::MetaExp(log_impl, vec![Expression::Var("x".to_string()), Expression::Var("base".to_string())], Type::TReal))))
+            body: Some(Box::new(Statement::Return(Box::new(Expression::MetaExp(log_impl, vec![Expression::Var("x".to_string()), Expression::Var("base".to_string())], Type::TReal)))))
         }
     );
 
     math_stdlib.insert(
         "degrees".to_string(),
         Function {
-            kind: Type::TReal,
+            name: "degrees".to_string(),
+            kind: Some(Type::TReal),
             params: Some(vec![("rad".to_string(), Type::TReal)]),
-            body: Box::new(Statement::Return(Box::new(Expression::MetaExp(degrees_impl, vec![Expression::Var("rad".to_string())], Type::TReal))))
+            body: Some(Box::new(Statement::Return(Box::new(Expression::MetaExp(degrees_impl, vec![Expression::Var("rad".to_string())], Type::TReal)))))
         }
     );    
 
     math_stdlib.insert(
         "radians".to_string(),
         Function {
-            kind: Type::TReal,
+            name: "radians".to_string(),
+            kind: Some(Type::TReal),
             params: Some(vec![("deg".to_string(), Type::TReal)]),
-            body: Box::new(Statement::Return(Box::new(Expression::MetaExp(radians_impl, vec![Expression::Var("deg".to_string())], Type::TReal))))
+            body: Some(Box::new(Statement::Return(Box::new(Expression::MetaExp(radians_impl, vec![Expression::Var("deg".to_string())], Type::TReal)))))
         }
     );
 
     math_stdlib.insert(
         "cos".to_string(),
         Function {
-            kind: Type::TReal,
+            name: "cos".to_string(),
+            kind: Some(Type::TReal),
             params: Some(vec![("x".to_string(), Type::TReal)]),
-            body: Box::new(Statement::Return(Box::new(Expression::MetaExp(cos_impl, vec![Expression::Var("x".to_string())], Type::TReal))))
+            body: Some(Box::new(Statement::Return(Box::new(Expression::MetaExp(cos_impl, vec![Expression::Var("x".to_string())], Type::TReal)))))
         }
     );
 
     math_stdlib.insert(
         "sin".to_string(),
         Function {
-            kind: Type::TReal,
+            name: "sin".to_string(),
+            kind: Some(Type::TReal),
             params: Some(vec![("x".to_string(), Type::TReal)]),
-            body: Box::new(Statement::Return(Box::new(Expression::MetaExp(sin_impl, vec![Expression::Var("x".to_string())], Type::TReal))))
+            body: Some(Box::new(Statement::Return(Box::new(Expression::MetaExp(sin_impl, vec![Expression::Var("x".to_string())], Type::TReal)))))
         }
     );
 
     math_stdlib.insert(
         "tan".to_string(),
         Function {
-            kind: Type::TReal,
+            name: "tan".to_string(),
+            kind: Some(Type::TReal),
             params: Some(vec![("x".to_string(), Type::TReal)]),
-            body: Box::new(Statement::Return(Box::new(Expression::MetaExp(tan_impl, vec![Expression::Var("x".to_string())], Type::TReal))))
+            body: Some(Box::new(Statement::Return(Box::new(Expression::MetaExp(tan_impl, vec![Expression::Var("x".to_string())], Type::TReal)))))
         }
     );
 

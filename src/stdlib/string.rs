@@ -1,5 +1,6 @@
 use std::collections::HashMap;
-use crate::ir::ast::{Function, Type, Statement, Expression, EnvValue};
+use crate::ir::ast::{Function, Type, Statement, Expression};
+use crate::interpreter::interpreter::EnvValue;
 
 pub fn load_string_stdlib() -> HashMap<String, Function> {
     let mut string_stdlib = HashMap::new();
@@ -7,104 +8,111 @@ pub fn load_string_stdlib() -> HashMap<String, Function> {
     string_stdlib.insert(
         "str_upper".to_string(),
         Function {
-            kind: Type::TString,
+            name: "str_upper".to_string(),
+            kind: Some(Type::TString),
             params: Some(vec![("s".to_string(), Type::TString)]),
-            body: Box::new(Statement::Return(Box::new(Expression::MetaExp(
+            body: Some(Box::new(Statement::Return(Box::new(Expression::MetaExp(
                 str_upper_impl,
                 vec![Expression::Var("s".to_string())],
                 Type::TString,
-            )))),
+            ))))),
         },
     );
 
     string_stdlib.insert(
         "str_lower".to_string(),
         Function {
-            kind: Type::TString,
+            name: "str_lower".to_string(),
+            kind: Some(Type::TString),
             params: Some(vec![("s".to_string(), Type::TString)]),
-            body: Box::new(Statement::Return(Box::new(Expression::MetaExp(
+            body: Some(Box::new(Statement::Return(Box::new(Expression::MetaExp(
                 str_lower_impl,
                 vec![Expression::Var("s".to_string())],
                 Type::TString,
-            )))),
+            ))))),
         },
     );
 
     string_stdlib.insert(
         "str_length".to_string(),
         Function {
-            kind: Type::TInteger,
+            name: "str_length".to_string(),
+            kind: Some(Type::TInteger),
             params: Some(vec![("s".to_string(), Type::TString)]),
-            body: Box::new(Statement::Return(Box::new(Expression::MetaExp(
+            body: Some(Box::new(Statement::Return(Box::new(Expression::MetaExp(
                 str_length_impl,
                 vec![Expression::Var("s".to_string())],
                 Type::TInteger,
-            )))),
+            ))))),
         },
     );
 
     string_stdlib.insert(
         "str_reverse".to_string(),
         Function {
-            kind: Type::TString,
+            name: "str_reverse".to_string(),
+            kind: Some(Type::TString),
             params: Some(vec![("s".to_string(), Type::TString)]),
-            body: Box::new(Statement::Return(Box::new(Expression::MetaExp(
+            body: Some(Box::new(Statement::Return(Box::new(Expression::MetaExp(
                 str_reverse_impl,
                 vec![Expression::Var("s".to_string())],
                 Type::TString,
-            )))),
+            ))))),
         },
     );
 
     string_stdlib.insert(
         "cont_chars".to_string(),
         Function {
-            kind: Type::TInteger,
+            name: "cont_chars".to_string(),
+            kind: Some(Type::TInteger),
             params: Some(vec![
                 ("s".to_string(), Type::TString),
                 ("c".to_string(), Type::TString),
             ]),
-            body: Box::new(Statement::Return(Box::new(Expression::MetaExp(
+            body: Some(Box::new(Statement::Return(Box::new(Expression::MetaExp(
                 cont_chars_impl,
                 vec![
                     Expression::Var("s".to_string()),
                     Expression::Var("c".to_string()),
                 ],
                 Type::TInteger,
-            )))),
+            ))))),
         },
     );
 
     string_stdlib.insert(
         "filter_out_char".to_string(),
         Function {
-            kind: Type::TString,
+            name: "filter_out_char".to_string(),
+            kind: Some(Type::TString),
             params: Some(vec![
                 ("s".to_string(), Type::TString),
                 ("c".to_string(), Type::TString),
             ]),
-            body: Box::new(Statement::Return(Box::new(Expression::MetaExp(
+            body: Some(Box::new(Statement::Return(Box::new(Expression::MetaExp(
                 filter_out_char_impl,
                 vec![
                     Expression::Var("s".to_string()),
                     Expression::Var("c".to_string()),
                 ],
                 Type::TString,
-            )))),
+            ))))),
         },
     );
 
     string_stdlib.insert(
         "replace".to_string(),
         Function {
-            kind: Type::TString,
+            name: "replace".to_string(),
+            kind: Some(Type::TString),
             params: Some(vec![
                 ("s".to_string(), Type::TString),
                 ("old".to_string(), Type::TString),
                 ("new".to_string(), Type::TString),
                 ("count".to_string(), Type::TInteger), 
             ]),
-            body: Box::new(Statement::Return(Box::new(Expression::MetaExp(
+            body: Some(Box::new(Statement::Return(Box::new(Expression::MetaExp(
                 replace_impl,
                 vec![
                     Expression::Var("s".to_string()),
@@ -113,7 +121,7 @@ pub fn load_string_stdlib() -> HashMap<String, Function> {
                     Expression::Var("count".to_string()),
                 ],
                 Type::TString,
-            )))),
+            ))))),
         },
     );
 

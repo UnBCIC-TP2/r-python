@@ -3,26 +3,30 @@ pub type Name = String;
 use nom::IResult;
 use std::collections::HashMap;
 
-#[derive(Clone, Debug)]
+use crate::interpreter::interpreter::EnvValue;
+
+#[derive(Debug, PartialEq, Clone)]
 pub struct Frame<A> {
     pub parent_function: Option<Function>,
     pub parent_key: Option<(Name, i32)>,
     pub variables: HashMap<Name, A>,
+    pub tests: HashMap<Name, Function>,
 }
 
 impl<A> Frame<A> {
     pub fn new(func: Option<Function>, key: Option<(Name, i32)>) -> Frame<A> {
         let variables: HashMap<Name, A> = HashMap::new();
-
-        Frame {
+        let tests: HashMap<Name, Function> = HashMap::new();
+        return Frame {
             parent_function: func,
             parent_key: key,
             variables,
-        }
+            tests,
+        };
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Environment<A> {
     pub scope: Function,
     pub recursion: i32,
@@ -34,38 +38,39 @@ impl<A> Environment<A> {
         let frame: Frame<A> = Frame::new(None, None);
         let scope = Function::new();
 
-        Environment {
+        return Environment {
             scope,
             recursion: 0,
             stack: HashMap::from([(("__main__".to_string(), 0), frame)]),
-        }
+        };
     }
 
     pub fn scope_key(&self) -> (Name, i32) {
-        (self.scope_name(), self.recursion)
+        return (self.scope_name(), self.recursion);
     }
 
     pub fn scope_name(&self) -> Name {
-        self.scope.name.clone()
+        return self.scope.name.clone();
     }
 
     pub fn scope_return(&self) -> Option<&A> {
-        self.search_frame(self.scope_name())
+        return self.search_frame(self.scope_name());
     }
 
     pub fn get_frame(&self, key: (Name, i32)) -> &Frame<A> {
-        self.stack.get(&key).unwrap()
+        return self.stack.get(&key).unwrap();
     }
 
     pub fn search_frame(&self, name: Name) -> Option<&A> {
-        self.stack
+        return self
+            .stack
             .get(&self.scope_key())
             .unwrap()
             .variables
-            .get(&name)
+            .get(&name);
     }
 
-    pub fn insert_frame(&mut self, func: Function) {
+    pub fn insert_frame(&mut self, func: Function) -> () {
         let new_frame: Frame<A> = Frame::new(Some(self.scope.clone()), Some(self.scope_key()));
 
         self.stack
@@ -74,7 +79,7 @@ impl<A> Environment<A> {
         self.recursion += 1;
     }
 
-    pub fn remove_frame(&mut self) {
+    pub fn remove_frame(&mut self) -> () {
         let recursion = self.scope_key().1 - 1;
         self.scope = self
             .stack
@@ -85,9 +90,15 @@ impl<A> Environment<A> {
         self.recursion = recursion;
     }
 
-    pub fn insert_variable(&mut self, name: Name, kind: A) {
+    pub fn insert_variable(&mut self, name: Name, kind: A) -> () {
         if let Some(frame) = self.stack.get_mut(&self.scope_key()) {
             frame.variables.insert(name, kind);
+        }
+    }
+
+    pub fn insert_test(&mut self, name: Name, test: Function) -> () {
+        if let Some(frame) = self.stack.get_mut(&self.scope_key()) {
+            frame.tests.insert(name, test);
         }
     }
 }
@@ -102,24 +113,42 @@ pub struct Function {
 
 impl Function {
     pub fn new() -> Function {
-        Function {
+        return Function {
             name: "__main__".to_string(),
             kind: None,
             params: None,
             body: None,
-        }
+        };
     }
 }
 
 #[derive(Debug, PartialEq, Clone)]
+pub struct TestEnvironment<A> {
+    pub name: Name,
+    pub env: Environment<A>,
+}
+
+impl<A> TestEnvironment<A> {
+    pub fn new() -> TestEnvironment<A> {
+        return TestEnvironment {
+            name: "__test__".to_string(),
+            env: Environment::<A>::new(),
+        };
+    }
+}
+#[derive(Clone, Debug, PartialEq)]
 pub enum Type {
     TInteger,
     TBool,
     TReal,
     TString,
+    TVoid,
     TFunction(Box<Option<Type>>, Vec<Type>),
     TList(Box<Type>),
     TTuple(Vec<Type>),
+    TMaybe(Box<Type>),
+    TResult(Box<Type>, Box<Type>), // Ok, Error
+    TAny,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -130,6 +159,7 @@ pub enum Expression {
     CInt(i32),
     CReal(f64),
     CString(String),
+    CVoid,
 
     /* variable reference */
     Var(Name),
@@ -155,6 +185,18 @@ pub enum Expression {
     LT(Box<Expression>, Box<Expression>),
     GTE(Box<Expression>, Box<Expression>),
     LTE(Box<Expression>, Box<Expression>),
+
+    /* error expressions */
+    COk(Box<Expression>),
+    CErr(Box<Expression>),
+
+    CJust(Box<Expression>),
+    CNothing,
+
+    Unwrap(Box<Expression>),
+    IsError(Box<Expression>),
+    IsNothing(Box<Expression>),
+    Propagate(Box<Expression>),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -166,6 +208,13 @@ pub enum Statement {
     While(Box<Expression>, Box<Statement>),
     Block(Vec<Statement>),
     Sequence(Box<Statement>, Box<Statement>),
+    AssertTrue(Box<Expression>, String),
+    AssertFalse(Box<Expression>, String),
+    AssertEQ(Box<Expression>, Box<Expression>, String),
+    AssertNEQ(Box<Expression>, Box<Expression>, String),
+    TestDef(Function),
+    ModTestDef(Name, Box<Statement>),
+    AssertFails(String),
     FuncDef(Function),
     Return(Box<Expression>),
 }
