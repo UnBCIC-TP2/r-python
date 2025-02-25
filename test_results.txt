@@ -262,6 +262,7 @@ Parsed AST: [
 
 Final environment: {"y": (Some(Exp(CInt(1))), TInteger), "z": (Some(Exp(CInt(11))), TInteger), "x": (Some(Exp(CInt(10))), TInteger)}
 
+
 === Running test: 4. Multiple assignments and references ===
 Program:
 x = 42
@@ -321,7 +322,9 @@ Parsed AST: [
 ]
 
 
+
 Final environment: {"final": (Some(Exp(CInt(104))), TInteger), "w": (Some(Exp(CInt(52))), TInteger), "x": (Some(Exp(CInt(42))), TInteger), "z": (Some(Exp(CInt(52))), TInteger), "y": (Some(Exp(CInt(42))), TInteger)}
+
 
 === Running test: 5. Complex arithmetic expressions ===
 Program:
@@ -414,7 +417,9 @@ Parsed AST: [
 ]
 
 
+
 Final environment: {"a": (Some(Exp(CInt(5))), TInteger), "b": (Some(Exp(CInt(3))), TInteger), "d": (Some(Exp(CInt(14))), TInteger), "c": (Some(Exp(CInt(20))), TInteger), "e": (Some(Exp(CInt(38))), TInteger)}
+
 
 === Running test: 6. Multiple nested comparisons ===
 Program:
@@ -550,6 +555,7 @@ Parsed AST: [
 
 
 Final environment: {"y": (Some(Exp(CInt(5))), TInteger), "x": (Some(Exp(CInt(10))), TInteger), "z": (Some(Exp(CInt(1))), TInteger)}
+
 
 === Running test: 7. Mixed arithmetic and control flow ===
 Program:
@@ -713,7 +719,9 @@ Parsed AST: [
 ]
 
 
+
 Final environment: {"b": (Some(Exp(CInt(3))), TInteger), "a": (Some(Exp(CInt(15))), TInteger), "c": (Some(Exp(CInt(18))), TInteger), "d": (Some(Exp(CInt(36))), TInteger), "e": (Some(Exp(CInt(26))), TInteger)}
+
 
 === Running test: 8. Basic function definition and call ===
 Program:
@@ -793,7 +801,9 @@ Parsed AST: [
 ]
 
 
+
 Final environment: {"x": (Some(Exp(CInt(5))), TInteger), "add": (Some(Func(Function { kind: TInteger, params: Some([("a", TInteger), ("b", TInteger)]), body: Block([Return(Add(Var("a"), Var("b")))]) })), TInteger), "y": (Some(Exp(CInt(3))), TInteger), "result": (Some(Exp(CInt(8))), TInteger)}
+
 
 === Running test: 9. Recursive function ===
 Program:
@@ -1160,7 +1170,9 @@ Parsed AST: [
 ]
 
 
+
 Final environment: {"h": (Some(Exp(CInt(45))), TInteger), "b": (Some(Exp(CInt(-4))), TInteger), "c": (Some(Exp(CInt(24))), TInteger), "d": (Some(Exp(CInt(1))), TInteger), "e": (Some(Exp(CInt(7))), TInteger), "a": (Some(Exp(CInt(6))), TInteger), "f": (Some(Exp(CInt(9))), TInteger), "g": (Some(Exp(CInt(26))), TInteger)}
+
 
 === Running test: 12. Complex expression chains ===
 Program:
@@ -1446,7 +1458,9 @@ Parsed AST: [
 ]
 
 
+
 Final environment: {"result": (Some(Exp(CInt(-30))), TInteger), "b": (Some(Exp(CInt(-10))), TInteger), "a": (Some(Exp(CInt(-5))), TInteger), "c": (Some(Exp(CInt(-15))), TInteger)}
+
 
 === Running test: 16. Mixed positive and negative operations ===
 Program:
@@ -1521,7 +1535,9 @@ Parsed AST: [
 ]
 
 
+
 Final environment: {"w": (Some(Exp(CInt(-4))), TInteger), "z": (Some(Exp(CInt(16))), TInteger), "x": (Some(Exp(CInt(10))), TInteger), "y": (Some(Exp(CInt(-3))), TInteger)}
+
 
 === Running test: 17. Complex expressions with negatives ===
 Program:
@@ -1606,7 +1622,9 @@ Parsed AST: [
 ]
 
 
+
 Final environment: {"a": (Some(Exp(CInt(-2))), TInteger), "c": (Some(Exp(CInt(26))), TInteger), "d": (Some(Exp(CInt(-5))), TInteger), "b": (Some(Exp(CInt(3))), TInteger)}
+
 
 === Running test: 18. Function calls with negative numbers ===
 Program:
@@ -1698,7 +1716,9 @@ Parsed AST: [
 ]
 
 
+
 Final environment: {"subtract": (Some(Func(Function { kind: TInteger, params: Some([("a", TInteger), ("b", TInteger)]), body: Block([Return(Sub(Var("a"), Var("b")))]) })), TInteger), "result1": (Some(Exp(CInt(-7))), TInteger), "result2": (Some(Exp(CInt(8))), TInteger), "result3": (Some(Exp(CInt(-8))), TInteger)}
+
 
 === Running test: 19. Boolean Operations ===
 Program:
@@ -1763,7 +1783,9 @@ Parsed AST: [
 ]
 
 
+
 Final environment: {"c": (Some(Exp(CFalse)), TInteger), "f": (Some(Exp(CTrue)), TInteger), "d": (Some(Exp(CTrue)), TInteger), "b": (Some(Exp(CFalse)), TInteger), "e": (Some(Exp(CTrue)), TInteger), "a": (Some(Exp(CTrue)), TInteger)}
+
 
 === Running test: 20. Real Number Operations ===
 Program:
@@ -1831,7 +1853,9 @@ Parsed AST: [
 ]
 
 
+
 Final environment: {"w": (Some(Exp(CReal(6.28))), TInteger), "z": (Some(Exp(CReal(0.6400000000000001))), TInteger), "v": (Some(Exp(CReal(5.0))), TInteger), "y": (Some(Exp(CReal(-2.5))), TInteger), "x": (Some(Exp(CReal(3.14))), TInteger)}
+
 
 === Running test: 21. String Operations ===
 Program:
@@ -1870,7 +1894,9 @@ Parsed AST: [
 ]
 
 
+
 Final environment: {"name": (Some(Exp(CString("Hello"))), TInteger), "greeting": (Some(Exp(CString("World"))), TInteger), "message": (Some(Exp(CString("Test "))), TInteger)}
+
 
 === Running test: 22. Mixed Boolean Operations ===
 Program:
@@ -1964,4 +1990,6 @@ Parsed AST: [
 ]
 
 
+
 Final environment: {"result2": (Some(Exp(CTrue)), TInteger), "result1": (Some(Exp(CTrue)), TInteger), "result3": (Some(Exp(CTrue)), TInteger), "y": (Some(Exp(CInt(5))), TInteger), "x": (Some(Exp(CInt(10))), TInteger), "result4": (Some(Exp(CTrue)), TInteger)}
+
