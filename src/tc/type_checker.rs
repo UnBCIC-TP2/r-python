@@ -38,6 +38,13 @@ pub fn check_exp(exp: Expression, env: &Environment<Type>) -> Result<Type, Error
         Expression::Unwrap(e) => check_unwrap_type(*e, env),
         Expression::Propagate(e) => check_propagate_type(*e, env),
         Expression::FuncCall(name, args) => check_func_call(name, args, env),
+
+
+        Expression::ReadFile(file_path_exp) => check_read_file_expression(*file_path_exp, env),
+
+        Expression::ReadString => Ok(Type::TString),
+        Expression::ReadInt => Ok(Type::TInteger),
+        Expression::ReadFloat => Ok(Type::TReal),
         //_ => Err(String::from("not implemented yet")),
     }
 }
@@ -164,6 +171,25 @@ pub fn check_stmt(stmt: Statement, env: &Environment<Type>) -> Result<ControlFlo
                 Ok(ControlFlow::Return(exp_type))
             } else {
                 Err(format!("[Syntax Error] return statement outside function."))
+            }
+        }
+        Statement::WriteToFile(file_path_exp, content_exp) => {
+            let file_path_type = check_exp(*file_path_exp, &new_env)?;
+            let content_type = check_exp(*content_exp, &new_env)?;
+
+            if file_path_type != Type::TString || content_type != Type::TString {
+                return Err(String::from("write_to_file expects two string arguments"));
+            }
+
+            Ok(ControlFlow::Continue(new_env))
+        }
+
+        Statement::Print(exp) => {
+            let exp_type = check_exp(*exp, &new_env)?;
+
+            match exp_type {
+                Type::TInteger | Type::TReal | Type::TString | Type::TBool => Ok(ControlFlow::Continue(new_env)),
+                _ => Err(String::from("Cannot print this type of value")),
             }
         }
         _ => Err(String::from("not implemented yet.")),
@@ -362,6 +388,19 @@ fn check_isnothing_type(exp: Expression, env: &Environment<Type>) -> Result<Type
         Type::TMaybe(_) => Ok(Type::TBool),
         _ => Err(String::from("[Type Error] expecting a maybe type value.")),
     }
+}
+
+fn check_read_file_expression(
+    file_path_exp: Expression,
+    env: &Environment<Type>,
+) -> Result<Type, ErrorMessage> {
+    let file_path_type = check_exp(file_path_exp, env)?;
+
+    if file_path_type != Type::TString {
+        return Err(String::from("read_file expects a string as the file path"));
+    }
+
+    Ok(Type::TString)
 }
 
 #[cfg(test)]
