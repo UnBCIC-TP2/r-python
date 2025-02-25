@@ -39,6 +39,7 @@ pub fn eval(exp: Expression, env: &Environment<EnvValue>) -> Result<EnvValue, Er
         Expression::IsError(e) => eval_iserror_expression(*e, env),
         Expression::IsNothing(e) => eval_isnothing_expression(*e, env),
         Expression::FuncCall(name, args) => call(name, args, env),
+        Expression::MetaExp(f, args, _) => meta(f, args, env),
         _ if is_constant(exp.clone()) => Ok(EnvValue::Exp(exp)),
         _ => Err((String::from("Not implemented yet."), None)),
     }
@@ -822,12 +823,29 @@ fn eval_err(exp: Expression, env: &Environment<EnvValue>) -> Result<EnvValue, Er
     }
 }
 
+fn meta(
+    f: fn(Vec<EnvValue>) -> Result<EnvValue, String>,
+    args: Vec<Expression>,
+    env: &Environment<EnvValue>,
+) -> Result<EnvValue, (String, Option<Expression>)> {
+    let mut args_values = Vec::new();
+    for expr in args {
+        let value = eval(expr, env)?;
+        args_values.push(value);
+    }
+    let result_value = f(args_values).map_err(|s| (s, None))?;
+
+    Ok(result_value)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::ir::ast::Expression::*;
     use crate::ir::ast::Function;
     use crate::ir::ast::Statement::*;
+    use crate::ir::ast::Type;
+    use crate::stdlib::math::sqrt_impl;
     use std::collections::HashMap;
     //use crate::ir::ast::Type;
     use crate::ir::ast::Type::*;
@@ -2157,6 +2175,27 @@ mod tests {
             },
             Ok(ControlFlow::Return(_)) => assert!(false),
             Err(s) => assert!(false, "{}", s),
+        }
+    }
+
+    #[test]
+    fn interpreter_metaexp_sqrt_returns_correct_value() {
+        let mut env = Environment::<EnvValue>::new();
+        env.insert_variable("x".to_string(), EnvValue::Exp(Expression::CReal(25.0)));
+
+        let meta_expr = Expression::MetaExp(
+            sqrt_impl,
+            vec![Expression::Var("x".to_string())],
+            Type::TReal,
+        );
+
+        let result_value = eval(meta_expr, &env).expect("Evaluation failed");
+
+        match result_value {
+            EnvValue::Exp(Expression::CReal(v)) => {
+                assert!((v - 5.0).abs() < 0.0001, "Expected 5.0, got {}", v)
+            }
+            _ => panic!("Expected a CReal result"),
         }
     }
 }

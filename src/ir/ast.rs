@@ -3,6 +3,8 @@ pub type Name = String;
 use nom::IResult;
 use std::collections::HashMap;
 
+use crate::interpreter::interpreter::EnvValue;
+
 #[derive(Debug, PartialEq, Clone)]
 pub struct Frame<A> {
     pub parent_function: Option<Function>,
@@ -164,6 +166,11 @@ pub enum Expression {
 
     /* function call */
     FuncCall(Name, Vec<Expression>),
+    MetaExp(
+        fn(Vec<EnvValue>) -> Result<EnvValue, String>,
+        Vec<Expression>,
+        Type,
+    ),
 
     /* arithmetic expressions over numbers */
     Add(Box<Expression>, Box<Expression>),
