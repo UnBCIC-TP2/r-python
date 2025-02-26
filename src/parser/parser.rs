@@ -110,7 +110,7 @@ fn statement(input: &str) -> IResult<&str, Statement> {
 }
 
 // Parse basic expressions
-fn expression(input: &str) -> IResult<&str, Expression> {
+pub fn expression(input: &str) -> IResult<&str, Expression> {
     alt((
         boolean_expression,
         comparison_expression,
@@ -442,18 +442,9 @@ fn assignment(input: &str) -> IResult<&str, Statement> {
     let (input, _) = delimited(space0, char('='), space0)(input)?;
     let (input, expr) = expression(input)?;
 
-    // Infer type from expression
-    let inferred_type = match &expr {
-        Expression::CInt(_) => Some(Type::TInteger),
-        Expression::CReal(_) => Some(Type::TReal),
-        Expression::CString(_) => Some(Type::TString),
-        Expression::CTrue | Expression::CFalse => Some(Type::TBool),
-        _ => None,
-    };
-
     Ok((
         input,
-        Statement::Assignment(name, Box::new(expr), inferred_type),
+        Statement::Assignment(name, Box::new(expr), Some(Type::TAny)),
     ))
 }
 
@@ -1327,7 +1318,7 @@ mod tests {
                 Statement::Assignment(
                     String::from("x"),
                     Box::new(Expression::COk(Box::new(Expression::CTrue))),
-                    None
+                    Some(Type::TAny)
                 ),
                 Statement::IfThenElse(
                     Box::new(Expression::Unwrap(Box::new(Expression::Var(String::from(
@@ -1336,7 +1327,7 @@ mod tests {
                     Box::new(Statement::Block(vec![Statement::Assignment(
                         String::from("y"),
                         Box::new(Expression::CInt(1)),
-                        Some(Type::TInteger)
+                        Some(Type::TAny)
                     )])),
                     None
                 ),
@@ -1347,7 +1338,7 @@ mod tests {
                     Box::new(Statement::Block(vec![Statement::Assignment(
                         String::from("y"),
                         Box::new(Expression::CInt(1)),
-                        Some(Type::TInteger)
+                        Some(Type::TAny)
                     )])),
                     None
                 )

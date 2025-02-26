@@ -2,7 +2,8 @@ pub type Name = String;
 
 use nom::IResult;
 use std::collections::HashMap;
-
+use std::fmt;
+use std::fmt::Error;
 #[derive(Debug, PartialEq, Clone)]
 pub struct Frame<A> {
     pub parent_function: Option<Function>,
@@ -109,6 +110,10 @@ impl<A> Environment<A> {
             frame.tests.insert(name, test);
         }
     }
+
+    pub fn get_variable(&self, name: &str) -> Option<&A> {
+        self.stack.get(&self.scope_key())?.variables.get(name)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -213,6 +218,28 @@ pub enum Expression {
     Propagate(Box<Expression>),
 
     ADTConstructor(Name, Name, Vec<Box<Expression>>),
+}
+
+impl fmt::Display for Expression {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Expression::CInt(val) => write!(f, "{:?}", val),
+            Expression::CReal(val) => write!(f, "{:?}", val),
+            Expression::CString(val) => write!(f, "{:?}", val),
+            Expression::CTrue => write!(f, "True"),
+            Expression::CFalse => write!(f, "False"),
+            Expression::CVoid => write!(f, "Void"),
+            Expression::CJust(exp) => write!(f, "Just({})", exp.to_string()),
+            Expression::CNothing => write!(f, "Nothing"),
+            Expression::COk(exp) => write!(f, "Ok({})", exp.to_string()),
+            Expression::CErr(exp) => write!(f, "Err({})", exp.to_string()),
+            Expression::Unwrap(exp) => write!(f, "Unwrap({})", exp.to_string()),
+            Expression::IsError(exp) => write!(f, "IsError({})", exp.to_string()),
+            Expression::IsNothing(exp) => write!(f, "IsNothing({})", exp.to_string()),
+            Expression::Propagate(exp) => write!(f, "Propagate({})", exp.to_string()),
+            _ => todo!(),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]
