@@ -3,12 +3,13 @@ use crate::ir::ast::Name;
 use crate::ir::ast::ValueConstructor;
 use std::collections::HashMap;
 use std::collections::LinkedList;
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct Scope<A> {
     pub variables: HashMap<Name, (bool, A)>,
     pub functions: HashMap<Name, Function>,
-    pub adts: HashMap<Name, Vec<ValueConstructor>>,
+    pub adts: HashMap<Name, Arc<Vec<ValueConstructor>>>,
 }
 
 impl<A: Clone> Scope<A> {
@@ -31,7 +32,7 @@ impl<A: Clone> Scope<A> {
     }
 
     fn map_adt(&mut self, name: Name, adt: Vec<ValueConstructor>) -> () {
-        self.adts.insert(name.clone(), adt);
+        self.adts.insert(name.clone(), Arc::new(adt));
         return ();
     }
 
@@ -45,7 +46,7 @@ impl<A: Clone> Scope<A> {
         self.functions.get(name)
     }
 
-    fn lookup_adt(&self, name: &Name) -> Option<&Vec<ValueConstructor>> {
+    fn lookup_adt(&self, name: &Name) -> Option<&Arc<Vec<ValueConstructor>>> {
         self.adts.get(name)
     }
 }
@@ -103,7 +104,7 @@ impl<A: Clone> Environment<A> {
         self.globals.lookup_function(name)
     }
 
-    pub fn lookup_adt(&self, name: &Name) -> Option<&Vec<ValueConstructor>> {
+    pub fn lookup_adt(&self, name: &Name) -> Option<&Arc<Vec<ValueConstructor>>> {
         for scope in self.stack.iter() {
             if let Some(cons) = scope.lookup_adt(name) {
                 return Some(cons);
