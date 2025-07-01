@@ -1,9 +1,10 @@
 use crate::environment::environment::Environment;
 use crate::ir::ast::{Expression, Name, Type};
+use std::sync::Arc;
 
 type ErrorMessage = String;
 
-pub fn check_expr(exp: Expression, env: &Environment<Type>) -> Result<Type, ErrorMessage> {
+pub fn check_expr(exp: &Expression, env: &Environment<Type>) -> Result<Type, ErrorMessage> {
     match exp {
         Expression::CTrue => Ok(Type::TBool),
         Expression::CFalse => Ok(Type::TBool),
@@ -11,29 +12,29 @@ pub fn check_expr(exp: Expression, env: &Environment<Type>) -> Result<Type, Erro
         Expression::CInt(_) => Ok(Type::TInteger),
         Expression::CReal(_) => Ok(Type::TReal),
         Expression::CString(_) => Ok(Type::TString),
-        Expression::Add(l, r) => check_bin_arithmetic_expression(*l, *r, env),
-        Expression::Sub(l, r) => check_bin_arithmetic_expression(*l, *r, env),
-        Expression::Mul(l, r) => check_bin_arithmetic_expression(*l, *r, env),
-        Expression::Div(l, r) => check_bin_arithmetic_expression(*l, *r, env),
-        Expression::And(l, r) => check_bin_boolean_expression(*l, *r, env),
-        Expression::Or(l, r) => check_bin_boolean_expression(*l, *r, env),
-        Expression::Not(e) => check_not_expression(*e, env),
-        Expression::EQ(l, r) => check_bin_relational_expression(*l, *r, env),
-        Expression::GT(l, r) => check_bin_relational_expression(*l, *r, env),
-        Expression::LT(l, r) => check_bin_relational_expression(*l, *r, env),
-        Expression::GTE(l, r) => check_bin_relational_expression(*l, *r, env),
-        Expression::LTE(l, r) => check_bin_relational_expression(*l, *r, env),
-        Expression::Var(name) => check_var_name(name, env),
-        Expression::COk(e) => check_result_ok(*e, env),
-        Expression::CErr(e) => check_result_err(*e, env),
-        Expression::CJust(e) => check_maybe_just(*e, env),
+        Expression::Add(l, r) => check_bin_arithmetic_expression(l, r, env),
+        Expression::Sub(l, r) => check_bin_arithmetic_expression(l, r, env),
+        Expression::Mul(l, r) => check_bin_arithmetic_expression(l, r, env),
+        Expression::Div(l, r) => check_bin_arithmetic_expression(l, r, env),
+        Expression::And(l, r) => check_bin_boolean_expression(l, r, env),
+        Expression::Or(l, r) => check_bin_boolean_expression(l, r, env),
+        Expression::Not(e) => check_not_expression(e, env),
+        Expression::EQ(l, r) => check_bin_relational_expression(l, r, env),
+        Expression::GT(l, r) => check_bin_relational_expression(l, r, env),
+        Expression::LT(l, r) => check_bin_relational_expression(l, r, env),
+        Expression::GTE(l, r) => check_bin_relational_expression(l, r, env),
+        Expression::LTE(l, r) => check_bin_relational_expression(l, r, env),
+        Expression::Var(name) => check_var_name(name.clone(), env),
+        Expression::COk(e) => check_result_ok(e, env),
+        Expression::CErr(e) => check_result_err(e, env),
+        Expression::CJust(e) => check_maybe_just(e, env),
         Expression::CNothing => Ok(Type::TMaybe(Box::new(Type::TAny))),
-        Expression::IsError(e) => check_iserror_type(*e, env),
-        Expression::IsNothing(e) => check_isnothing_type(*e, env),
-        Expression::Unwrap(e) => check_unwrap_type(*e, env),
-        Expression::Propagate(e) => check_propagate_type(*e, env),
-        Expression::ListValue(elements) => check_list_value(&elements, env),
-        Expression::Constructor(name, args) => check_adt_constructor(name, args, env),
+        Expression::IsError(e) => check_iserror_type(e, env),
+        Expression::IsNothing(e) => check_isnothing_type(e, env),
+        Expression::Unwrap(e) => check_unwrap_type(e, env),
+        Expression::Propagate(e) => check_propagate_type(e, env),
+        Expression::ListValue(elements) => check_list_value(elements.as_slice(), env),
+        Expression::Constructor(name, args) => check_adt_constructor(name.clone(), args, env),
 
         _ => Err("not implemented yet.".to_string()),
     }
@@ -47,8 +48,8 @@ fn check_var_name(name: Name, env: &Environment<Type>) -> Result<Type, ErrorMess
 }
 
 fn check_bin_arithmetic_expression(
-    left: Expression,
-    right: Expression,
+    left: &Expression,
+    right: &Expression,
     env: &Environment<Type>,
 ) -> Result<Type, ErrorMessage> {
     let left_type = check_expr(left, env)?;
@@ -64,8 +65,8 @@ fn check_bin_arithmetic_expression(
 }
 
 fn check_bin_boolean_expression(
-    left: Expression,
-    right: Expression,
+    left: &Expression,
+    right: &Expression,
     env: &Environment<Type>,
 ) -> Result<Type, ErrorMessage> {
     let left_type = check_expr(left, env)?;
@@ -76,7 +77,7 @@ fn check_bin_boolean_expression(
     }
 }
 
-fn check_not_expression(exp: Expression, env: &Environment<Type>) -> Result<Type, ErrorMessage> {
+fn check_not_expression(exp: &Expression, env: &Environment<Type>) -> Result<Type, ErrorMessage> {
     let exp_type = check_expr(exp, env)?;
 
     match exp_type {
@@ -86,8 +87,8 @@ fn check_not_expression(exp: Expression, env: &Environment<Type>) -> Result<Type
 }
 
 fn check_bin_relational_expression(
-    left: Expression,
-    right: Expression,
+    left: &Expression,
+    right: &Expression,
     env: &Environment<Type>,
 ) -> Result<Type, ErrorMessage> {
     let left_type = check_expr(left, env)?;
@@ -102,17 +103,17 @@ fn check_bin_relational_expression(
     }
 }
 
-fn check_result_ok(exp: Expression, env: &Environment<Type>) -> Result<Type, ErrorMessage> {
+fn check_result_ok(exp: &Expression, env: &Environment<Type>) -> Result<Type, ErrorMessage> {
     let exp_type = check_expr(exp, env)?;
     return Ok(Type::TResult(Box::new(exp_type), Box::new(Type::TAny)));
 }
 
-fn check_result_err(exp: Expression, env: &Environment<Type>) -> Result<Type, ErrorMessage> {
+fn check_result_err(exp: &Expression, env: &Environment<Type>) -> Result<Type, ErrorMessage> {
     let exp_type = check_expr(exp, env)?;
     return Ok(Type::TResult(Box::new(Type::TAny), Box::new(exp_type)));
 }
 
-fn check_unwrap_type(exp: Expression, env: &Environment<Type>) -> Result<Type, ErrorMessage> {
+fn check_unwrap_type(exp: &Expression, env: &Environment<Type>) -> Result<Type, ErrorMessage> {
     let exp_type = check_expr(exp, env)?;
 
     match exp_type {
@@ -124,7 +125,7 @@ fn check_unwrap_type(exp: Expression, env: &Environment<Type>) -> Result<Type, E
     }
 }
 
-fn check_propagate_type(exp: Expression, env: &Environment<Type>) -> Result<Type, ErrorMessage> {
+fn check_propagate_type(exp: &Expression, env: &Environment<Type>) -> Result<Type, ErrorMessage> {
     let exp_type = check_expr(exp, env)?;
 
     match exp_type {
@@ -136,12 +137,12 @@ fn check_propagate_type(exp: Expression, env: &Environment<Type>) -> Result<Type
     }
 }
 
-fn check_maybe_just(exp: Expression, env: &Environment<Type>) -> Result<Type, ErrorMessage> {
+fn check_maybe_just(exp: &Expression, env: &Environment<Type>) -> Result<Type, ErrorMessage> {
     let exp_type = check_expr(exp, env)?;
     Ok(Type::TMaybe(Box::new(exp_type)))
 }
 
-fn check_iserror_type(exp: Expression, env: &Environment<Type>) -> Result<Type, ErrorMessage> {
+fn check_iserror_type(exp: &Expression, env: &Environment<Type>) -> Result<Type, ErrorMessage> {
     let v = check_expr(exp, env)?;
 
     match v {
@@ -150,7 +151,7 @@ fn check_iserror_type(exp: Expression, env: &Environment<Type>) -> Result<Type, 
     }
 }
 
-fn check_isnothing_type(exp: Expression, env: &Environment<Type>) -> Result<Type, ErrorMessage> {
+fn check_isnothing_type(exp: &Expression, env: &Environment<Type>) -> Result<Type, ErrorMessage> {
     let exp_type = check_expr(exp, env)?;
 
     match exp_type {
@@ -168,11 +169,11 @@ fn check_list_value(
     }
 
     // Check the type of the first element
-    let first_type = check_expr(elements[0].clone(), env)?;
+    let first_type = check_expr(&elements[0], env)?;
 
     // Check that all other elements have the same type
     for element in elements.iter().skip(1) {
-        let element_type = check_expr(element.clone(), env)?;
+        let element_type = check_expr(element, env)?;
         if element_type != first_type {
             return Err(format!(
                 "[Type Error] List elements must have the same type. Expected '{:?}', found '{:?}'.",
@@ -186,32 +187,36 @@ fn check_list_value(
 
 fn check_adt_constructor(
     name: Name,
-    args: Vec<Box<Expression>>,
-    env: &Environment<Type>,
+    args: &Vec<Box<Expression>>,
+    env: &Environment<Type>
 ) -> Result<Type, ErrorMessage> {
-    // Gather all ADTs from all scopes (stack and globals)
-    let mut found = None;
-    // Search stack scopes first (innermost to outermost)
-    for scope in env.stack.iter() {
-        for (adt_name, constructors) in scope.adts.iter() {
-            if let Some(constructor) = constructors.iter().find(|c| c.name == name) {
-                found = Some((adt_name.clone(), constructor.clone(), constructors.clone()));
-                break;
-            }
-        }
-        if found.is_some() {
-            break;
-        }
-    }
-    // If not found in stack, search globals
-    if found.is_none() {
-        for (adt_name, constructors) in env.globals.adts.iter() {
-            if let Some(constructor) = constructors.iter().find(|c| c.name == name) {
-                found = Some((adt_name.clone(), constructor.clone(), constructors.clone()));
-                break;
-            }
-        }
-    }
+    // Search for the constructor in all scopes (including globals)
+    let found = env.stack // Search in stack
+        .iter()
+        .find_map(|scope| {
+            scope.adts.iter()
+            .find_map(|(adt_name, constructors)| {
+                constructors.iter()
+                    .find(|&constructor| constructor.name == name)
+                    .map(|constructor| (
+                        adt_name.clone(),
+                        constructor.clone(),
+                        Arc::clone(constructors)
+                    ))
+            })
+        })
+        .or_else(|| {  // Search in globals if not found in stack
+        env.globals.adts.iter().find_map(|(adt_name, constructors)| {
+            constructors.iter()
+                .find(|&constructor| constructor.name == name)
+                .map(|constructor| (
+                    adt_name.clone(),
+                    constructor.clone(),
+                    Arc::clone(constructors)
+                ))
+        })
+    });
+
     match found {
         Some((adt_type_name, constructor, constructors)) => {
             // Check that we have the right number of arguments
@@ -224,9 +229,9 @@ fn check_adt_constructor(
                 ));
             }
             // Check each argument's type
-            for (arg, expected_type) in args.iter().zip(constructor.types.iter()) {
-                let arg_type = check_expr(*arg.clone(), env)?;
-                if arg_type != *expected_type {
+            for (arg, expected_type) in args.into_iter().zip(constructor.types.into_iter()) {
+                let arg_type = check_expr(&*arg, env)?;
+                if arg_type != expected_type {
                     return Err(format!(
                         "[Type Error] Argument type mismatch in constructor '{}'. Expected '{:?}', found '{:?}'.",
                         name, expected_type, arg_type
@@ -234,7 +239,7 @@ fn check_adt_constructor(
                 }
             }
             // Return the algebraic type
-            Ok(Type::TAlgebraicData(adt_type_name, constructors))
+            Ok(Type::TAlgebraicData(adt_type_name, (*constructors).clone()))
         }
         None => Err(format!(
             "[Type Error] Constructor '{}' is not defined in any ADT.",
@@ -256,7 +261,7 @@ mod tests {
         let env = Environment::new();
         let c10 = CInt(10);
 
-        assert_eq!(check_expr(c10, &env), Ok(TInteger));
+        assert_eq!(check_expr(&c10, &env), Ok(TInteger));
     }
 
     #[test]
@@ -267,7 +272,7 @@ mod tests {
         let c20 = CInt(20);
         let add = Add(Box::new(c10), Box::new(c20));
 
-        assert_eq!(check_expr(add, &env), Ok(TInteger));
+        assert_eq!(check_expr(&add, &env), Ok(TInteger));
     }
 
     #[test]
@@ -278,7 +283,7 @@ mod tests {
         let c20 = CReal(20.3);
         let add = Add(Box::new(c10), Box::new(c20));
 
-        assert_eq!(check_expr(add, &env), Ok(TReal));
+        assert_eq!(check_expr(&add, &env), Ok(TReal));
     }
 
     #[test]
@@ -289,7 +294,7 @@ mod tests {
         let c20 = CReal(20.3);
         let add = Add(Box::new(c10), Box::new(c20));
 
-        assert_eq!(check_expr(add, &env), Ok(TReal));
+        assert_eq!(check_expr(&add, &env), Ok(TReal));
     }
 
     #[test]
@@ -300,7 +305,7 @@ mod tests {
         let c20 = CInt(20);
         let add = Add(Box::new(c10), Box::new(c20));
 
-        assert_eq!(check_expr(add, &env), Ok(TReal));
+        assert_eq!(check_expr(&add, &env), Ok(TReal));
     }
 
     #[test]
@@ -312,7 +317,7 @@ mod tests {
         let e3 = Add(Box::new(e1), Box::new(e2));
 
         assert!(
-            matches!(check_expr(e3, &env), Err(_)),
+            matches!(check_expr(&e3, &env), Err(_)),
             "Expecting a type error."
         );
     }
@@ -325,7 +330,7 @@ mod tests {
         let e2 = Not(Box::new(e1));
 
         assert!(
-            matches!(check_expr(e2, &env), Err(_)),
+            matches!(check_expr(&e2, &env), Err(_)),
             "Expecting a type error."
         );
     }
@@ -339,7 +344,7 @@ mod tests {
         let e3 = And(Box::new(e1), Box::new(e2));
 
         assert!(
-            matches!(check_expr(e3, &env), Err(_)),
+            matches!(check_expr(&e3, &env), Err(_)),
             "Expecting a type error."
         );
     }
@@ -353,7 +358,7 @@ mod tests {
         let e3 = Or(Box::new(e1), Box::new(e2));
 
         assert!(
-            matches!(check_expr(e3, &env), Err(_)),
+            matches!(check_expr(&e3, &env), Err(_)),
             "Expecting a type error."
         );
     }
@@ -365,7 +370,7 @@ mod tests {
         let e2 = COk(Box::new(e1));
 
         assert_eq!(
-            check_expr(e2, &env),
+            check_expr(&e2, &env),
             Ok(TResult(Box::new(TReal), Box::new(TAny)))
         );
     }
@@ -377,7 +382,7 @@ mod tests {
         let e2 = CErr(Box::new(e1));
 
         assert_eq!(
-            check_expr(e2, &env),
+            check_expr(&e2, &env),
             Ok(TResult(Box::new(TAny), Box::new(TInteger)))
         );
     }
@@ -388,7 +393,7 @@ mod tests {
         let e1 = CInt(5);
         let e2 = CJust(Box::new(e1));
 
-        assert_eq!(check_expr(e2, &env), Ok(TMaybe(Box::new(TInteger))))
+        assert_eq!(check_expr(&e2, &env), Ok(TMaybe(Box::new(TInteger))))
     }
 
     #[test]
@@ -398,7 +403,7 @@ mod tests {
         let e2 = COk(Box::new(e1));
         let e3 = IsError(Box::new(e2));
 
-        assert_eq!(check_expr(e3, &env), Ok(TBool));
+        assert_eq!(check_expr(&e3, &env), Ok(TBool));
     }
 
     #[test]
@@ -408,7 +413,7 @@ mod tests {
         let e2 = IsError(Box::new(e1));
 
         assert!(
-            matches!(check_expr(e2, &env), Err(_)),
+            matches!(check_expr(&e2, &env), Err(_)),
             "Expecting a result type value."
         );
     }
@@ -417,7 +422,7 @@ mod tests {
     fn check_nothing() {
         let env = Environment::new();
 
-        assert_eq!(check_expr(CNothing, &env), Ok(TMaybe(Box::new(TAny))));
+        assert_eq!(check_expr(&CNothing, &env), Ok(TMaybe(Box::new(TAny))));
     }
 
     #[test]
@@ -427,7 +432,7 @@ mod tests {
         let e2 = CJust(Box::new(e1));
         let e3 = IsNothing(Box::new(e2));
 
-        assert_eq!(check_expr(e3, &env), Ok(TBool));
+        assert_eq!(check_expr(&e3, &env), Ok(TBool));
     }
 
     #[test]
@@ -437,7 +442,7 @@ mod tests {
         let e2 = IsNothing(Box::new(e1));
 
         assert!(
-            matches!(check_expr(e2, &env), Err(_)),
+            matches!(check_expr(&e2, &env), Err(_)),
             "expecting a maybe type value."
         );
     }
@@ -449,7 +454,7 @@ mod tests {
         let e2 = CJust(Box::new(e1));
         let e3 = Unwrap(Box::new(e2));
 
-        assert_eq!(check_expr(e3, &env), Ok(TInteger));
+        assert_eq!(check_expr(&e3, &env), Ok(TInteger));
     }
 
     #[test]
@@ -459,7 +464,7 @@ mod tests {
         let e2 = Unwrap(Box::new(e1));
 
         assert!(
-            matches!(check_expr(e2, &env), Err(_)),
+            matches!(check_expr(&e2, &env), Err(_)),
             "expecting a maybe or result type value."
         );
     }
@@ -471,7 +476,7 @@ mod tests {
         let e2 = COk(Box::new(e1));
         let e3 = Unwrap(Box::new(e2));
 
-        assert_eq!(check_expr(e3, &env), Ok(TBool));
+        assert_eq!(check_expr(&e3, &env), Ok(TBool));
     }
 
     #[test]
@@ -481,7 +486,7 @@ mod tests {
         let e2 = CJust(Box::new(e1));
         let e3 = Propagate(Box::new(e2));
 
-        assert_eq!(check_expr(e3, &env), Ok(TInteger));
+        assert_eq!(check_expr(&e3, &env), Ok(TInteger));
     }
 
     #[test]
@@ -491,7 +496,7 @@ mod tests {
         let e2 = Propagate(Box::new(e1));
 
         assert!(
-            matches!(check_expr(e2, &env), Err(_)),
+            matches!(check_expr(&e2, &env), Err(_)),
             "expecting a maybe or result type value."
         );
     }
@@ -503,7 +508,7 @@ mod tests {
         let e2 = COk(Box::new(e1));
         let e3 = Propagate(Box::new(e2));
 
-        assert_eq!(check_expr(e3, &env), Ok(TBool));
+        assert_eq!(check_expr(&e3, &env), Ok(TBool));
     }
 
     #[test]
@@ -512,7 +517,7 @@ mod tests {
         let exp = Expression::Var("x".to_string());
 
         // Should fail - x is not defined
-        assert!(check_expr(exp, &env).is_err());
+        assert!(check_expr(&exp, &env).is_err());
     }
 
     #[test]
@@ -522,7 +527,7 @@ mod tests {
         let exp = Expression::Var("x".to_string());
 
         // Should succeed and return integer type
-        assert_eq!(check_expr(exp, &env), Ok(Type::TInteger));
+        assert_eq!(check_expr(&exp, &env), Ok(Type::TInteger));
     }
 
     #[test]
@@ -538,7 +543,7 @@ mod tests {
         env.map_adt("Figure".to_string(), figure_type);
 
         let circle = Constructor("Circle".to_string(), vec![Box::new(CInt(5))]);
-        let result = check_expr(circle, &env);
+        let result = check_expr(&circle, &env);
         assert!(result.is_ok());
     }
 
@@ -558,7 +563,7 @@ mod tests {
             "Circle".to_string(),
             vec![Box::new(CString("invalid".to_string()))],
         );
-        let result = check_expr(circle, &env);
+        let result = check_expr(&circle, &env);
         assert!(result.is_err());
     }
 
@@ -575,7 +580,7 @@ mod tests {
         env.map_adt("Figure".to_string(), figure_type);
 
         let rectangle = Constructor("Rectangle".to_string(), vec![Box::new(CInt(5))]); // Missing second argument
-        let result = check_expr(rectangle, &env);
+        let result = check_expr(&rectangle, &env);
         assert!(result.is_err());
     }
 
@@ -583,7 +588,7 @@ mod tests {
     fn test_adt_constructor_undefined() {
         let env = Environment::new();
         let circle = Constructor("Circle".to_string(), vec![Box::new(CInt(5))]);
-        let result = check_expr(circle, &env);
+        let result = check_expr(&circle, &env);
         assert!(result.is_err());
     }
 
@@ -606,7 +611,7 @@ mod tests {
             "Circle".to_string(),
             vec![Box::new(Var("radius".to_string()))],
         );
-        let result = check_expr(circle, &env);
+        let result = check_expr(&circle, &env);
         assert!(result.is_ok());
     }
 }

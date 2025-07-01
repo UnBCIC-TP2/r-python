@@ -40,66 +40,49 @@ fn check_assignment_stmt(
     env: &Environment<Type>,
 ) -> Result<Environment<Type>, ErrorMessage> {
     let mut new_env = env.clone();
-    let exp_type = check_expr(*exp, &new_env)?;
+    let exp_type = check_expr(&*exp, &new_env)?;
 
     match new_env.lookup(&name) {
         Some((mutable, var_type)) => {
             if !mutable {
-                Err(format!("[Type Error] cannot reassign '{:?}' variable, since it was declared as a constant value.", name))
-            } else if var_type == Type::TAny {
-                new_env.map_variable(name.clone(), true, exp_type);
-                Ok(new_env)
-            } else if var_type == exp_type {
-                Ok(new_env)
-            } else {
-                Err(format!(
-                    "[Type Error] expected '{:?}', found '{:?}'.",
-                    var_type, exp_type
-                ))
+                return Err(format!(
+                    "[Type Error] Cannot assign to immutable variable '{}'.",
+                    name
+                ));
             }
+            if var_type != exp_type && var_type != Type::TAny && exp_type != Type::TAny {
+                return Err(format!(
+                    "[Type Error] Cannot assign value of type '{:?}' to variable '{}' of type '{:?}'.",
+                    exp_type, name, var_type
+                ));
+            }
+            new_env.map_variable(name, mutable, exp_type);
+            Ok(new_env)
         }
-        None => Err(format!("[Type Error] variable '{:?}' not declared.", name)),
+        None => Err(format!("[Name Error] Variable '{}' is not defined.", name)),
     }
 }
 
 fn check_var_declaration_stmt(
-    name: Name,
-    exp: Box<Expression>,
+    var: Name,
+    expr: Box<Expression>,
     env: &Environment<Type>,
 ) -> Result<Environment<Type>, ErrorMessage> {
     let mut new_env = env.clone();
-    let var_type = new_env.lookup(&name);
-    let exp_type = check_expr(*exp, &new_env)?;
-
-    if var_type.is_none() {
-        new_env.map_variable(name.clone(), true, exp_type);
-        Ok(new_env)
-    } else {
-        Err(format!(
-            "[Type Error] variable '{:?}' already declared",
-            name
-        ))
-    }
+    let exp_type = check_expr(&*expr, &new_env)?;
+    new_env.map_variable(var, true, exp_type);
+    Ok(new_env)
 }
 
 fn check_val_declaration_stmt(
-    name: Name,
-    exp: Box<Expression>,
+    var: Name,
+    expr: Box<Expression>,
     env: &Environment<Type>,
 ) -> Result<Environment<Type>, ErrorMessage> {
     let mut new_env = env.clone();
-    let var_type = new_env.lookup(&name);
-    let exp_type = check_expr(*exp, &new_env)?;
-
-    if var_type.is_none() {
-        new_env.map_variable(name.clone(), false, exp_type);
-        Ok(new_env)
-    } else {
-        Err(format!(
-            "[Type Error] variable '{:?}' already declared",
-            name
-        ))
-    }
+    let exp_type = check_expr(&*expr, &new_env)?;
+    new_env.map_variable(var, false, exp_type);
+    Ok(new_env)
 }
 
 fn check_if_then_else_stmt(
@@ -109,20 +92,21 @@ fn check_if_then_else_stmt(
     env: &Environment<Type>,
 ) -> Result<Environment<Type>, ErrorMessage> {
     let mut new_env = env.clone();
-    let cond_type = check_expr(*cond, &new_env)?;
+    let cond_type = check_expr(&*cond, &new_env)?;
+
     if cond_type != Type::TBool {
-        return Err(
-            "[Type Error] a condition in a 'if' statement must be of type boolean.".to_string(),
-        );
+        return Err(String::from("[Type Error] Condition must be a boolean."));
     }
+
     let then_env = check_stmt(*stmt_then, &new_env)?;
-    if let Some(stmt_else) = stmt_else_opt {
-        let else_env = check_stmt(*stmt_else, &new_env)?;
-        new_env = merge_environments(&then_env, &else_env)?;
-    } else {
-        new_env = merge_environments(&new_env, &then_env)?;
+
+    match stmt_else_opt {
+        Some(stmt_else) => {
+            let else_env = check_stmt(*stmt_else, &new_env)?;
+            merge_environments(&then_env, &else_env)
+        }
+        None => Ok(then_env),
     }
-    Ok(new_env)
 }
 
 fn check_while_stmt(
@@ -131,14 +115,13 @@ fn check_while_stmt(
     env: &Environment<Type>,
 ) -> Result<Environment<Type>, ErrorMessage> {
     let mut new_env = env.clone();
-    let cond_type = check_expr(*cond, &new_env)?;
+    let cond_type = check_expr(&*cond, &new_env)?;
+
     if cond_type != Type::TBool {
-        return Err(
-            "[Type Error] a condition in a 'while' statement must be of type boolean.".to_string(),
-        );
+        return Err(String::from("[Type Error] Condition must be a boolean."));
     }
-    new_env = check_stmt(*stmt, &new_env)?;
-    Ok(new_env)
+
+    check_stmt(*stmt, &new_env)
 }
 
 fn check_for_stmt(
@@ -148,33 +131,24 @@ fn check_for_stmt(
     env: &Environment<Type>,
 ) -> Result<Environment<Type>, ErrorMessage> {
     let mut new_env = env.clone();
-    let _var_type = env.lookup(&var);
-    let expr_type = check_expr(*expr, &new_env)?;
-    match expr_type {
-        Type::TList(base_type) => {
-            if let Some((_, t)) = env.lookup(&var) {
-                if t == *base_type || *base_type == Type::TAny {
-                    new_env = check_stmt(*stmt, &new_env)?;
-                    return Ok(new_env);
-                } else {
-                    return Err(format!(
-                        "[TypeError] Type mismatch between {:?} and {:?}",
-                        t, base_type
-                    ));
-                }
-            } else {
-                new_env.map_variable(var.clone(), false, *base_type);
-                new_env = check_stmt(*stmt, &new_env)?;
-                return Ok(new_env);
-            }
-        }
-        _ => {
-            return Err(format!(
-                "[TypeError] Expecting a List type, but found a {:?}",
-                expr_type
-            ))
-        }
+    let expr_type = check_expr(&*expr, &new_env)?;
+
+    // For now, we'll assume the expression should be a list
+    // This could be made more flexible in the future
+    if !matches!(expr_type, Type::TList(_)) {
+        return Err(String::from("[Type Error] For loop expression must be a list."));
     }
+
+    // Extract the element type from the list type
+    let element_type = match expr_type {
+        Type::TList(element_type) => *element_type,
+        _ => Type::TAny, // This should never happen due to the check above
+    };
+
+    // Add the loop variable to the environment with the correct element type
+    new_env.map_variable(var, true, element_type);
+
+    check_stmt(*stmt, &new_env)
 }
 
 fn check_func_def_stmt(
@@ -219,7 +193,7 @@ fn check_return_stmt(
 
     assert!(new_env.scoped_function());
 
-    let ret_type = check_expr(*exp, &new_env)?;
+    let ret_type = check_expr(&*exp, &new_env)?;
 
     match new_env.lookup(&"return".to_string()) {
         Some(_) => Ok(new_env),
@@ -541,7 +515,11 @@ mod tests {
                 )),
             )),
         );
-        assert!(check_stmt(stmt, &env).is_ok());
+        let result = check_stmt(stmt, &env);
+        if let Err(e) = &result {
+            println!("Error: {}", e);
+        }
+        assert!(result.is_ok());
     }
 
     #[test]
