@@ -389,39 +389,40 @@ pub fn eval_function_call(
 ) -> Result<ExpressionResult, String> {
     match env.lookup_function(&name) {
         Some(function_definition) => {
-            let mut new_env = Environment::new();
-
-            if args.len() != function_definition.params.len() {
-                return Err(format!(
-                    "[Runtime Error] Invalid number of arguments for '{}'.",
-                    name
-                ));
-            }
-
-            new_env.push();
-
-            for (formal, actual) in function_definition.params.iter().zip(args.iter()) {
-                let value = match eval(actual.clone(), env)? {
-                    ExpressionResult::Value(expr) => expr,
-                    ExpressionResult::Propagate(expr) => {
-                        return Ok(ExpressionResult::Propagate(expr))
-                    }
-                };
-                new_env.map_variable(formal.argument_name.clone(), false, value);
-            }
-
-            // Execute the body of the function.
-            match super::statement_execute::execute(
-                *function_definition.body.as_ref().unwrap().clone(),
-                &new_env,
-            ) {
-                Ok(Computation::Continue(_)) => Err("Function did not return a value".to_string()),
-                Ok(Computation::Return(value, _)) => Ok(ExpressionResult::Value(value)),
-                Ok(Computation::PropagateError(value, _)) => Ok(ExpressionResult::Propagate(value)),
-                Err(e) => Err(e),
+            if let Some(callback) = function_definition.builtin {
+                return callback(&args);
+            } else if let Some(body) = &function_definition.body {
+                let mut new_env = Environment::new();
+                if args.len() != function_definition.params.len() {
+                    return Err(format!(
+                        "[Runtime Error] Invalid number of arguments for '{}'.",
+                        name
+                    ));
+                }
+                new_env.push();
+                for (formal, actual) in function_definition.params.iter().zip(args.iter()) {
+                    let value = match eval(actual.clone(), env)? {
+                        ExpressionResult::Value(expr) => expr,
+                        ExpressionResult::Propagate(expr) => {
+                            return Ok(ExpressionResult::Propagate(expr))
+                        }
+                    };
+                    new_env.map_variable(formal.argument_name.clone(), false, value);
+                }
+                match super::statement_execute::execute(
+                    *body.clone(),
+                    &new_env,
+                ) {
+                    Ok(Computation::Continue(_)) => Err("Function did not return a value".to_string()),
+                    Ok(Computation::Return(value, _)) => Ok(ExpressionResult::Value(value)),
+                    Ok(Computation::PropagateError(value, _)) => Ok(ExpressionResult::Propagate(value)),
+                    Err(e) => Err(e),
+                }
+            } else {
+                return Err("Função sem implementação".to_string());
             }
         }
-        _ => Err(format!("Function {} not found", name)),
+        None => Err(format!("Function {} not found", name)),
     }
 }
 

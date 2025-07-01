@@ -58,10 +58,14 @@ pub struct Environment<A> {
 
 impl<A: Clone> Environment<A> {
     pub fn new() -> Environment<A> {
-        Environment {
+        let mut env = Environment {
             globals: Scope::new(),
             stack: LinkedList::new(),
+        };
+        for (_name, func) in crate::stdlib::builtins() {
+            env.map_function(func);
         }
+        env
     }
 
     pub fn map_variable(&mut self, var: Name, mutable: bool, value: A) -> () {
@@ -194,6 +198,7 @@ mod tests {
             kind: Type::TVoid,
             params: Vec::new(),
             body: None,
+            builtin: None,
         };
 
         let local_func = Function {
@@ -201,6 +206,7 @@ mod tests {
             kind: Type::TVoid,
             params: Vec::new(),
             body: None,
+            builtin: None,
         };
 
         // Test function scoping
@@ -216,5 +222,14 @@ mod tests {
         env.pop();
         assert!(env.lookup_function(&"global".to_string()).is_some()); // global still visible
         assert!(env.lookup_function(&"local".to_string()).is_none()); // local gone
+    }
+
+    #[test]
+    fn test_input_builtin_registration() {
+        let mut env: Environment<i32> = Environment::new();
+        for (_name, func) in crate::stdlib::builtins() {
+            env.map_function(func);
+        }
+        assert!(env.lookup_function(&"input".to_string()).is_some());
     }
 }

@@ -221,6 +221,7 @@ mod statement_tests {
                     Box::new(Expression::Var("y".to_string())),
                 )),
             )]))),
+            builtin: None,
         });
 
         let (rest, result) = parse_statement(input).unwrap();

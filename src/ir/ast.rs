@@ -1,3 +1,4 @@
+use crate::interpreter::expression_eval::ExpressionResult;
 // Type alias for variable and function names
 pub type Name = String;
 
@@ -8,6 +9,7 @@ pub struct Function {
     pub kind: Type,
     pub params: Vec<FormalArgument>,
     pub body: Option<Box<Statement>>,
+    pub builtin: Option<BuiltinCallback>,
 }
 
 impl Function {
@@ -18,6 +20,7 @@ impl Function {
             kind: Type::TVoid,
             params: Vec::new(),
             body: None,
+            builtin: None,
         };
     }
 }
@@ -146,3 +149,5 @@ pub enum Statement {
     Return(Box<Expression>),
     TypeDeclaration(Name, Vec<ValueConstructor>),
 }
+
+pub type BuiltinCallback = fn(&[Expression]) -> Result<ExpressionResult, String>;
