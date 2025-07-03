@@ -176,6 +176,7 @@ fn parse_function_definition_statement(input: &str) -> IResult<&str, Statement> 
                 kind: t,
                 params: args,
                 body: Some(Box::new(block)),
+                builtin: None,
             })
         },
     )(input)
@@ -301,6 +302,7 @@ mod tests {
                 "x".to_string(),
                 Box::new(Expression::CInt(1)),
             )]))),
+            builtin: None,
         });
         let parsed = parse_function_definition_statement(input).unwrap().1;
         assert_eq!(parsed, expected);

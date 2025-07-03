@@ -375,6 +375,7 @@ mod tests {
                 Box::new(Var("a".to_string())),
                 Box::new(Var("b".to_string())),
             ))))),
+            builtin: None,
         });
         match check_stmt(func, &env) {
             Ok(_) => assert!(true),
@@ -508,6 +509,7 @@ mod tests {
             kind: Type::TVoid,
             params: Vec::new(),
             body: None,
+            builtin: None,
         };
 
         let _local_func = Function {
@@ -515,6 +517,7 @@ mod tests {
             kind: Type::TVoid,
             params: Vec::new(),
             body: None,
+            builtin: None,
         };
 
         // Test function scoping
