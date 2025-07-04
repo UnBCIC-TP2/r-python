@@ -1,6 +1,7 @@
 use crate::ir::ast::Function;
 use crate::ir::ast::Name;
 use crate::ir::ast::ValueConstructor;
+use indexmap::IndexMap;
 use std::collections::HashMap;
 use std::collections::LinkedList;
 
@@ -9,6 +10,7 @@ pub struct Scope<A> {
     pub variables: HashMap<Name, (bool, A)>,
     pub functions: HashMap<Name, Function>,
     pub adts: HashMap<Name, Vec<ValueConstructor>>,
+    pub tests: IndexMap<Name, Function>,
 }
 
 impl<A: Clone> Scope<A> {
@@ -17,6 +19,7 @@ impl<A: Clone> Scope<A> {
             variables: HashMap::new(),
             functions: HashMap::new(),
             adts: HashMap::new(),
+            tests: IndexMap::new(), //TODO: Apresentar Mudança no Environment
         }
     }
 
@@ -27,6 +30,11 @@ impl<A: Clone> Scope<A> {
 
     fn map_function(&mut self, function: Function) -> () {
         self.functions.insert(function.name.clone(), function);
+        return ();
+    }
+
+    fn map_test(&mut self, test: Function) -> () {
+        self.tests.insert(test.name.clone(), test);
         return ();
     }
 
@@ -43,6 +51,10 @@ impl<A: Clone> Scope<A> {
 
     fn lookup_function(&self, name: &Name) -> Option<&Function> {
         self.functions.get(name)
+    }
+
+    fn lookup_test(&self, name: &Name) -> Option<&Function> {
+        self.tests.get(name)
     }
 
     fn lookup_adt(&self, name: &Name) -> Option<&Vec<ValueConstructor>> {
@@ -78,6 +90,13 @@ impl<A: Clone> Environment<A> {
         }
     }
 
+    pub fn map_test(&mut self, test: Function) -> () {
+        match self.stack.front_mut() {
+            None => self.globals.map_test(test),
+            Some(top) => top.map_test(test),
+        }
+    }
+
     pub fn map_adt(&mut self, name: Name, cons: Vec<ValueConstructor>) -> () {
         match self.stack.front_mut() {
             None => self.globals.map_adt(name, cons),
@@ -101,6 +120,28 @@ impl<A: Clone> Environment<A> {
             }
         }
         self.globals.lookup_function(name)
+    }
+
+    pub fn lookup_test(&self, name: &Name) -> Option<&Function> {
+        for scope in self.stack.iter() {
+            if let Some(test) = scope.lookup_test(name) {
+                return Some(test);
+            }
+        }
+        self.globals.lookup_test(name)
+    }
+
+    pub fn get_all_tests(&self) -> Vec<Function> {
+        let mut tests = Vec::new();
+        for scope in self.stack.iter() {
+            for test in scope.tests.values() {
+                tests.push(test.clone());
+            }
+        }
+        for test in self.globals.tests.values() {
+            tests.push(test.clone());
+        }
+        tests
     }
 
     pub fn lookup_adt(&self, name: &Name) -> Option<&Vec<ValueConstructor>> {
@@ -144,6 +185,22 @@ impl<A: Clone> Environment<A> {
         }
 
         vars
+    }
+}
+
+pub struct TestResult {
+    pub name: Name,
+    pub result: bool,
+    pub error: Option<String>,
+}
+
+impl TestResult {
+    pub fn new(name: Name, result: bool, error: Option<String>) -> Self {
+        TestResult {
+            name,
+            result,
+            error,
+        }
     }
 }
 

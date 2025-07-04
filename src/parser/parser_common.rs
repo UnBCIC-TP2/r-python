@@ -33,9 +33,14 @@ pub const WHILE_KEYWORD: &str = "while";
 pub const FOR_KEYWORD: &str = "for";
 pub const IN_KEYWORD: &str = "in";
 pub const ASSERT_KEYWORD: &str = "assert";
+pub const ASSERTEQ_KEYWORD: &str = "asserteq";
+pub const ASSERTNEQ_KEYWORD: &str = "assertneq";
+pub const ASSERTTRUE_KEYWORD: &str = "asserttrue";
+pub const ASSERTFALSE_KEYWORD: &str = "assertfalse";
 pub const VAR_KEYWORD: &str = "var";
 pub const VAL_KEYWORD: &str = "val";
 pub const DEF_KEYWORD: &str = "def";
+pub const TEST_KEYWORD: &str = "test";
 
 // Operator and symbol constants
 pub const FUNCTION_ARROW: &str = "->";

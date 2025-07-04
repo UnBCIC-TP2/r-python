@@ -1,5 +1,6 @@
 use super::expression_eval::{eval, ExpressionResult};
 use crate::environment::environment::Environment;
+use crate::environment::environment::TestResult;
 use crate::ir::ast::{Expression, Statement};
 
 pub enum Computation {
@@ -32,6 +33,45 @@ pub fn run(
     }
 }
 
+//TODO: Apresentar RunTests
+pub fn run_tests(stmt: &Statement) -> Result<Vec<TestResult>, String> {
+    let env = match run(stmt.clone(), &Environment::new()) {
+        Ok(env) => env,
+        Err(e) => return Err(e),
+    };
+
+    let mut results = Vec::new();
+
+    for test in env.get_all_tests() {
+        let mut test_env = env.clone();
+        test_env.push();
+
+        let stmt = match &test.body {
+            Some(body) => *body.clone(),
+            None => continue,
+        };
+
+        match execute(stmt, &test_env) {
+            Ok(Computation::Continue(_)) | Ok(Computation::Return(_, _)) => {
+                results.push(TestResult::new(test.name.clone(), true, None));
+            }
+            Err(e) => {
+                results.push(TestResult::new(test.name.clone(), false, Some(e)));
+            }
+            Ok(Computation::PropagateError(e, _)) => {
+                results.push(TestResult::new(
+                    test.name.clone(),
+                    false,
+                    Some(format!("Propagated error: {:?}", e)),
+                ));
+            }
+        }
+        test_env.pop();
+    }
+
+    Ok(results)
+}
+
 pub fn execute(stmt: Statement, env: &Environment<Expression>) -> Result<Computation, String> {
     let mut new_env = env.clone();
 
@@ -45,6 +85,149 @@ pub fn execute(stmt: Statement, env: &Environment<Expression>) -> Result<Computa
             };
             new_env.map_variable(name, true, value);
             Ok(Computation::Continue(new_env))
+        }
+        //TODO: Apresentar Asserts
+        Statement::Assert(exp, msg) => {
+            let value = match eval(*exp, &new_env)? {
+                ExpressionResult::Value(expr) => expr,
+                ExpressionResult::Propagate(expr) => {
+                    return Ok(Computation::PropagateError(expr, new_env))
+                }
+            };
+
+            match value {
+                Expression::CTrue => Ok(Computation::Continue(new_env)),
+                Expression::CFalse => {
+                    // Avalia a mensagem
+                    let error_msg = match eval(*msg, &new_env)? {
+                        ExpressionResult::Value(Expression::CString(s)) => s,
+                        ExpressionResult::Propagate(expr) => {
+                            return Ok(Computation::PropagateError(expr, new_env))
+                        }
+                        _ => "Assertion failed".to_string(),
+                    };
+                    Err(error_msg)
+                }
+                _ => Err("Condition must evaluate to a boolean".to_string()),
+            }
+        }
+
+        Statement::AssertTrue(exp, msg) => {
+            let value = match eval(*exp, &new_env)? {
+                ExpressionResult::Value(expr) => expr,
+                ExpressionResult::Propagate(expr) => {
+                    return Ok(Computation::PropagateError(expr, new_env))
+                }
+            };
+
+            match value {
+                Expression::CTrue => Ok(Computation::Continue(new_env)),
+                Expression::CFalse => {
+                    // Avalia a mensagem
+                    let error_msg = match eval(*msg, &new_env)? {
+                        ExpressionResult::Value(Expression::CString(s)) => s,
+                        ExpressionResult::Propagate(expr) => {
+                            return Ok(Computation::PropagateError(expr, new_env))
+                        }
+                        _ => "Assertion failed".to_string(),
+                    };
+                    Err(error_msg)
+                }
+                _ => Err("Condition must evaluate to a boolean".to_string()),
+            }
+        }
+
+        Statement::AssertFalse(exp, msg) => {
+            let value = match eval(*exp, &new_env)? {
+                ExpressionResult::Value(expr) => expr,
+                ExpressionResult::Propagate(expr) => {
+                    return Ok(Computation::PropagateError(expr, new_env))
+                }
+            };
+
+            match value {
+                Expression::CFalse => Ok(Computation::Continue(new_env)),
+                Expression::CTrue => {
+                    // Avalia a mensagem
+                    let error_msg = match eval(*msg, &new_env)? {
+                        ExpressionResult::Value(Expression::CString(s)) => s,
+                        ExpressionResult::Propagate(expr) => {
+                            return Ok(Computation::PropagateError(expr, new_env))
+                        }
+                        _ => "Assertion failed".to_string(),
+                    };
+                    Err(error_msg)
+                }
+                _ => Err("Condition must evaluate to a boolean".to_string()),
+            }
+        }
+
+        Statement::AssertEQ(exp1, exp2, msg) => {
+            let value1 = match eval(*exp1, &new_env)? {
+                ExpressionResult::Value(expr1) => expr1,
+                ExpressionResult::Propagate(expr1) => {
+                    return Ok(Computation::PropagateError(expr1, new_env))
+                }
+            };
+
+            let value2 = match eval(*exp2, &new_env)? {
+                ExpressionResult::Value(expr2) => expr2,
+                ExpressionResult::Propagate(expr2) => {
+                    return Ok(Computation::PropagateError(expr2, new_env))
+                }
+            };
+
+            let comparator = Expression::EQ(Box::new(value1), Box::new(value2));
+
+            match eval(comparator, &new_env)? {
+                ExpressionResult::Value(Expression::CTrue) => Ok(Computation::Continue(new_env)),
+                ExpressionResult::Value(Expression::CFalse) => {
+                    // Avalia a mensagem
+                    let error_msg = match eval(*msg, &new_env)? {
+                        ExpressionResult::Value(Expression::CString(s)) => s,
+                        ExpressionResult::Propagate(expr) => {
+                            return Ok(Computation::PropagateError(expr, new_env))
+                        }
+                        _ => "Assertion failed".to_string(),
+                    };
+                    Err(error_msg)
+                }
+                _ => Err("Condition must evaluate to a boolean".to_string()),
+            }
+        }
+
+        Statement::AssertNEQ(exp1, exp2, msg) => {
+            let value1 = match eval(*exp1, &new_env)? {
+                ExpressionResult::Value(expr1) => expr1,
+                ExpressionResult::Propagate(expr1) => {
+                    return Ok(Computation::PropagateError(expr1, new_env))
+                }
+            };
+
+            let value2 = match eval(*exp2, &new_env)? {
+                ExpressionResult::Value(expr2) => expr2,
+                ExpressionResult::Propagate(expr2) => {
+                    return Ok(Computation::PropagateError(expr2, new_env))
+                }
+            };
+
+            let comparator = Expression::NEQ(Box::new(value1), Box::new(value2));
+
+            match eval(comparator, &new_env)? {
+                ExpressionResult::Value(Expression::CTrue) => Ok(Computation::Continue(new_env)),
+                ExpressionResult::Value(Expression::CFalse) => {
+                    // Avalia a mensagem
+                    let error_msg = match eval(*msg, &new_env)? {
+                        ExpressionResult::Value(Expression::CString(s)) => s,
+                        ExpressionResult::Propagate(expr) => {
+                            return Ok(Computation::PropagateError(expr, new_env))
+                        }
+                        _ => "Assertion failed".to_string(),
+                    };
+                    Err(error_msg)
+                }
+                _ => Err("Condition must evaluate to a boolean".to_string()),
+            }
         }
 
         Statement::ValDeclaration(name, exp) => {
@@ -174,6 +357,12 @@ pub fn execute(stmt: Statement, env: &Environment<Expression>) -> Result<Computa
 
         Statement::FuncDef(func) => {
             new_env.map_function(func.clone());
+            Ok(Computation::Continue(new_env))
+        }
+
+        //TODO: Apresentar TesteDef
+        Statement::TestDef(teste) => {
+            new_env.map_test(teste.clone());
             Ok(Computation::Continue(new_env))
         }
 
@@ -774,6 +963,467 @@ mod tests {
             assert!(sum_value.is_some());
             let (_, sum_expr) = sum_value.unwrap();
             assert_eq!(sum_expr, Expression::CInt(12));
+        }
+    }
+
+    //TODO: Apresentar Interpretador Asserts (Tests)
+    mod assert_statement_tests {
+        use super::*;
+
+        #[test]
+        fn test_execute_assert_true() {
+            let env = create_test_env();
+            let stmt = Statement::Assert(
+                Box::new(Expression::CTrue),
+                Box::new(Expression::CString("ok".to_string())),
+            );
+            let result = execute(stmt, &env);
+            assert!(result.is_ok(), "Assert with true condition should succeed");
+        }
+
+        #[test]
+        fn test_execute_assert_false() {
+            let env = create_test_env();
+            let stmt = Statement::Assert(
+                Box::new(Expression::CFalse),
+                Box::new(Expression::CString("fail msg".to_string())),
+            );
+            let result = execute(stmt.clone(), &env);
+            assert!(result.is_err(), "Assert with false condition should fail");
+            //assert_eq!(result.unwrap_err(), "fail msg");
+            let computation = match execute(stmt, &env) {
+                Ok(Computation::Continue(_)) => "error".to_string(),
+                Ok(Computation::Return(_, _)) => "error".to_string(),
+                Ok(Computation::PropagateError(_, _)) => "error".to_string(),
+                Err(e) => e.to_string(),
+            };
+            assert_eq!(computation, "fail msg".to_string());
+        }
+
+        #[test]
+        fn test_execute_asserteq_true() {
+            let env = create_test_env();
+            let stmt = Statement::AssertEQ(
+                Box::new(Expression::CInt(1)),
+                Box::new(Expression::CInt(1)),
+                Box::new(Expression::CString("should not fail".to_string())),
+            );
+            let result = execute(stmt, &env);
+            assert!(result.is_ok(), "AssertEQ with equal values should succeed");
+        }
+
+        #[test]
+        fn test_execute_asserteq_false() {
+            let env = create_test_env();
+            let stmt = Statement::AssertEQ(
+                Box::new(Expression::CInt(1)),
+                Box::new(Expression::CInt(2)),
+                Box::new(Expression::CString("eq fail".to_string())),
+            );
+            let result = execute(stmt.clone(), &env);
+            assert!(
+                result.is_err(),
+                "AssertEQ with different values should fail"
+            );
+            //assert_eq!(result.unwrap_err(), "eq fail");
+
+            let computation = match execute(stmt, &env) {
+                Ok(Computation::Continue(_)) => "error".to_string(),
+                Ok(Computation::Return(_, _)) => "error".to_string(),
+                Ok(Computation::PropagateError(_, _)) => "error".to_string(),
+                Err(e) => e.to_string(),
+            };
+            assert_eq!(computation, "eq fail".to_string());
+        }
+
+        #[test]
+        fn test_execute_assertneq_true() {
+            let env = create_test_env();
+            let stmt = Statement::AssertNEQ(
+                Box::new(Expression::CInt(1)),
+                Box::new(Expression::CInt(2)),
+                Box::new(Expression::CString("should not fail".to_string())),
+            );
+            let result = execute(stmt, &env);
+            assert!(
+                result.is_ok(),
+                "AssertNEQ with different values should succeed"
+            );
+        }
+
+        #[test]
+        fn test_execute_assertneq_false() {
+            let env = create_test_env();
+            let stmt = Statement::AssertNEQ(
+                Box::new(Expression::CInt(3)),
+                Box::new(Expression::CInt(3)),
+                Box::new(Expression::CString("neq fail".to_string())),
+            );
+            let result = execute(stmt.clone(), &env);
+            assert!(result.is_err(), "AssertNEQ with equal values should fail");
+            //assert_eq!(result.unwrap_err(), "neq fail");
+
+            let computation = match execute(stmt, &env) {
+                Ok(Computation::Continue(_)) => "error".to_string(),
+                Ok(Computation::Return(_, _)) => "error".to_string(),
+                Ok(Computation::PropagateError(_, _)) => "error".to_string(),
+                Err(e) => e.to_string(),
+            };
+            assert_eq!(computation, "neq fail".to_string());
+        }
+
+        #[test]
+        fn test_execute_asserttrue_true() {
+            let env = create_test_env();
+            let stmt = Statement::AssertTrue(
+                Box::new(Expression::CTrue),
+                Box::new(Expression::CString("ok".to_string())),
+            );
+            let result = execute(stmt, &env);
+            assert!(
+                result.is_ok(),
+                "AssertTrue with true condition should succeed"
+            );
+        }
+
+        #[test]
+        fn test_execute_asserttrue_false() {
+            let env = create_test_env();
+            let stmt = Statement::AssertTrue(
+                Box::new(Expression::CFalse),
+                Box::new(Expression::CString("asserttrue fail".to_string())),
+            );
+            let result = execute(stmt.clone(), &env);
+            assert!(
+                result.is_err(),
+                "AssertTrue with false condition should fail"
+            );
+            //assert_eq!(result.unwrap_err(), "asserttrue fail");
+
+            let computation = match execute(stmt, &env) {
+                Ok(Computation::Continue(_)) => "error".to_string(),
+                Ok(Computation::Return(_, _)) => "error".to_string(),
+                Ok(Computation::PropagateError(_, _)) => "error".to_string(),
+                Err(e) => e.to_string(),
+            };
+            assert_eq!(computation, "asserttrue fail".to_string());
+        }
+
+        #[test]
+        fn test_execute_assertfalse_false() {
+            let env = create_test_env();
+            let stmt = Statement::AssertFalse(
+                Box::new(Expression::CFalse),
+                Box::new(Expression::CString("ok".to_string())),
+            );
+            let result = execute(stmt, &env);
+            assert!(
+                result.is_ok(),
+                "AssertFalse with false condition should succeed"
+            );
+        }
+
+        #[test]
+        fn test_execute_assertfalse_true() {
+            let env = create_test_env();
+            let stmt = Statement::AssertFalse(
+                Box::new(Expression::CTrue),
+                Box::new(Expression::CString("assertfalse fail".to_string())),
+            );
+            let result = execute(stmt.clone(), &env);
+            assert!(
+                result.is_err(),
+                "AssertFalse with true condition should fail"
+            );
+            //assert_eq!(result.unwrap_err(), "assertfalse fail");
+            let computation = match execute(stmt, &env) {
+                Ok(Computation::Continue(_)) => "error".to_string(),
+                Ok(Computation::Return(_, _)) => "error".to_string(),
+                Ok(Computation::PropagateError(_, _)) => "error".to_string(),
+                Err(e) => e.to_string(),
+            };
+            assert_eq!(computation, "assertfalse fail".to_string());
+        }
+    }
+
+    //TODO: Apresentar Interpretador TestDef (Tests)
+    mod testdef_statement_tests {
+        use super::*;
+
+        #[test]
+        fn test_execute_testdef() {
+            let env = create_test_env();
+            let test_def = Statement::TestDef(Function {
+                name: "test_example".to_string(),
+                kind: Type::TVoid,
+                params: Vec::new(),
+                body: Some(Box::new(Statement::Block(vec![Statement::Assert(
+                    Box::new(Expression::CTrue),
+                    Box::new(Expression::CString("Test passed".to_string())),
+                )]))),
+            });
+            let programa = Statement::Block(vec![test_def.clone()]);
+            match execute(programa, &env) {
+                Ok(Computation::Continue(new_env)) => {
+                    assert!(new_env.lookup_test(&"test_example".to_string()).is_some());
+                }
+                _ => panic!("Test definition execution failed"),
+            }
+        }
+    }
+
+    //TODO: Apresentar Interpretador RunTests (Tests)
+    mod run_tests_tests {
+
+        use super::*;
+
+        #[test]
+        fn test_run_tests() {
+            let test_def = Statement::TestDef(Function {
+                name: "test_example".to_string(),
+                kind: Type::TVoid,
+                params: Vec::new(),
+                body: Some(Box::new(Statement::Block(vec![Statement::Assert(
+                    Box::new(Expression::CTrue),
+                    Box::new(Expression::CString("Test passed".to_string())),
+                )]))),
+            });
+            let programa = Statement::Block(vec![test_def.clone()]);
+            match run_tests(&programa) {
+                Ok(resultados) => {
+                    assert_eq!(resultados.len(), 1);
+                    assert_eq!(resultados[0].name, "test_example");
+                    assert!(resultados[0].result);
+                    assert!(resultados[0].error.is_none());
+                }
+                _ => panic!("Test execution failed"),
+            }
+        }
+
+        #[test]
+        fn test_run_tests_scope() {
+            let test_def = Statement::TestDef(Function {
+                name: "test_example".to_string(),
+                kind: Type::TVoid,
+                params: Vec::new(),
+                body: Some(Box::new(Statement::Block(vec![Statement::Assert(
+                    Box::new(Expression::CTrue),
+                    Box::new(Expression::CString("Test passed".to_string())),
+                )]))),
+            });
+
+            let teste_def2 = Statement::TestDef(Function {
+                name: "test_example2".to_string(),
+                kind: Type::TVoid,
+                params: Vec::new(),
+                body: Some(Box::new(Statement::Block(vec![Statement::Assert(
+                    Box::new(Expression::CTrue),
+                    Box::new(Expression::CString("Test 2 passed".to_string())),
+                )]))),
+            });
+
+            let assign1 = Statement::Assignment("x".to_string(), Box::new(Expression::CInt(10)));
+            let assign2 = Statement::Assignment("y".to_string(), Box::new(Expression::CInt(20)));
+
+            let ifelse = Statement::IfThenElse(
+                Box::new(Expression::CTrue),
+                Box::new(test_def),
+                Some(Box::new(teste_def2)),
+            );
+
+            let programa = Statement::Block(vec![assign1, assign2, ifelse]);
+
+            let resultado_final = match run_tests(&programa) {
+                Ok(resultados) => resultados,
+                Err(e) => panic!("Test execution failed: {}", e),
+            };
+
+            assert_eq!(resultado_final.len(), 1);
+            assert_eq!(resultado_final[0].name, "test_example");
+            assert_eq!(resultado_final[0].result, true);
+        }
+
+        #[test]
+        fn test_run_tests_with_assert_fail() {
+            let teste1 = Statement::TestDef(Function {
+                name: "test_fail".to_string(),
+                kind: Type::TVoid,
+                params: Vec::new(),
+                body: Some(Box::new(Statement::Block(vec![Statement::Assert(
+                    Box::new(Expression::CFalse),
+                    Box::new(Expression::CString("This test should fail".to_string())),
+                )]))),
+            });
+            let programa = Statement::Block(vec![teste1]);
+            match run_tests(&programa) {
+                Ok(resultados) => {
+                    assert_eq!(resultados.len(), 1);
+                    assert_eq!(resultados[0].name, "test_fail");
+                    assert!(!resultados[0].result);
+                    assert_eq!(
+                        resultados[0].error,
+                        Some("This test should fail".to_string())
+                    );
+                }
+                Err(e) => panic!("Test execution failed: {}", e),
+            }
+        }
+
+        #[test]
+        fn test_run_tests_with_second_assert_fail() {
+            let teste1 = Statement::TestDef(Function {
+                name: "test_fail".to_string(),
+                kind: Type::TVoid,
+                params: Vec::new(),
+                body: Some(Box::new(Statement::Block(vec![
+                    Statement::Assert(
+                        Box::new(Expression::CTrue),
+                        Box::new(Expression::CString("This test should pass".to_string())),
+                    ),
+                    Statement::Assert(
+                        Box::new(Expression::CFalse),
+                        Box::new(Expression::CString(
+                            "This second test should fail".to_string(),
+                        )),
+                    ),
+                    Statement::Assert(
+                        Box::new(Expression::CTrue),
+                        Box::new(Expression::CString(
+                            "This test shouldn't run, but should pass".to_string(),
+                        )),
+                    ),
+                ]))),
+            });
+            let programa = Statement::Block(vec![teste1]);
+            match run_tests(&programa) {
+                Ok(resultados) => {
+                    assert_eq!(resultados.len(), 1);
+                    assert_eq!(resultados[0].name, "test_fail");
+                    assert!(!resultados[0].result);
+                    assert_eq!(
+                        resultados[0].error,
+                        Some("This second test should fail".to_string())
+                    );
+                }
+                Err(e) => panic!("Test execution failed: {}", e),
+            }
+        }
+
+        #[test]
+        fn test_run_tests_without_asserts() {
+            let teste = Statement::TestDef(Function {
+                name: "test_no_assert".to_string(),
+                kind: Type::TVoid,
+                params: Vec::new(),
+                body: Some(Box::new(Statement::Block(vec![Statement::VarDeclaration(
+                    "x".to_string(),
+                    Box::new(Expression::CInt(42)),
+                )]))),
+            });
+            let programa = Statement::Block(vec![teste]);
+            match run_tests(&programa) {
+                Ok(resultados) => {
+                    assert_eq!(resultados.len(), 1);
+                    assert_eq!(resultados[0].name, "test_no_assert");
+                    assert!(resultados[0].result);
+                    assert!(resultados[0].error.is_none());
+                }
+                Err(e) => panic!("Test execution failed: {}", e),
+            }
+        }
+
+        #[test]
+        fn test_run_tests_with_multiple_tests() {
+            let teste1 = Statement::TestDef(Function {
+                name: "test_one".to_string(),
+                kind: Type::TVoid,
+                params: Vec::new(),
+                body: Some(Box::new(Statement::Block(vec![Statement::Assert(
+                    Box::new(Expression::CTrue),
+                    Box::new(Expression::CString("Test one passed".to_string())),
+                )]))),
+            });
+            let teste2 = Statement::TestDef(Function {
+                name: "test_two".to_string(),
+                kind: Type::TVoid,
+                params: Vec::new(),
+                body: Some(Box::new(Statement::Block(vec![Statement::Assert(
+                    Box::new(Expression::CFalse),
+                    Box::new(Expression::CString("Test two failed".to_string())),
+                )]))),
+            });
+            let teste3 = Statement::TestDef(Function {
+                name: "test_three".to_string(),
+                kind: Type::TVoid,
+                params: Vec::new(),
+                body: Some(Box::new(Statement::Block(vec![Statement::Assert(
+                    Box::new(Expression::CTrue),
+                    Box::new(Expression::CString("Test three passed".to_string())),
+                )]))),
+            });
+            let programa = Statement::Block(vec![teste1, teste2, teste3]);
+
+            match run_tests(&programa) {
+                Ok(resultados) => {
+                    assert_eq!(resultados.len(), 3);
+                    assert_eq!(resultados[0].name, "test_one");
+                    assert!(resultados[0].result);
+                    assert!(resultados[0].error.is_none());
+
+                    assert_eq!(resultados[1].name, "test_two");
+                    assert!(!resultados[1].result);
+                    assert_eq!(resultados[1].error, Some("Test two failed".to_string()));
+
+                    assert_eq!(resultados[2].name, "test_three");
+                    assert!(resultados[2].result);
+                    assert!(resultados[2].error.is_none());
+                }
+                Err(e) => panic!("Test execution failed: {}", e),
+            }
+        }
+        #[test]
+        fn test_test_scope_isolation() {
+            // test_one: define x = 1, passa se x == 1
+            let test_one = Statement::TestDef(Function {
+                name: "test_one".to_string(),
+                kind: Type::TBool,
+                params: vec![],
+                body: Some(Box::new(Statement::Block(vec![
+                    Statement::VarDeclaration("x".to_string(), Box::new(Expression::CInt(1))),
+                    Statement::AssertEQ(
+                        Box::new(Expression::Var("x".to_string())),
+                        Box::new(Expression::CInt(1)),
+                        Box::new(Expression::CString("x should be 1".to_string())),
+                    ),
+                ]))),
+            });
+
+            // test_two: espera que x NÃO exista
+            let test_two = Statement::TestDef(Function {
+                name: "test_two".to_string(),
+                kind: Type::TBool,
+                params: vec![],
+                body: Some(Box::new(Statement::Block(vec![Statement::AssertFalse(
+                    Box::new(Expression::Var("x".to_string())),
+                    Box::new(Expression::CString("x should not be visible".to_string())),
+                )]))),
+            });
+
+            let stmt = Statement::Block(vec![test_one, test_two]);
+
+            let results = run_tests(&stmt).unwrap();
+
+            assert_eq!(results.len(), 2);
+
+            let r1 = &results[0];
+            let r2 = &results[1];
+
+            assert_eq!(r1.name, "test_one");
+            assert!(r1.result);
+
+            assert_eq!(r2.name, "test_two");
+            assert!(!r2.result);
+            assert_eq!(r2.error, Some("Variable 'x' not found".to_string())); // Erro é propagado de Expression::Var
         }
     }
 }
