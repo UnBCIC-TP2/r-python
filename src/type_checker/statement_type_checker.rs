@@ -1,6 +1,7 @@
 use crate::environment::environment::Environment;
-use crate::ir::ast::{Expression, Function, Name, Statement, Type, ValueConstructor};
+use crate::ir::ast::{Expression, Function, Name, Statement, Type};
 use crate::type_checker::expression_type_checker::check_expr;
+use std::collections::HashMap;
 
 type ErrorMessage = String;
 
@@ -177,7 +178,7 @@ fn check_func_def_stmt(
 
 fn check_adt_declarations_stmt(
     name: Name,
-    cons: Vec<ValueConstructor>,
+    cons: HashMap<Name, Vec<Type>>,
     env: &Environment<Type>,
 ) -> Result<Environment<Type>, ErrorMessage> {
     let mut new_env = env.clone();

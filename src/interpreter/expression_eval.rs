@@ -454,7 +454,7 @@ fn eval_propagate_expression(
         Expression::COk(e) => Ok(ExpressionResult::Value(*e)),
         Expression::CErr(e) => Ok(ExpressionResult::Propagate(*e)),
         Expression::CNothing => Ok(ExpressionResult::Propagate(Expression::CString(
-            "Couldn't unwrap Nothing".to_string(),
+            "Couldn't unwrap Anything".to_string(),
         ))),
         _ => Err(String::from("'propagate' expects a Just or Ok.")),
     }
@@ -534,6 +534,15 @@ fn eval_list_value(
     }
     Ok(ExpressionResult::Value(Expression::ListValue(values)))
 }
+
+/* 
+fn eval_match_expression(
+    expr: Expression,
+    arms: Vec<Expression>,
+    env: &Environment<Expression>
+) -> Result<ExpressionResult, String> {
+    
+}*/
 
 #[cfg(test)]
 mod tests {

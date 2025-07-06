@@ -1,5 +1,6 @@
 use r_python::ir::ast::*;
 use r_python::parser::{parse, parse_expression, parse_statement};
+use std::collections::HashMap;
 
 // Basic Expression Tests
 mod expression_tests {
@@ -318,13 +319,10 @@ mod adt_tests {
         let input = "data Shape = Circle Int | Rectangle Int Int";
         let expected = Statement::TypeDeclaration(
             "Shape".to_string(),
-            vec![
-                ValueConstructor::new("Circle".to_string(), vec![Type::TInteger]),
-                ValueConstructor::new(
-                    "Rectangle".to_string(),
-                    vec![Type::TInteger, Type::TInteger],
-                ),
-            ],
+            HashMap::from([
+                ("Circle".to_string(), vec![Type::TInteger]),
+                ("Rectangle".to_string(), vec![Type::TInteger, Type::TInteger]),
+            ]),
         );
 
         let (rest, result) = parse_statement(input).unwrap();

@@ -1,6 +1,6 @@
 use crate::ir::ast::Function;
 use crate::ir::ast::Name;
-use crate::ir::ast::ValueConstructor;
+use crate::ir::ast::Type;
 use std::collections::HashMap;
 use std::collections::LinkedList;
 use std::sync::Arc;
@@ -9,7 +9,7 @@ use std::sync::Arc;
 pub struct Scope<A> {
     pub variables: HashMap<Name, (bool, A)>,
     pub functions: HashMap<Name, Function>,
-    pub adts: HashMap<Name, Arc<Vec<ValueConstructor>>>,
+    pub adts: HashMap<Name, Arc<HashMap<Name, Vec<Type>>>>,
 }
 
 impl<A: Clone> Scope<A> {
@@ -31,7 +31,7 @@ impl<A: Clone> Scope<A> {
         return ();
     }
 
-    fn map_adt(&mut self, name: Name, adt: Vec<ValueConstructor>) -> () {
+    fn map_adt(&mut self, name: Name, adt: HashMap<Name, Vec<Type>>) -> () {
         self.adts.insert(name.clone(), Arc::new(adt));
         return ();
     }
@@ -46,7 +46,7 @@ impl<A: Clone> Scope<A> {
         self.functions.get(name)
     }
 
-    fn lookup_adt(&self, name: &Name) -> Option<&Arc<Vec<ValueConstructor>>> {
+    fn lookup_adt(&self, name: &Name) -> Option<&Arc<HashMap<Name, Vec<Type>>>> {
         self.adts.get(name)
     }
 }
@@ -79,7 +79,7 @@ impl<A: Clone> Environment<A> {
         }
     }
 
-    pub fn map_adt(&mut self, name: Name, cons: Vec<ValueConstructor>) -> () {
+    pub fn map_adt(&mut self, name: Name, cons: HashMap<Name, Vec<Type>>) -> () {
         match self.stack.front_mut() {
             None => self.globals.map_adt(name, cons),
             Some(top) => top.map_adt(name, cons),
@@ -104,7 +104,7 @@ impl<A: Clone> Environment<A> {
         self.globals.lookup_function(name)
     }
 
-    pub fn lookup_adt(&self, name: &Name) -> Option<&Arc<Vec<ValueConstructor>>> {
+    pub fn lookup_adt(&self, name: &Name) -> Option<&Arc<HashMap<Name, Vec<Type>>>> {
         for scope in self.stack.iter() {
             if let Some(cons) = scope.lookup_adt(name) {
                 return Some(cons);

@@ -1,7 +1,6 @@
 use crate::environment::environment::Environment;
 use crate::ir::ast::{Expression, Name, Type};
 use std::sync::Arc;
-
 type ErrorMessage = String;
 
 pub fn check_expr(exp: &Expression, env: &Environment<Type>) -> Result<Type, ErrorMessage> {
@@ -35,6 +34,7 @@ pub fn check_expr(exp: &Expression, env: &Environment<Type>) -> Result<Type, Err
         Expression::Propagate(e) => check_propagate_type(e, env),
         Expression::ListValue(elements) => check_list_value(elements.as_slice(), env),
         Expression::Constructor(name, args) => check_adt_constructor(name.clone(), args, env),
+        Expression::Match(expr, arms) => check_match_expression(expr, arms, &mut env.clone()),
 
         _ => Err("not implemented yet.".to_string()),
     }
@@ -50,7 +50,7 @@ fn check_var_name(name: Name, env: &Environment<Type>) -> Result<Type, ErrorMess
 fn check_bin_arithmetic_expression(
     left: &Expression,
     right: &Expression,
-    env: &Environment<Type>,
+    env: &Environment<Type>
 ) -> Result<Type, ErrorMessage> {
     let left_type = check_expr(left, env)?;
     let right_type = check_expr(right, env)?;
@@ -71,6 +71,7 @@ fn check_bin_boolean_expression(
 ) -> Result<Type, ErrorMessage> {
     let left_type = check_expr(left, env)?;
     let right_type = check_expr(right, env)?;
+
     match (left_type, right_type) {
         (Type::TBool, Type::TBool) => Ok(Type::TBool),
         _ => Err(String::from("[Type Error] expecting boolean type values.")),
@@ -89,7 +90,7 @@ fn check_not_expression(exp: &Expression, env: &Environment<Type>) -> Result<Typ
 fn check_bin_relational_expression(
     left: &Expression,
     right: &Expression,
-    env: &Environment<Type>,
+    env: &Environment<Type>
 ) -> Result<Type, ErrorMessage> {
     let left_type = check_expr(left, env)?;
     let right_type = check_expr(right, env)?;
@@ -196,8 +197,7 @@ fn check_adt_constructor(
         .find_map(|scope| {
             scope.adts.iter()
             .find_map(|(adt_name, constructors)| {
-                constructors.iter()
-                    .find(|&constructor| constructor.name == name)
+                constructors.get(&name)
                     .map(|constructor| (
                         adt_name.clone(),
                         constructor.clone(),
@@ -207,8 +207,7 @@ fn check_adt_constructor(
         })
         .or_else(|| {  // Search in globals if not found in stack
         env.globals.adts.iter().find_map(|(adt_name, constructors)| {
-            constructors.iter()
-                .find(|&constructor| constructor.name == name)
+            constructors.get(&name)
                 .map(|constructor| (
                     adt_name.clone(),
                     constructor.clone(),
@@ -220,16 +219,16 @@ fn check_adt_constructor(
     match found {
         Some((adt_type_name, constructor, constructors)) => {
             // Check that we have the right number of arguments
-            if args.len() != constructor.types.len() {
+            if args.len() != constructor.len() {
                 return Err(format!(
                     "[Type Error] Constructor '{}' expects {} arguments, but got {}.",
                     name,
-                    constructor.types.len(),
+                    constructor.len(),
                     args.len()
                 ));
             }
             // Check each argument's type
-            for (arg, expected_type) in args.into_iter().zip(constructor.types.into_iter()) {
+            for (arg, expected_type) in args.into_iter().zip(constructor.into_iter()) {
                 let arg_type = check_expr(&*arg, env)?;
                 if arg_type != expected_type {
                     return Err(format!(
@@ -248,13 +247,56 @@ fn check_adt_constructor(
     }
 }
 
+fn check_match_expression(
+    expr: &Expression,
+    arms: &Vec<((Name, Vec<Name>), Expression)>,
+    env: &mut Environment<Type>
+) -> Result<Type, ErrorMessage> {
+    if let Type::TAlgebraicData(adt_name, constructors) = check_expr(expr, env)? {
+        arms.iter()
+            .fold(
+                Ok(Vec::new()),
+                |acc, ((name, vars), arm)| {
+                    let mut arms_types = acc?;
+                    match constructors.get(name) {
+                        None => return Err(format!("[Type Error] Constructor '{}' is not defined in ADT '{}'.", name, adt_name)),
+                        Some(types) => {
+                            env.push();
+                            if types.len() != vars.len() {
+                                return Err(format!("[Type Error] Constructor '{}' expects {} arguments, but got {}.", name, types.len(), vars.len()));
+                            }
+                            // Updates the environment with the variables on the arm scope
+                            for (tp, var) in types.into_iter().zip(vars.into_iter()) {
+                                env.map_variable(var.clone(), false, tp.clone());
+                            }
+
+                            let arm_type = check_expr(arm, env)?;
+                            // Checks if all of the arms evaluate to the same type
+                            if arms_types.is_empty() {
+                                arms_types.push(arm_type);
+                            } else {
+                                if arms_types[0] != arm_type {
+                                    return Err(format!("[Type Error] All of the arms must evaluate to the same type!"));
+                                }
+                            }
+                            env.pop();
+                            Ok(arms_types)
+                        }
+                    }
+            })
+            .and_then(|v| v.into_iter().next().map_or(Err(format!("[Type Error] No arms in match!")), Ok))
+    } else {
+        Err(format!("[Type Error] Expression must be an algebraic data type for match expression."))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::environment::environment::Environment;
     use crate::ir::ast::Expression::*;
     use crate::ir::ast::Type::*;
-    use crate::ir::ast::{Type, ValueConstructor};
+    use std::collections::HashMap;
 
     #[test]
     fn check_constant() {
@@ -533,13 +575,10 @@ mod tests {
     #[test]
     fn test_adt_constructor_valid() {
         let mut env = Environment::new();
-        let figure_type = vec![
-            ValueConstructor::new("Circle".to_string(), vec![Type::TInteger]),
-            ValueConstructor::new(
-                "Rectangle".to_string(),
-                vec![Type::TInteger, Type::TInteger],
-            ),
-        ];
+        let figure_type = HashMap::from([
+            ("Circle".to_string(), vec![Type::TInteger]),
+            ("Rectangle".to_string(), vec![Type::TInteger, Type::TInteger]),
+        ]);
         env.map_adt("Figure".to_string(), figure_type);
 
         let circle = Constructor("Circle".to_string(), vec![Box::new(CInt(5))]);
@@ -550,13 +589,10 @@ mod tests {
     #[test]
     fn test_adt_constructor_wrong_args() {
         let mut env = Environment::new();
-        let figure_type = vec![
-            ValueConstructor::new("Circle".to_string(), vec![Type::TInteger]),
-            ValueConstructor::new(
-                "Rectangle".to_string(),
-                vec![Type::TInteger, Type::TInteger],
-            ),
-        ];
+        let figure_type = HashMap::from([
+            ("Circle".to_string(), vec![Type::TInteger]),
+            ("Rectangle".to_string(), vec![Type::TInteger, Type::TInteger]),
+        ]);
         env.map_adt("Figure".to_string(), figure_type);
 
         let circle = Constructor(
@@ -570,13 +606,10 @@ mod tests {
     #[test]
     fn test_adt_constructor_wrong_count() {
         let mut env = Environment::new();
-        let figure_type = vec![
-            ValueConstructor::new("Circle".to_string(), vec![Type::TInteger]),
-            ValueConstructor::new(
-                "Rectangle".to_string(),
-                vec![Type::TInteger, Type::TInteger],
-            ),
-        ];
+        let figure_type = HashMap::from([
+            ("Circle".to_string(), vec![Type::TInteger]),
+            ("Rectangle".to_string(), vec![Type::TInteger, Type::TInteger]),
+        ]);
         env.map_adt("Figure".to_string(), figure_type);
 
         let rectangle = Constructor("Rectangle".to_string(), vec![Box::new(CInt(5))]); // Missing second argument
@@ -595,13 +628,10 @@ mod tests {
     #[test]
     fn test_adt_constructor_with_mutable_vars() {
         let mut env = Environment::new();
-        let figure_type = vec![
-            ValueConstructor::new("Circle".to_string(), vec![Type::TInteger]),
-            ValueConstructor::new(
-                "Rectangle".to_string(),
-                vec![Type::TInteger, Type::TInteger],
-            ),
-        ];
+        let figure_type = HashMap::from([
+            ("Circle".to_string(), vec![Type::TInteger]),
+            ("Rectangle".to_string(), vec![Type::TInteger, Type::TInteger]),
+        ]);
         env.map_adt("Figure".to_string(), figure_type);
 
         // Create a mutable variable to use in constructor
@@ -613,5 +643,136 @@ mod tests {
         );
         let result = check_expr(&circle, &env);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_match_expression_valid() {
+        let mut env = Environment::new();
+        let figure_type = HashMap::from([
+            ("Circle".to_string(), vec![Type::TInteger]),
+            ("Rectangle".to_string(), vec![Type::TInteger, Type::TInteger]),
+        ]);
+        env.map_adt("Figure".to_string(), figure_type);
+
+        let circle = Constructor("Circle".to_string(), vec![Box::new(CInt(5))]);
+        let arms = vec![
+            (("Circle".to_string(), vec!["radius".to_string()]), CInt(10)),
+            (("Rectangle".to_string(), vec!["width".to_string(), "height".to_string()]), CInt(20)),
+        ];
+        let match_expr = Match(Box::new(circle), arms);
+        
+        let result = check_expr(&match_expr, &env);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), TInteger);
+    }
+
+    #[test]
+    fn test_match_expression_non_adt() {
+        let env = Environment::new();
+        let arms = vec![
+            (("Circle".to_string(), vec!["radius".to_string()]), CInt(10)),
+        ];
+        let match_expr = Match(Box::new(CInt(5)), arms);
+        
+        let result = check_expr(&match_expr, &env);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("must be an algebraic data type"));
+    }
+
+    #[test]
+    fn test_match_expression_undefined_constructor() {
+        let mut env = Environment::new();
+        let figure_type = HashMap::from([
+            ("Circle".to_string(), vec![Type::TInteger]),
+        ]);
+        env.map_adt("Figure".to_string(), figure_type);
+
+        let circle = Constructor("Circle".to_string(), vec![Box::new(CInt(5))]);
+        let arms = vec![
+            (("Triangle".to_string(), vec!["side".to_string()]), CInt(10)), // Triangle não existe
+        ];
+        let match_expr = Match(Box::new(circle), arms);
+        
+        let result = check_expr(&match_expr, &env);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("is not defined in ADT"));
+    }
+
+    #[test]
+    fn test_match_expression_wrong_arg_count() {
+        let mut env = Environment::new();
+        let figure_type = HashMap::from([
+            ("Circle".to_string(), vec![Type::TInteger]),
+            ("Rectangle".to_string(), vec![Type::TInteger, Type::TInteger]),
+        ]);
+        env.map_adt("Figure".to_string(), figure_type);
+
+        let circle = Constructor("Circle".to_string(), vec![Box::new(CInt(5))]);
+        let arms = vec![
+            (("Circle".to_string(), vec!["radius".to_string(), "extra".to_string()]), CInt(10)), // Circle só tem 1 arg
+        ];
+        let match_expr = Match(Box::new(circle), arms);
+        
+        let result = check_expr(&match_expr, &env);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("expects 1 arguments, but got 2"));
+    }
+
+    #[test]
+    fn test_match_expression_different_arm_types() {
+        let mut env = Environment::new();
+        let figure_type = HashMap::from([
+            ("Circle".to_string(), vec![Type::TInteger]),
+            ("Rectangle".to_string(), vec![Type::TInteger, Type::TInteger]),
+        ]);
+        env.map_adt("Figure".to_string(), figure_type);
+
+        let circle = Constructor("Circle".to_string(), vec![Box::new(CInt(5))]);
+        let arms = vec![
+            (("Circle".to_string(), vec!["radius".to_string()]), CInt(10)),
+            (("Rectangle".to_string(), vec!["width".to_string(), "height".to_string()]), CTrue), // Diferente tipo
+        ];
+        let match_expr = Match(Box::new(circle), arms);
+        
+        let result = check_expr(&match_expr, &env);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("must evaluate to the same type"));
+    }
+
+    #[test]
+    fn test_match_expression_empty_arms() {
+        let mut env = Environment::new();
+        let figure_type = HashMap::from([
+            ("Circle".to_string(), vec![Type::TInteger]),
+        ]);
+        env.map_adt("Figure".to_string(), figure_type);
+
+        let circle = Constructor("Circle".to_string(), vec![Box::new(CInt(5))]);
+        let arms = vec![]; // Sem braços
+        let match_expr = Match(Box::new(circle), arms);
+        
+        let result = check_expr(&match_expr, &env);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("No arms in match"));
+    }
+
+    #[test]
+    fn test_match_expression_with_variables() {
+        let mut env = Environment::new();
+        let figure_type = HashMap::from([
+            ("Circle".to_string(), vec![Type::TInteger]),
+            ("Rectangle".to_string(), vec![Type::TInteger, Type::TInteger]),
+        ]);
+        env.map_adt("Figure".to_string(), figure_type);
+
+        let circle = Constructor("Circle".to_string(), vec![Box::new(CInt(5))]);
+        let arms = vec![
+            (("Circle".to_string(), vec!["radius".to_string()]), Var("radius".to_string())), // Usa a variável do padrão
+        ];
+        let match_expr = Match(Box::new(circle), arms);
+        
+        let result = check_expr(&match_expr, &env);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), TInteger);
     }
 }
