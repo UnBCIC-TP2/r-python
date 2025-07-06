@@ -36,9 +36,11 @@ pub const ASSERT_KEYWORD: &str = "assert";
 pub const VAR_KEYWORD: &str = "var";
 pub const VAL_KEYWORD: &str = "val";
 pub const DEF_KEYWORD: &str = "def";
+pub const MATCH_KEYWORD: &str = "match";
 
 // Operator and symbol constants
 pub const FUNCTION_ARROW: &str = "->";
+pub const MATCH_ARM_ARROW: &str = "=>";
 pub const PIPE_SYMBOL: &str = "|";
 pub const COLON_SYMBOL: &str = ":";
 pub const COMMA_SYMBOL: &str = ",";
@@ -49,6 +51,8 @@ pub const LEFT_BRACKET: char = '[';
 pub const RIGHT_BRACKET: char = ']';
 pub const LEFT_PAREN: char = '(';
 pub const RIGHT_PAREN: char = ')';
+pub const LEFT_BRACE: char = '{';
+pub const RIGHT_BRACE: char = '}';
 
 // Other character constants
 pub const COMMA_CHAR: char = ',';

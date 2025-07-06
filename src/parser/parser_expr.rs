@@ -1,7 +1,7 @@
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_while},
-    character::complete::{char, digit1, multispace0},
+    character::complete::{char, digit1, multispace0, multispace1},
     combinator::{map, map_res, opt, value, verify},
     error::Error,
     multi::{fold_many0, separated_list0},
@@ -11,7 +11,7 @@ use nom::{
 
 use std::str::FromStr;
 
-use crate::ir::ast::Expression;
+use crate::{ir::ast::{Expression, Name}};
 use crate::parser::parser_common::{
     identifier,
     is_string_char,
@@ -23,6 +23,12 @@ use crate::parser::parser_common::{
     LEFT_PAREN,
     RIGHT_BRACKET,
     RIGHT_PAREN,
+    // MATCH_KEYWORD,
+    // END_KEYWORD,
+    // COLON_CHAR,
+    // MATCH_ARM_ARROW,
+    // LEFT_BRACE,
+    // RIGHT_BRACE,
 };
 
 pub fn parse_expression(input: &str) -> IResult<&str, Expression> {
@@ -117,6 +123,7 @@ fn parse_factor(input: &str) -> IResult<&str, Expression> {
         parse_list,
         parse_function_call,
         parse_var,
+        //parse_match_expression,
         delimited(
             char::<&str, Error<&str>>(LEFT_PAREN),
             parse_expression,
@@ -235,6 +242,67 @@ fn parse_list(input: &str) -> IResult<&str, Expression> {
 fn operator<'a>(op: &'static str) -> impl FnMut(&'a str) -> IResult<&'a str, &'a str> {
     delimited(multispace0, tag(op), multispace0)
 }
+
+/*fn parse_match_expression(input: &str) -> IResult<&str, Expression> {
+    map(
+        tuple((
+            keyword(MATCH_KEYWORD),
+            delimited(
+                multispace0,
+                parse_expression,
+                multispace0,
+            ),
+            char(COLON_CHAR),
+            multispace1,
+            separated_list0(
+                delimited(
+                    multispace0,
+                    char(COMMA_CHAR),
+                    multispace1,
+                ),
+                parse_match_arm,
+            ),
+            delimited(
+                multispace1,
+                tag(END_KEYWORD),
+                multispace1,
+            ),
+            keyword(MATCH_KEYWORD),
+        )),
+        |(_, expr, _, _, arms, _, _)| Expression::Match(Box::new(expr), arms),
+    )(input)
+}
+
+fn parse_match_arm(input: &str) -> IResult<&str, ((Name, Vec<Name>), Expression)> {
+    map(
+        tuple((
+            preceded(multispace0, identifier),
+            opt(delimited(
+                    preceded(multispace0, char::<&str, Error<&str>>(LEFT_PAREN)),
+                    separated_list0(
+                        delimited(multispace0, char::<&str, Error<&str>>(COMMA_CHAR), multispace0),
+                        identifier,
+                    ),
+                    preceded(multispace0, char::<&str, Error<&str>>(RIGHT_PAREN)),
+                )
+            ),
+            preceded(
+                delimited(
+                    multispace0,
+                    tag(MATCH_ARM_ARROW),
+                    multispace0,
+                ),
+                delimited(
+                    char::<&str, Error<&str>>(LEFT_BRACE),
+                    delimited(multispace0, parse_block, multispace0),
+                    char::<&str, Error<&str>>(RIGHT_BRACE),
+                ),
+            ),
+        )),
+        |(constructor, parameters, expression)| ((constructor.to_string(), parameters.unwrap_or_default().into_iter().map(|p| p.to_string()).collect()), expression),
+    )(input)
+}
+*/
 
 #[cfg(test)]
 mod tests {
