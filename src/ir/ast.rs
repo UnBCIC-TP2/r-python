@@ -136,4 +136,5 @@ pub enum Statement {
     FuncDef(Function),
     Return(Box<Expression>),
     TypeDeclaration(Name, HashMap<Name, Vec<Type>>),
+    Match(Box<Expression>, Vec<((Name, Vec<Name>), Statement)>),
 }

@@ -1,6 +1,5 @@
 use crate::environment::environment::Environment;
 use crate::ir::ast::{Expression, Name, Type};
-use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 type ErrorMessage = String;
 
@@ -35,7 +34,6 @@ pub fn check_expr(exp: &Expression, env: &Environment<Type>) -> Result<Type, Err
         Expression::Propagate(e) => check_propagate_type(e, env),
         Expression::ListValue(elements) => check_list_value(elements.as_slice(), env),
         Expression::Constructor(name, args) => check_adt_constructor(name.clone(), args, env),
-        Expression::Match(expr, arms) => check_match_expression(expr, arms, &mut env.clone()),
 
         _ => Err("not implemented yet.".to_string()),
     }
@@ -246,64 +244,6 @@ fn check_adt_constructor(
             "[Type Error] Constructor '{}' is not defined in any ADT.",
             name
         )),
-    }
-}
-
-fn check_match_expression(
-    expr: &Expression,
-    arms: &Vec<((Name, Vec<Name>), Expression)>,
-    env: &mut Environment<Type>
-) -> Result<Type, ErrorMessage> {
-    if let Type::TAlgebraicData(adt_name, mut constructors) = check_expr(expr, env)? {
-        let arms_type_result = arms.iter()
-            .fold(
-                Ok(Vec::new()),
-                |acc, ((name, args), arm)| {
-                    let mut arms_types = acc?;
-                    match constructors.remove(name) {
-                        None => return Err(format!("[Type Error] Constructor '{}' is not defined in ADT '{}'.", name, adt_name)),
-                        Some(types) => {
-                            env.push();
-                            if types.len() != args.len() {
-                                return Err(format!("[Type Error] Constructor '{}' expects {} arguments, but got {}.", name, types.len(), args.len()));
-                            }
-                            // Updates the environment with the variables on the arm scope
-                            for (tp, arg) in types.into_iter().zip(args.into_iter()) {
-                                env.map_variable(arg.clone(), false, tp.clone());
-                            }
-
-                            let arm_type = check_expr(arm, env)?;
-                            // Checks if all of the arms evaluate to the same type
-                            if arms_types.is_empty() {
-                                arms_types.push(arm_type);
-                            } else if arms_types[0] != arm_type {
-                                return Err(format!(
-                                    "[Type Error] All of the arms must evaluate to the same type! Expected {:?}, found {:?}",
-                                    arms_types[0],
-                                    arm_type
-                                ));
-                            }
-                            env.pop();
-                            Ok(arms_types)
-                        }
-                    }
-            })
-            .and_then(|v| v.into_iter().next().map_or(Err(format!("[Type Error] No arms in match!")), Ok));
-
-        if !constructors.is_empty() {
-            Err(format!(
-                "[Type Error] The adt isn't exhausted. Missing the following constructors: {}",
-                constructors
-                    .into_iter()
-                    .map(|(name, _)| name)
-                    .collect::<Vec<Name>>()
-                    .join(", ")
-            ))
-        } else {
-            arms_type_result
-        }
-    } else {
-        Err(format!("[Type Error] Expression must be an algebraic data type for match expression."))
     }
 }
 
@@ -660,143 +600,5 @@ mod tests {
         );
         let result = check_expr(&circle, &env);
         assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_match_expression_valid() {
-        let mut env = Environment::new();
-        let figure_type = HashMap::from([
-            ("Circle".to_string(), vec![Type::TInteger]),
-            ("Rectangle".to_string(), vec![Type::TInteger, Type::TInteger]),
-        ]);
-        env.map_adt("Figure".to_string(), figure_type);
-
-        let circle = Constructor("Circle".to_string(), vec![Box::new(CInt(5))]);
-        let arms = vec![
-            (("Circle".to_string(), vec!["radius".to_string()]), CInt(10)),
-            (("Rectangle".to_string(), vec!["width".to_string(), "height".to_string()]), CInt(20)),
-        ];
-        let match_expr = Match(Box::new(circle), arms);
-        
-        let result = check_expr(&match_expr, &env);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), TInteger);
-    }
-
-    #[test]
-    fn test_match_expression_non_adt() {
-        let env = Environment::new();
-        let arms = vec![
-            (("Circle".to_string(), vec!["radius".to_string()]), CInt(10)),
-        ];
-        let match_expr = Match(Box::new(CInt(5)), arms);
-        
-        let result = check_expr(&match_expr, &env);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("must be an algebraic data type"));
-    }
-
-    #[test]
-    fn test_match_expression_undefined_constructor() {
-        let mut env = Environment::new();
-        let figure_type = HashMap::from([
-            ("Circle".to_string(), vec![Type::TInteger]),
-        ]);
-        env.map_adt("Figure".to_string(), figure_type);
-
-        let circle = Constructor("Circle".to_string(), vec![Box::new(CInt(5))]);
-        let arms = vec![
-            (("Circle".to_string(), vec!["radius".to_string()]), CInt(20)), // cobre todos os construtores
-            (("Triangle".to_string(), vec!["side".to_string()]), CInt(10)), // Triangle não existe
-        ];
-        let match_expr = Match(Box::new(circle), arms);
-        let result = check_expr(&match_expr, &env);
-        assert!(result.is_err());
-        let err_msg = result.unwrap_err();
-        println!("Erro retornado: {}", err_msg);
-        assert!(err_msg.contains("is not defined in ADT"), "Mensagem de erro inesperada: {}", err_msg);
-    }
-
-    #[test]
-    fn test_match_expression_wrong_arg_count() {
-        let mut env = Environment::new();
-        let figure_type = HashMap::from([
-            ("Circle".to_string(), vec![Type::TInteger]),
-            ("Rectangle".to_string(), vec![Type::TInteger, Type::TInteger]),
-        ]);
-        env.map_adt("Figure".to_string(), figure_type);
-
-        let circle = Constructor("Circle".to_string(), vec![Box::new(CInt(5))]);
-        let arms = vec![
-            (("Circle".to_string(), vec!["radius".to_string(), "extra".to_string()]), CInt(10)), // Circle só tem 1 arg
-            // Não cobre Rectangle
-        ];
-        let match_expr = Match(Box::new(circle), arms);
-        let result = check_expr(&match_expr, &env);
-        // Agora deve dar erro de exaustividade, não de quantidade de argumentos
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("The adt isn't exhausted"));
-    }
-
-    #[test]
-    fn test_match_expression_different_arm_types() {
-        let mut env = Environment::new();
-        let figure_type = HashMap::from([
-            ("Circle".to_string(), vec![Type::TInteger]),
-            ("Rectangle".to_string(), vec![Type::TInteger, Type::TInteger]),
-        ]);
-        env.map_adt("Figure".to_string(), figure_type);
-
-        let circle = Constructor("Circle".to_string(), vec![Box::new(CInt(5))]);
-        let arms = vec![
-            (("Circle".to_string(), vec!["radius".to_string()]), CInt(10)),
-            // Não cobre Rectangle
-        ];
-        let match_expr = Match(Box::new(circle), arms);
-        let result = check_expr(&match_expr, &env);
-        // Agora deve dar erro de exaustividade, não de tipos diferentes
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("The adt isn't exhausted"));
-    }
-
-    #[test]
-    fn test_match_expression_with_variables() {
-        let mut env = Environment::new();
-        let figure_type = HashMap::from([
-            ("Circle".to_string(), vec![Type::TInteger]),
-            ("Rectangle".to_string(), vec![Type::TInteger, Type::TInteger]),
-        ]);
-        env.map_adt("Figure".to_string(), figure_type);
-
-        let circle = Constructor("Circle".to_string(), vec![Box::new(CInt(5))]);
-        let arms = vec![
-            (("Circle".to_string(), vec!["radius".to_string()]), Var("radius".to_string())), // Usa a variável do padrão
-            // Não cobre Rectangle
-        ];
-        let match_expr = Match(Box::new(circle), arms);
-        let result = check_expr(&match_expr, &env);
-        // Agora deve dar erro de exaustividade
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("The adt isn't exhausted"));
-    }
-
-    #[test]
-    fn test_match_expression_missing_constructors() {
-        let mut env = Environment::new();
-        let figure_type = HashMap::from([
-            ("Circle".to_string(), vec![Type::TInteger]),
-            ("Rectangle".to_string(), vec![Type::TInteger, Type::TInteger]),
-        ]);
-        env.map_adt("Figure".to_string(), figure_type);
-
-        let circle = Constructor("Circle".to_string(), vec![Box::new(CInt(5))]);
-        // Só cobre Circle, falta Rectangle
-        let arms = vec![
-            (("Circle".to_string(), vec!["radius".to_string()]), CInt(10)),
-        ];
-        let match_expr = Match(Box::new(circle), arms);
-        let result = check_expr(&match_expr, &env);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("The adt isn't exhausted"));
     }
 }
