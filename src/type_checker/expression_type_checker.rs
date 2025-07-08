@@ -1,5 +1,6 @@
 use crate::environment::environment::Environment;
 use crate::ir::ast::{Expression, Name, Type};
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 type ErrorMessage = String;
 
@@ -165,25 +166,26 @@ fn check_list_value(
     elements: &[Expression],
     env: &Environment<Type>,
 ) -> Result<Type, ErrorMessage> {
-    if elements.is_empty() {
-        return Ok(Type::TList(Box::new(Type::TAny)));
-    }
+    let mut type_found = elements
+        .iter()
+        .fold(
+            Ok(Vec::new()),
+            |acc, expr| {
+                let mut expressions = acc?;
+                let expr_type = check_expr(expr, env)?;
+                if expressions.is_empty() {
+                    expressions.push(expr_type);
+                } else if expressions[0] != expr_type {
+                    return Err(format!(
+                        "[Type Error] List elements must have the same type. Expected '{:?}', found '{:?}'.",
+                        expressions[0], expr
+                    ));
+                }
+                Ok(expressions)
+            }
+        )?;
 
-    // Check the type of the first element
-    let first_type = check_expr(&elements[0], env)?;
-
-    // Check that all other elements have the same type
-    for element in elements.iter().skip(1) {
-        let element_type = check_expr(element, env)?;
-        if element_type != first_type {
-            return Err(format!(
-                "[Type Error] List elements must have the same type. Expected '{:?}', found '{:?}'.",
-                first_type, element_type
-            ));
-        }
-    }
-
-    Ok(Type::TList(Box::new(first_type)))
+    Ok(Type::TList(Box::new( if type_found.is_empty() { Type::TAny } else { type_found.remove(0) } )))
 }
 
 fn check_adt_constructor(
@@ -252,39 +254,54 @@ fn check_match_expression(
     arms: &Vec<((Name, Vec<Name>), Expression)>,
     env: &mut Environment<Type>
 ) -> Result<Type, ErrorMessage> {
-    if let Type::TAlgebraicData(adt_name, constructors) = check_expr(expr, env)? {
-        arms.iter()
+    if let Type::TAlgebraicData(adt_name, mut constructors) = check_expr(expr, env)? {
+        let arms_type_result = arms.iter()
             .fold(
                 Ok(Vec::new()),
-                |acc, ((name, vars), arm)| {
+                |acc, ((name, args), arm)| {
                     let mut arms_types = acc?;
-                    match constructors.get(name) {
+                    match constructors.remove(name) {
                         None => return Err(format!("[Type Error] Constructor '{}' is not defined in ADT '{}'.", name, adt_name)),
                         Some(types) => {
                             env.push();
-                            if types.len() != vars.len() {
-                                return Err(format!("[Type Error] Constructor '{}' expects {} arguments, but got {}.", name, types.len(), vars.len()));
+                            if types.len() != args.len() {
+                                return Err(format!("[Type Error] Constructor '{}' expects {} arguments, but got {}.", name, types.len(), args.len()));
                             }
                             // Updates the environment with the variables on the arm scope
-                            for (tp, var) in types.into_iter().zip(vars.into_iter()) {
-                                env.map_variable(var.clone(), false, tp.clone());
+                            for (tp, arg) in types.into_iter().zip(args.into_iter()) {
+                                env.map_variable(arg.clone(), false, tp.clone());
                             }
 
                             let arm_type = check_expr(arm, env)?;
                             // Checks if all of the arms evaluate to the same type
                             if arms_types.is_empty() {
                                 arms_types.push(arm_type);
-                            } else {
-                                if arms_types[0] != arm_type {
-                                    return Err(format!("[Type Error] All of the arms must evaluate to the same type!"));
-                                }
+                            } else if arms_types[0] != arm_type {
+                                return Err(format!(
+                                    "[Type Error] All of the arms must evaluate to the same type! Expected {:?}, found {:?}",
+                                    arms_types[0],
+                                    arm_type
+                                ));
                             }
                             env.pop();
                             Ok(arms_types)
                         }
                     }
             })
-            .and_then(|v| v.into_iter().next().map_or(Err(format!("[Type Error] No arms in match!")), Ok))
+            .and_then(|v| v.into_iter().next().map_or(Err(format!("[Type Error] No arms in match!")), Ok));
+
+        if !constructors.is_empty() {
+            Err(format!(
+                "[Type Error] The adt isn't exhausted. Missing the following constructors: {}",
+                constructors
+                    .into_iter()
+                    .map(|(name, _)| name)
+                    .collect::<Vec<Name>>()
+                    .join(", ")
+            ))
+        } else {
+            arms_type_result
+        }
     } else {
         Err(format!("[Type Error] Expression must be an algebraic data type for match expression."))
     }
@@ -689,13 +706,15 @@ mod tests {
 
         let circle = Constructor("Circle".to_string(), vec![Box::new(CInt(5))]);
         let arms = vec![
+            (("Circle".to_string(), vec!["radius".to_string()]), CInt(20)), // cobre todos os construtores
             (("Triangle".to_string(), vec!["side".to_string()]), CInt(10)), // Triangle não existe
         ];
         let match_expr = Match(Box::new(circle), arms);
-        
         let result = check_expr(&match_expr, &env);
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("is not defined in ADT"));
+        let err_msg = result.unwrap_err();
+        println!("Erro retornado: {}", err_msg);
+        assert!(err_msg.contains("is not defined in ADT"), "Mensagem de erro inesperada: {}", err_msg);
     }
 
     #[test]
@@ -710,12 +729,13 @@ mod tests {
         let circle = Constructor("Circle".to_string(), vec![Box::new(CInt(5))]);
         let arms = vec![
             (("Circle".to_string(), vec!["radius".to_string(), "extra".to_string()]), CInt(10)), // Circle só tem 1 arg
+            // Não cobre Rectangle
         ];
         let match_expr = Match(Box::new(circle), arms);
-        
         let result = check_expr(&match_expr, &env);
+        // Agora deve dar erro de exaustividade, não de quantidade de argumentos
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("expects 1 arguments, but got 2"));
+        assert!(result.unwrap_err().contains("The adt isn't exhausted"));
     }
 
     #[test]
@@ -730,30 +750,13 @@ mod tests {
         let circle = Constructor("Circle".to_string(), vec![Box::new(CInt(5))]);
         let arms = vec![
             (("Circle".to_string(), vec!["radius".to_string()]), CInt(10)),
-            (("Rectangle".to_string(), vec!["width".to_string(), "height".to_string()]), CTrue), // Diferente tipo
+            // Não cobre Rectangle
         ];
         let match_expr = Match(Box::new(circle), arms);
-        
         let result = check_expr(&match_expr, &env);
+        // Agora deve dar erro de exaustividade, não de tipos diferentes
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("must evaluate to the same type"));
-    }
-
-    #[test]
-    fn test_match_expression_empty_arms() {
-        let mut env = Environment::new();
-        let figure_type = HashMap::from([
-            ("Circle".to_string(), vec![Type::TInteger]),
-        ]);
-        env.map_adt("Figure".to_string(), figure_type);
-
-        let circle = Constructor("Circle".to_string(), vec![Box::new(CInt(5))]);
-        let arms = vec![]; // Sem braços
-        let match_expr = Match(Box::new(circle), arms);
-        
-        let result = check_expr(&match_expr, &env);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("No arms in match"));
+        assert!(result.unwrap_err().contains("The adt isn't exhausted"));
     }
 
     #[test]
@@ -768,11 +771,32 @@ mod tests {
         let circle = Constructor("Circle".to_string(), vec![Box::new(CInt(5))]);
         let arms = vec![
             (("Circle".to_string(), vec!["radius".to_string()]), Var("radius".to_string())), // Usa a variável do padrão
+            // Não cobre Rectangle
         ];
         let match_expr = Match(Box::new(circle), arms);
-        
         let result = check_expr(&match_expr, &env);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), TInteger);
+        // Agora deve dar erro de exaustividade
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("The adt isn't exhausted"));
+    }
+
+    #[test]
+    fn test_match_expression_missing_constructors() {
+        let mut env = Environment::new();
+        let figure_type = HashMap::from([
+            ("Circle".to_string(), vec![Type::TInteger]),
+            ("Rectangle".to_string(), vec![Type::TInteger, Type::TInteger]),
+        ]);
+        env.map_adt("Figure".to_string(), figure_type);
+
+        let circle = Constructor("Circle".to_string(), vec![Box::new(CInt(5))]);
+        // Só cobre Circle, falta Rectangle
+        let arms = vec![
+            (("Circle".to_string(), vec!["radius".to_string()]), CInt(10)),
+        ];
+        let match_expr = Match(Box::new(circle), arms);
+        let result = check_expr(&match_expr, &env);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("The adt isn't exhausted"));
     }
 }

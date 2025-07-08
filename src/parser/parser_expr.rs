@@ -1,7 +1,7 @@
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_while},
-    character::complete::{char, digit1, multispace0, multispace1},
+    character::complete::{char, digit1, multispace0},
     combinator::{map, map_res, opt, value, verify},
     error::Error,
     multi::{fold_many0, separated_list0},
@@ -11,7 +11,7 @@ use nom::{
 
 use std::str::FromStr;
 
-use crate::{ir::ast::{Expression, Name}};
+use crate::{ir::ast::{Expression}};
 use crate::parser::parser_common::{
     identifier,
     is_string_char,
