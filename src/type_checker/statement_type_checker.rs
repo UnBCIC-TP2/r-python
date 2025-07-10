@@ -723,10 +723,10 @@ mod tests {
 
         let result = check_stmt(&match_stmt, &env);
         if let Err(e) = result {
-            println!("Erro retornado: {}", e);
+            println!("Returned error: {}", e);
             assert!(e.contains("The adt isn't exhausted"));
         } else {
-            panic!("Esperado erro, mas foi Ok");
+            panic!("Expected error, found Ok");
         }
     }
 
@@ -751,10 +751,10 @@ mod tests {
 
         let result = check_stmt(&match_stmt, &env);
         if let Err(e) = result {
-            println!("Erro retornado: {}", e);
+            println!("Returned error: {}", e);
             assert!(e.contains("is not defined in ADT"));
         } else {
-            panic!("Esperado erro, mas foi Ok");
+            panic!("Expected error, found Ok");
         }
     }
 
@@ -778,7 +778,7 @@ mod tests {
         if let Err(e) = result {
             assert!(e.contains("expects 1 arguments"));
         } else {
-            panic!("Esperado erro, mas foi Ok");
+            panic!("Expected error, found Ok");
         }
     }
 }
