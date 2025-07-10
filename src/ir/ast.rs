@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 // Type alias for variable and function names
 pub type Name = String;
 
@@ -52,22 +54,9 @@ pub enum Type {
     TTuple(Vec<Type>),
     TMaybe(Box<Type>),
     TResult(Box<Type>, Box<Type>), // Ok, Error
+    TUnion(Vec<Type>), // Union type for propagate
     TAny,
-    TAlgebraicData(Name, Vec<ValueConstructor>),
-}
-
-// Represents a value constructor for an algebraic data type
-#[derive(Debug, PartialEq, Clone)]
-pub struct ValueConstructor {
-    pub name: Name,
-    pub types: Vec<Type>,
-}
-
-impl ValueConstructor {
-    // Creates a new value constructor
-    pub fn new(name: Name, types: Vec<Type>) -> Self {
-        ValueConstructor { name, types }
-    }
+    TAlgebraicData(Name, HashMap<Name, Vec<Type>>),
 }
 
 // Represents expressions in the AST
@@ -144,5 +133,6 @@ pub enum Statement {
     AssertFails(String),
     FuncDef(Function),
     Return(Box<Expression>),
-    TypeDeclaration(Name, Vec<ValueConstructor>),
+    TypeDeclaration(Name, HashMap<Name, Vec<Type>>),
+    Match(Box<Expression>, Vec<(Expression, Statement)>),
 }

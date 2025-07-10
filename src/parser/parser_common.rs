@@ -36,9 +36,11 @@ pub const ASSERT_KEYWORD: &str = "assert";
 pub const VAR_KEYWORD: &str = "var";
 pub const VAL_KEYWORD: &str = "val";
 pub const DEF_KEYWORD: &str = "def";
+pub const MATCH_KEYWORD: &str = "match";
 
 // Operator and symbol constants
 pub const FUNCTION_ARROW: &str = "->";
+pub const MATCH_ARM_ARROW: &str = "=>";
 pub const PIPE_SYMBOL: &str = "|";
 pub const COLON_SYMBOL: &str = ":";
 pub const COMMA_SYMBOL: &str = ",";
@@ -49,6 +51,8 @@ pub const LEFT_BRACKET: char = '[';
 pub const RIGHT_BRACKET: char = ']';
 pub const LEFT_PAREN: char = '(';
 pub const RIGHT_PAREN: char = ')';
+pub const LEFT_BRACE: char = '{';
+pub const RIGHT_BRACE: char = '}';
 
 // Other character constants
 pub const COMMA_CHAR: char = ',';
@@ -73,6 +77,12 @@ pub fn keyword<'a>(kw: &'static str) -> impl FnMut(&'a str) -> IResult<&'a str, 
         delimited(multispace0, tag(kw), multispace0),
         not(peek(identifier_start_or_continue)),
     )
+}
+
+/// Parses a keyword that can be followed by expressions or identifiers
+/// This is more flexible than the standard keyword parser
+pub fn flexible_keyword<'a>(kw: &'static str) -> impl FnMut(&'a str) -> IResult<&'a str, &'a str> {
+    delimited(multispace0, tag(kw), multispace0)
 }
 
 /// Parsers for identifiers.
@@ -105,6 +115,6 @@ fn identifier_continue(input: &str) -> IResult<&str, &str> {
 }
 
 /// A single identifier character: alphanumeric or underscore
-fn identifier_start_or_continue(input: &str) -> IResult<&str, &str> {
+pub fn identifier_start_or_continue(input: &str) -> IResult<&str, &str> {
     recognize(alt((alpha1, tag("_"), nom::character::complete::digit1)))(input)
 }

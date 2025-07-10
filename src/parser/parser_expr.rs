@@ -11,7 +11,7 @@ use nom::{
 
 use std::str::FromStr;
 
-use crate::ir::ast::Expression;
+use crate::{ir::ast::{Expression}};
 use crate::parser::parser_common::{
     identifier,
     is_string_char,
@@ -117,12 +117,17 @@ fn parse_factor(input: &str) -> IResult<&str, Expression> {
         parse_list,
         parse_function_call,
         parse_var,
+        //parse_match_expression,
         delimited(
             char::<&str, Error<&str>>(LEFT_PAREN),
             parse_expression,
             char::<&str, Error<&str>>(RIGHT_PAREN),
         ),
     ))(input)
+}
+
+pub fn parse_literal_expression(input: &str) -> IResult<&str, Expression> {
+    alt((parse_bool, parse_number, parse_string))(input)
 }
 
 fn parse_bool(input: &str) -> IResult<&str, Expression> {
@@ -396,4 +401,29 @@ mod tests {
             panic!("Expected ListValue expression");
         }
     }
+
+    #[test]
+    fn test_parse_literal_expression_bool() {
+        assert_eq!(parse_literal_expression("True"), Ok(("", Expression::CTrue)));
+        assert_eq!(parse_literal_expression("False"), Ok(("", Expression::CFalse)));
+    }
+
+    #[test]
+    fn test_parse_literal_expression_int() {
+        assert_eq!(parse_literal_expression("42"), Ok(("", Expression::CInt(42))));
+        assert_eq!(parse_literal_expression("-7"), Ok(("", Expression::CInt(-7))));
+    }
+
+    #[test]
+    fn test_parse_literal_expression_real() {
+        assert_eq!(parse_literal_expression("3.14"), Ok(("", Expression::CReal(3.14))));
+        assert_eq!(parse_literal_expression("-0.5"), Ok(("", Expression::CReal(-0.5))));
+    }
+
+    #[test]
+    fn test_parse_literal_expression_string() {
+        assert_eq!(parse_literal_expression("\"abc\""), Ok(("", Expression::CString("abc".to_string()))));
+        assert_eq!(parse_literal_expression("\"\""), Ok(("", Expression::CString("".to_string()))));
+    }
 }
+
