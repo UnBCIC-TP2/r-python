@@ -2,6 +2,7 @@ pub const KEYWORDS: &[&str] = &[
     "if",
     "in",
     "else",
+    "elif",
     "def",
     "while",
     "for",

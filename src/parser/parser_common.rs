@@ -1,7 +1,7 @@
 use nom::{
     branch::alt,
     bytes::complete::tag,
-    character::complete::{alpha1, multispace0},
+    character::complete::{alpha1, multispace0, alphanumeric1},
     combinator::{not, peek, recognize},
     multi::many0,
     sequence::{delimited, terminated},
@@ -28,6 +28,7 @@ pub const END_KEYWORD: &str = "end";
 
 // Statement keyword constants
 pub const IF_KEYWORD: &str = "if";
+pub const ELIF_KEYWORD: &str = "elif";
 pub const ELSE_KEYWORD: &str = "else";
 pub const WHILE_KEYWORD: &str = "while";
 pub const FOR_KEYWORD: &str = "for";
@@ -67,11 +68,15 @@ pub fn separator<'a>(sep: &'static str) -> impl FnMut(&'a str) -> IResult<&'a st
 }
 
 /// Parses a reserved keyword (e.g., "if") surrounded by optional spaces
-/// Fails if followed by an identifier character
+/// A implementação da função keyword foi alterada para que seja garantida que a keyword seja uma palavra completa e seja separada por um espaço
 pub fn keyword<'a>(kw: &'static str) -> impl FnMut(&'a str) -> IResult<&'a str, &'a str> {
-    terminated(
-        delimited(multispace0, tag(kw), multispace0),
-        not(peek(identifier_start_or_continue)),
+    delimited(
+        multispace0, 
+        terminated(
+            tag(kw), 
+            peek(not(alphanumeric1)), 
+        ),
+        multispace0, 
     )
 }
 
