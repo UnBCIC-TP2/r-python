@@ -42,13 +42,13 @@ fn check_assignment_stmt(
     let expr_type = check_expr(&*exp, &new_env)?;
 
     match new_env.lookup(name) {
-        Some((false, _)) => Err(format!("[Type Error] Cannot assign to immutable variable '{}'.", name)),
+        Some((false, _)) => Err(format!("[Type Error] Cannot assign to immutable variable '{}'. Variables declared with 'val' cannot be changed.", name)),
         Some((_, var_type)) => {
             if var_type == expr_type || var_type == Type::TAny {
                 new_env.map_variable(name.clone(), true, expr_type);
                 Ok(new_env)
             } else {
-                return Err(format!("[Type Error] Cannot assign value of type '{:?}' to variable '{}', of type '{:?}'.", expr_type, name, var_type));
+                return Err(format!("[Type Mismatch] Variable '{}' has type '{:?}', but is being assigned a value of type '{:?}'", name, var_type, expr_type));
             }
         },
         None => Err(format!("[Name Error] Variable '{}' was not declared in this scope.", name))
@@ -68,7 +68,7 @@ fn check_var_declaration_stmt(
         new_env.map_variable(name.clone(), true, expr_type);
         Ok(new_env)
     } else {
-        Err(format!("[Type Error] redeclaration of variable '{}'", name))
+        Err(format!("[Type Error] Variable '{}' has already been declared in this scope.", name))
     }
 }
 
@@ -81,7 +81,7 @@ fn check_if_then_else_stmt(
     let cond_type = check_expr(&*cond, env)?;
     
     if cond_type != Type::TBool {
-        return Err(String::from("[Type Error] The condition of an 'if' statement must be a boolean."));
+        return Err(String::from("[Type Error] The condition of an 'if' statement must be a Boolean expression."));
     }
 
     let then_env = check_stmt(stmt_then, env)?;
@@ -102,7 +102,7 @@ fn check_while_stmt(
     let cond_type = check_expr(&*cond, env)?;
 
     if cond_type != Type::TBool {
-        return Err(String::from("[Type Error] The condition of a 'while' statement must be a boolean."));
+        return Err(String::from("[Type Error] The condition of a 'while' statement must be a Boolean expression."));
     }
 
     check_stmt(stmt, env)
@@ -118,7 +118,7 @@ fn check_for_stmt(
 
     let expr_type = check_expr(&*expr, &new_env)?;
     if !matches!(expr_type, Type::TList(_)) {
-        return Err(format!("[Type Error] Expected a list, but found {:?}", expr_type));
+        return Err(format!("[Type Error] The 'for' loop can only iterate over a list. Expected a List type, but found {:?}", expr_type));
     }
 
     let element_type = match expr_type {

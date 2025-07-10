@@ -42,7 +42,7 @@ pub fn check_expr(exp: &Expression, env: &Environment<Type>) -> Result<Type, Err
 fn check_var_name(name: Name, env: &Environment<Type>) -> Result<Type, ErrorMessage> {
     match env.lookup(&name) {
         Some((_, t)) => Ok(t.clone()),
-        None => Err(format!("[Name Error] '{}' is not defined.", name)),
+        None => Err(format!("[Name Error] Variable '{}' is not defined in the current scope.", name)),
     }
 }
 
@@ -227,7 +227,7 @@ fn check_adt_constructor(
             // Check that we have the right number of arguments
             if args.len() != constructor.len() {
                 return Err(format!(
-                    "[Type Error] Constructor '{}' expects {} arguments, but got {}.",
+                    "[Type Error] Constructor '{}' expects {} arguments, but {} were provided.",
                     name,
                     constructor.len(),
                     args.len()
@@ -249,7 +249,7 @@ fn check_adt_constructor(
             Ok(Type::TAlgebraicData(adt_type_name, (*constructors).clone()))
         }
         None => Err(format!(
-            "[Type Error] Constructor '{}' is not defined in any ADT.",
+            "[Name Error] Constructor '{}' is not defined in any loaded Algebraic Data Type (ADT).",
             name
         )),
     }
