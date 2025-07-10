@@ -10,14 +10,95 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::Write;*/
 
+use crate::type_checker::check_stmt;
+use crate::environment::environment::Environment;
+use crate::ir::ast::Type;
+
 pub mod environment;
 pub mod interpreter;
 pub mod ir;
 pub mod parser;
 pub mod type_checker;
 
+use crate::ir::ast::{Expression, Statement};
+
 fn main() {
-    println!("Hello, world!");
+    let source_code = "
+        var x = 10;
+        var y = true;
+        if y {
+            x = x + 5;
+        }
+    ";
+
+    println!("--- Código Fonte ---");
+    println!("{}", source_code);
+
+    /*
+    let statements = match parse(source_code) {
+        Ok((_, stmts)) => stmts,
+        Err(e) => {
+            println!("Erro de Parse: {:?}", e);
+            return;
+        }
+    };
+    */
+
+    // Simulação do parser
+    println!("\n--- [SIMULAÇÃO] Gerando AST manualmente ---");
+    let statements = vec![
+        // Corresponde a: var x = 10;
+        Statement::VarDeclaration(
+            "x".to_string(),
+            Box::new(Expression::CInt(10))
+        ),
+        // Corresponde a: var y = true;
+        Statement::VarDeclaration(
+            "y".to_string(),
+            Box::new(Expression::CTrue)
+        ),
+        // Corresponde a: if y { x = x + 5; }
+        Statement::IfThenElse(
+            Box::new(Expression::Var("y".to_string())),      
+            Box::new(Statement::Assignment(                     
+                "x".to_string(),                              
+                Box::new(Expression::Add(                      
+                    Box::new(Expression::Var("x".to_string())), 
+                    Box::new(Expression::CInt(5))               
+                ))
+            )),                                                
+            None 
+        )
+    ];
+    
+
+    let mut env: Environment<Type> = Environment::new();
+    println!("\n--- Verificando Tipos... ---");
+
+    for stmt in &statements {
+        match check_stmt(stmt.clone(), &env) {
+            Ok((typed_stmt, new_env)) => {
+                println!("\n Statement OK. AST Tipada gerada:");
+                println!("{:#?}", typed_stmt);
+                
+                env = new_env; 
+
+                println!("--- Ambiente após esta statement ---");
+                for (name, (is_mutable, var_type)) in env.get_all_variables() {
+                    let mutability_str = if is_mutable { "var" } else { "val" };
+                    println!("  - {} {}: {:?}", mutability_str, name, var_type);
+                }
+                println!("------------------------------------");
+            }
+            Err(e) => {
+                println!("\n Erro de Tipo Encontrado:");
+                println!("{}", e);
+                return;
+            }
+        }
+    }
+
+    println!("\n\nVerificação de tipos concluída com sucesso para todo o programa!");
 }
 /*
 fn run_test(name: &str, program: &str) -> String {
