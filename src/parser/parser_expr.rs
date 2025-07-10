@@ -243,67 +243,6 @@ fn operator<'a>(op: &'static str) -> impl FnMut(&'a str) -> IResult<&'a str, &'a
     delimited(multispace0, tag(op), multispace0)
 }
 
-/*fn parse_match_expression(input: &str) -> IResult<&str, Expression> {
-    map(
-        tuple((
-            keyword(MATCH_KEYWORD),
-            delimited(
-                multispace0,
-                parse_expression,
-                multispace0,
-            ),
-            char(COLON_CHAR),
-            multispace1,
-            separated_list0(
-                delimited(
-                    multispace0,
-                    char(COMMA_CHAR),
-                    multispace1,
-                ),
-                parse_match_arm,
-            ),
-            delimited(
-                multispace1,
-                tag(END_KEYWORD),
-                multispace1,
-            ),
-            keyword(MATCH_KEYWORD),
-        )),
-        |(_, expr, _, _, arms, _, _)| Expression::Match(Box::new(expr), arms),
-    )(input)
-}
-
-fn parse_match_arm(input: &str) -> IResult<&str, ((Name, Vec<Name>), Expression)> {
-    map(
-        tuple((
-            preceded(multispace0, identifier),
-            opt(delimited(
-                    preceded(multispace0, char::<&str, Error<&str>>(LEFT_PAREN)),
-                    separated_list0(
-                        delimited(multispace0, char::<&str, Error<&str>>(COMMA_CHAR), multispace0),
-                        identifier,
-                    ),
-                    preceded(multispace0, char::<&str, Error<&str>>(RIGHT_PAREN)),
-                )
-            ),
-            preceded(
-                delimited(
-                    multispace0,
-                    tag(MATCH_ARM_ARROW),
-                    multispace0,
-                ),
-                delimited(
-                    char::<&str, Error<&str>>(LEFT_BRACE),
-                    delimited(multispace0, parse_block, multispace0),
-                    char::<&str, Error<&str>>(RIGHT_BRACE),
-                ),
-            ),
-        )),
-        |(constructor, parameters, expression)| ((constructor.to_string(), parameters.unwrap_or_default().into_iter().map(|p| p.to_string()).collect()), expression),
-    )(input)
-}
-*/
-
 #[cfg(test)]
 mod tests {
     use super::*;

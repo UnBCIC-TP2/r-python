@@ -9,11 +9,12 @@ use nom::{
     IResult,
 };
 
-use crate::ir::ast::{FormalArgument, Function, Statement};
+use crate::ir::ast::{FormalArgument, Function, Name, Statement};
 use crate::parser::parser_common::{
-    identifier, keyword, ASSERT_KEYWORD, COLON_CHAR, COMMA_CHAR, DEF_KEYWORD, ELSE_KEYWORD,
+    identifier, keyword, flexible_keyword, ASSERT_KEYWORD, COLON_CHAR, COMMA_CHAR, DEF_KEYWORD, ELSE_KEYWORD,
     END_KEYWORD, EQUALS_CHAR, FOR_KEYWORD, FUNCTION_ARROW, IF_KEYWORD, IN_KEYWORD, LEFT_PAREN,
-    RIGHT_PAREN, SEMICOLON_CHAR, VAL_KEYWORD, VAR_KEYWORD, WHILE_KEYWORD,
+    RIGHT_PAREN, SEMICOLON_CHAR, VAL_KEYWORD, VAR_KEYWORD, WHILE_KEYWORD, MATCH_KEYWORD,
+    MATCH_ARM_ARROW, LEFT_BRACE, RIGHT_BRACE,
 };
 use crate::parser::parser_expr::parse_expression;
 use crate::parser::parser_type::parse_type;
@@ -28,6 +29,7 @@ pub fn parse_statement(input: &str) -> IResult<&str, Statement> {
         parse_for_statement,
         parse_assert_statement,
         parse_function_definition_statement,
+        parse_match_statement,
     ))(input)
 }
 
@@ -215,6 +217,66 @@ fn parse_formal_argument(input: &str) -> IResult<&str, FormalArgument> {
     )(input)
 }
 
+fn parse_match_statement(input: &str) -> IResult<&str, Statement> {
+    map(
+        tuple((
+            flexible_keyword(MATCH_KEYWORD),
+            delimited(
+                multispace0,
+                parse_expression,
+                multispace0,
+            ),
+            char(COLON_CHAR),
+            multispace1,
+            separated_list0(
+                delimited(
+                    multispace0,
+                    char(COMMA_CHAR),
+                    multispace1,
+                ),
+                parse_match_arm,
+            ),
+            delimited(
+                multispace1,
+                tag(END_KEYWORD),
+                multispace1,
+            ),
+            flexible_keyword(MATCH_KEYWORD),
+        )),
+        |(_, expr, _, _, arms, _, _)| Statement::Match(Box::new(expr), arms),
+    )(input)
+}
+
+fn parse_match_arm(input: &str) -> IResult<&str, ((Name, Vec<Name>), Statement)> {
+    map(
+        tuple((
+            preceded(multispace0, identifier),
+            opt(delimited(
+                    preceded(multispace0, char::<&str, Error<&str>>(LEFT_PAREN)),
+                    separated_list0(
+                        delimited(multispace0, char::<&str, Error<&str>>(COMMA_CHAR), multispace0),
+                        identifier,
+                    ),
+                    preceded(multispace0, char::<&str, Error<&str>>(RIGHT_PAREN)),
+                )
+            ),
+            preceded(
+                delimited(
+                    multispace0,
+                    tag(MATCH_ARM_ARROW),
+                    multispace0,
+                ),
+                delimited(
+                    char::<&str, Error<&str>>(LEFT_BRACE),
+                    delimited(multispace0, parse_block, multispace0),
+                    char::<&str, Error<&str>>(RIGHT_BRACE),
+                ),
+            ),
+        )),
+        |(constructor, parameters, statement)| ((constructor.to_string(), parameters.unwrap_or_default().into_iter().map(|p| p.to_string()).collect()), statement),
+    )(input)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -342,5 +404,257 @@ mod tests {
         };
         let parsed = parse_formal_argument(input).unwrap().1;
         assert_eq!(parsed, expected);
+    }
+
+    #[test]
+    fn test_parse_match_statement_simple() {
+        let input = "match x: A => { : x = 1; end }, B => { : x = 2; end } end match";
+        let result: IResult<&str, Statement> = parse_match_statement(input);
+        assert!(result.is_ok());
+        
+        let (rest, parsed) = result.unwrap();
+        assert_eq!(rest, "");
+        
+        match parsed {
+            Statement::Match(expr, arms) => {
+                assert_eq!(*expr, Expression::Var("x".to_string()));
+                assert_eq!(arms.len(), 2);
+                
+                // Verificar primeiro braço: A => { : x = 1; end }
+                assert_eq!(arms[0].0.0, "A");
+                assert_eq!(arms[0].0.1, Vec::<Name>::new()); // Sem parâmetros
+                
+                // Verificar segundo braço: B => { : x = 2; end }
+                assert_eq!(arms[1].0.0, "B");
+                assert_eq!(arms[1].0.1, Vec::<Name>::new()); // Sem parâmetros
+            }
+            _ => panic!("Expected Match statement"),
+        }
+    }
+
+    #[test]
+    fn test_parse_match_statement_with_parameters() {
+        let input = "match x: A(value) => { : x = value; end }, B(x, y) => { : z = x + y; end } end match";
+        let result: IResult<&str, Statement> = parse_match_statement(input);
+        assert!(result.is_ok());
+        
+        let (rest, parsed) = result.unwrap();
+        assert_eq!(rest, "");
+        
+        match parsed {
+            Statement::Match(expr, arms) => {
+                assert_eq!(*expr, Expression::Var("x".to_string()));
+                assert_eq!(arms.len(), 2);
+                
+                // Verificar primeiro braço: A(value) => { : x = value; end }
+                assert_eq!(arms[0].0.0, "A");
+                assert_eq!(arms[0].0.1, vec!["value".to_string()]);
+                
+                // Verificar segundo braço: B(x, y) => { : z = x + y; end }
+                assert_eq!(arms[1].0.0, "B");
+                assert_eq!(arms[1].0.1, vec!["x".to_string(), "y".to_string()]);
+            }
+            _ => panic!("Expected Match statement"),
+        }
+    }
+
+    #[test]
+    fn test_parse_match_statement_complex_expression() {
+        let input = "match f(x) + 1: A => { : x = 1; end }, B(value) => { : y = value * 2; end } end match";
+        let result: IResult<&str, Statement> = parse_match_statement(input);
+        assert!(result.is_ok());
+        
+        let (rest, parsed) = result.unwrap();
+        assert_eq!(rest, "");
+        
+        match parsed {
+            Statement::Match(expr, arms) => {
+                // Verificar que a expressão é f(x) + 1
+                match &*expr {
+                    Expression::Add(left, right) => {
+                        match &**left {
+                            Expression::FuncCall(name, args) => {
+                                assert_eq!(name, "f");
+                                assert_eq!(args.len(), 1);
+                            }
+                            _ => panic!("Expected function call"),
+                        }
+                        match &**right {
+                            Expression::CInt(1) => {}
+                            _ => panic!("Expected integer 1"),
+                        }
+                    }
+                    _ => panic!("Expected Add expression"),
+                }
+                
+                assert_eq!(arms.len(), 2);
+                assert_eq!(arms[0].0.0, "A");
+                assert_eq!(arms[1].0.0, "B");
+            }
+            _ => panic!("Expected Match statement"),
+        }
+    }
+
+    #[test]
+    fn test_parse_match_statement_multiple_arms() {
+        let input = "match x: A => { : x = 1; end }, B => { : x = 2; end }, C(value) => { : x = value; end } end match";
+        let result: IResult<&str, Statement> = parse_match_statement(input);
+        assert!(result.is_ok());
+        
+        let (rest, parsed) = result.unwrap();
+        assert_eq!(rest, "");
+        
+        match parsed {
+            Statement::Match(expr, arms) => {
+                assert_eq!(*expr, Expression::Var("x".to_string()));
+                assert_eq!(arms.len(), 3);
+                
+                assert_eq!(arms[0].0.0, "A");
+                assert_eq!(arms[0].0.1, Vec::<Name>::new());
+                
+                assert_eq!(arms[1].0.0, "B");
+                assert_eq!(arms[1].0.1, Vec::<Name>::new());
+                
+                assert_eq!(arms[2].0.0, "C");
+                assert_eq!(arms[2].0.1, vec!["value".to_string()]);
+            }
+            _ => panic!("Expected Match statement"),
+        }
+    }
+
+    #[test]
+    fn test_parse_match_statement_empty_arms() {
+        let input = "match x: A => { : end }, B => { : end } end match";
+        let result: IResult<&str, Statement> = parse_match_statement(input);
+        assert!(result.is_ok());
+        
+        let (rest, parsed) = result.unwrap();
+        assert_eq!(rest, "");
+        
+        match parsed {
+            Statement::Match(expr, arms) => {
+                assert_eq!(*expr, Expression::Var("x".to_string()));
+                assert_eq!(arms.len(), 2);
+                
+                // Verificar que os blocos estão vazios
+                match &arms[0].1 {
+                    Statement::Block(statements) => {
+                        assert_eq!(statements.len(), 0);
+                    }
+                    _ => panic!("Expected Block statement"),
+                }
+                
+                match &arms[1].1 {
+                    Statement::Block(statements) => {
+                        assert_eq!(statements.len(), 0);
+                    }
+                    _ => panic!("Expected Block statement"),
+                }
+            }
+            _ => panic!("Expected Match statement"),
+        }
+    }
+
+    #[test]
+    fn test_parse_match_statement_with_whitespace() {
+        let input = "match   x   :   A   =>   {   :   x   =   1   ;   end   }   ,   B   =>   {   :   x   =   2   ;   end   }   end   match";
+        let result: IResult<&str, Statement> = parse_match_statement(input);
+        assert!(result.is_ok());
+        
+        let (rest, parsed) = result.unwrap();
+        assert_eq!(rest, "");
+        
+        match parsed {
+            Statement::Match(expr, arms) => {
+                assert_eq!(*expr, Expression::Var("x".to_string()));
+                assert_eq!(arms.len(), 2);
+                assert_eq!(arms[0].0.0, "A");
+                assert_eq!(arms[1].0.0, "B");
+            }
+            _ => panic!("Expected Match statement"),
+        }
+    }
+
+    #[test]
+    fn test_parse_match_arm_simple() {
+        let input = "A => { : x = 1; end }";
+        let result: IResult<&str, ((Name, Vec<Name>), Statement)> = parse_match_arm(input);
+        assert!(result.is_ok());
+        
+        let (rest, parsed) = result.unwrap();
+        assert_eq!(rest, "");
+        
+        let ((constructor, params), statement) = parsed;
+        assert_eq!(constructor, "A");
+        assert_eq!(params, Vec::<Name>::new());
+        
+        match statement {
+            Statement::Block(statements) => {
+                assert_eq!(statements.len(), 1);
+                match &statements[0] {
+                    Statement::Assignment(name, expr) => {
+                        assert_eq!(name, "x");
+                        assert_eq!(**expr, Expression::CInt(1));
+                    }
+                    _ => panic!("Expected Assignment statement"),
+                }
+            }
+            _ => panic!("Expected Block statement"),
+        }
+    }
+
+    #[test]
+    fn test_parse_match_arm_with_parameters() {
+        let input = "A(value1, value2) => { : x = value1 + value2; end }";
+        let result: IResult<&str, ((Name, Vec<Name>), Statement)> = parse_match_arm(input);
+        assert!(result.is_ok());
+        
+        let (rest, parsed) = result.unwrap();
+        assert_eq!(rest, "");
+        
+        let ((constructor, params), statement) = parsed;
+        assert_eq!(constructor, "A");
+        assert_eq!(params, vec!["value1".to_string(), "value2".to_string()]);
+        
+        match statement {
+            Statement::Block(statements) => {
+                assert_eq!(statements.len(), 1);
+                match &statements[0] {
+                    Statement::Assignment(name, expr) => {
+                        assert_eq!(name, "x");
+                        match &**expr {
+                            Expression::Add(left, right) => {
+                                assert_eq!(*left, Box::new(Expression::Var("value1".to_string())));
+                                assert_eq!(*right, Box::new(Expression::Var("value2".to_string())));
+                            }
+                            _ => panic!("Expected Add expression"),
+                        }
+                    }
+                    _ => panic!("Expected Assignment statement"),
+                }
+            }
+            _ => panic!("Expected Block statement"),
+        }
+    }
+
+    #[test]
+    fn test_parse_match_statement_invalid_missing_end() {
+        let input = "match x: A => { : x = 1; end }";
+        let result = parse_match_statement(input);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_match_statement_invalid_missing_expression() {
+        let input = "match : A => { : x = 1; end } end match";
+        let result = parse_match_statement(input);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_match_statement_invalid_missing_arms() {
+        let input = "match x: end match";
+        let result = parse_match_statement(input);
+        assert!(result.is_err());
     }
 }

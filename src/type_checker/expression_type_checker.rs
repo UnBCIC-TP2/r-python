@@ -59,7 +59,11 @@ fn check_bin_arithmetic_expression(
         (Type::TInteger, Type::TReal) => Ok(Type::TReal),
         (Type::TReal, Type::TInteger) => Ok(Type::TReal),
         (Type::TReal, Type::TReal) => Ok(Type::TReal),
-        _ => Err(String::from("[Type Error] expecting numeric type values.")),
+        (Type::TInteger, wrong_type) => Err(format!("[Type Error] Both operands must be of numeric types. Right operand is {:?}", wrong_type)),
+        (wrong_type, Type::TInteger) => Err(format!("[Type Error] Both operands must be of numeric types. Left operand is {:?}", wrong_type)),
+        (Type::TReal, wrong_type) => Err(format!("[Type Error] Both operands must be of numeric types. Right operand is {:?}", wrong_type)),
+        (wrong_type, Type::TReal) => Err(format!("[Type Error] Both operands must be of numeric types. Left operand is {:?}", wrong_type)),
+        wrong_types => Err(format!("[Type Error] Both operands must be of numeric types, but neither is. Left operand is {:?}, right operand is {:?}", wrong_types.0, wrong_types.1))
     }
 }
 
@@ -73,7 +77,9 @@ fn check_bin_boolean_expression(
 
     match (left_type, right_type) {
         (Type::TBool, Type::TBool) => Ok(Type::TBool),
-        _ => Err(String::from("[Type Error] expecting boolean type values.")),
+        (Type::TBool, wrong_type) => Err(format!("[Type Error] Both operands must be evaluated to boolean values. Right operand is {:?}", wrong_type)),
+        (wrong_type, Type::TBool) => Err(format!("[Type Error] Both operands must be evaluated to boolean values. Left operand is {:?}", wrong_type)),
+        wrong_types => Err(format!("[Type Error] Both operands must be evaluated to boolean values. Left operand is {:?}, right operand is {:?}", wrong_types.0, wrong_types.1)),
     }
 }
 
@@ -82,7 +88,7 @@ fn check_not_expression(exp: &Expression, env: &Environment<Type>) -> Result<Typ
 
     match exp_type {
         Type::TBool => Ok(Type::TBool),
-        _ => Err(String::from("[Type Error] expecting a boolean type value.")),
+        wrong_type => Err(format!("[Type Error] Expected boolean value, but got {:?}", wrong_type)),
     }
 }
 
@@ -99,7 +105,11 @@ fn check_bin_relational_expression(
         (Type::TInteger, Type::TReal) => Ok(Type::TBool),
         (Type::TReal, Type::TInteger) => Ok(Type::TBool),
         (Type::TReal, Type::TReal) => Ok(Type::TBool),
-        _ => Err(String::from("[Type Error] expecting numeric type values.")),
+        (Type::TInteger, wrong_type) => Err(format!("[Type Error] Both operands must be evaluated to numeric values. Right operand is {:?}", wrong_type)),
+        (wrong_type, Type::TInteger) => Err(format!("[Type Error] Both operands must be evaluated to numeric values. Left operand is {:?}", wrong_type)),
+        (Type::TReal, wrong_type) => Err(format!("[Type Error] Both operands must be evaluated to numeric values. Right operand is {:?}", wrong_type)),
+        (wrong_type, Type::TReal) => Err(format!("[Type Error] Both operands must be evaluated to numeric values. Left operand is {:?}", wrong_type)),
+        wrong_types => Err(format!("[Type Error] Both operands must be evaluated to numeric values. Left operand is {:?}, right operand is {:?}", wrong_types.0, wrong_types.1)),
     }
 }
 
@@ -119,9 +129,7 @@ fn check_unwrap_type(exp: &Expression, env: &Environment<Type>) -> Result<Type, 
     match exp_type {
         Type::TMaybe(t) => Ok(*t),
         Type::TResult(tl, _) => Ok(*tl),
-        _ => Err(String::from(
-            "[Type Error] expecting a maybe or result type value.",
-        )),
+        wrong_type => Err(format!("[Type Error] Expected a maybe or result type value, but got {:?}", wrong_type)),
     }
 }
 
@@ -130,10 +138,8 @@ fn check_propagate_type(exp: &Expression, env: &Environment<Type>) -> Result<Typ
 
     match exp_type {
         Type::TMaybe(t) => Ok(*t),
-        Type::TResult(tl, _) => Ok(*tl),
-        _ => Err(String::from(
-            "[Type Error] expecting a maybe or result type value.",
-        )),
+        Type::TResult(tl, tr) => Ok(Type::TUnion(vec![*tl, *tr])),
+        wrong_type => Err(format!("[Type Error] Expected a maybe or result type value, but got {:?}", wrong_type)),
     }
 }
 
@@ -143,11 +149,11 @@ fn check_maybe_just(exp: &Expression, env: &Environment<Type>) -> Result<Type, E
 }
 
 fn check_iserror_type(exp: &Expression, env: &Environment<Type>) -> Result<Type, ErrorMessage> {
-    let v = check_expr(exp, env)?;
+    let exp_type = check_expr(exp, env)?;
 
-    match v {
+    match exp_type {
         Type::TResult(_, _) => Ok(Type::TBool),
-        _ => Err(String::from("[Type Error] expecting a result type value.")),
+        wrong_type => Err(format!("[Type Error] Expected a result type value, but got {:?}", wrong_type)),
     }
 }
 
@@ -156,7 +162,7 @@ fn check_isnothing_type(exp: &Expression, env: &Environment<Type>) -> Result<Typ
 
     match exp_type {
         Type::TMaybe(_) => Ok(Type::TBool),
-        _ => Err(String::from("[Type Error] expecting a maybe type value.")),
+        wrong_type => Err(format!("[Type Error] Expected a maybe type value, but got {:?}", wrong_type)),
     }
 }
 
@@ -507,7 +513,16 @@ mod tests {
         let e2 = COk(Box::new(e1));
         let e3 = Propagate(Box::new(e2));
 
-        assert_eq!(check_expr(&e3, &env), Ok(TBool));
+        assert_eq!(check_expr(&e3, &env), Ok(TUnion(vec![TBool, TAny])));
+    }
+
+    #[test]
+    fn check_propagate_result_with_specific_error_type() {
+        let env = Environment::new();
+        let e2 = CErr(Box::new(CString("error".to_string())));
+        let e3 = Propagate(Box::new(e2));
+
+        assert_eq!(check_expr(&e3, &env), Ok(TUnion(vec![TAny, TString])));
     }
 
     #[test]

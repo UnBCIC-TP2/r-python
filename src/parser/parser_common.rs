@@ -79,6 +79,12 @@ pub fn keyword<'a>(kw: &'static str) -> impl FnMut(&'a str) -> IResult<&'a str, 
     )
 }
 
+/// Parses a keyword that can be followed by expressions or identifiers
+/// This is more flexible than the standard keyword parser
+pub fn flexible_keyword<'a>(kw: &'static str) -> impl FnMut(&'a str) -> IResult<&'a str, &'a str> {
+    delimited(multispace0, tag(kw), multispace0)
+}
+
 /// Parsers for identifiers.
 pub fn identifier(input: &str) -> IResult<&str, &str> {
     let (input, _) = multispace0(input)?;
@@ -109,6 +115,6 @@ fn identifier_continue(input: &str) -> IResult<&str, &str> {
 }
 
 /// A single identifier character: alphanumeric or underscore
-fn identifier_start_or_continue(input: &str) -> IResult<&str, &str> {
+pub fn identifier_start_or_continue(input: &str) -> IResult<&str, &str> {
     recognize(alt((alpha1, tag("_"), nom::character::complete::digit1)))(input)
 }

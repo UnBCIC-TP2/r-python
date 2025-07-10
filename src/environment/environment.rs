@@ -87,7 +87,7 @@ impl<A: Clone> Environment<A> {
     }
 
     pub fn lookup(&self, var: &Name) -> Option<(bool, A)> {
-        for scope in self.stack.iter() {
+        for scope in &self.stack {
             if let Some(value) = scope.lookup_var(var) {
                 return Some(value);
             }
@@ -96,7 +96,7 @@ impl<A: Clone> Environment<A> {
     }
 
     pub fn lookup_function(&self, name: &Name) -> Option<&Function> {
-        for scope in self.stack.iter() {
+        for scope in &self.stack {
             if let Some(func) = scope.lookup_function(name) {
                 return Some(func);
             }
@@ -105,7 +105,7 @@ impl<A: Clone> Environment<A> {
     }
 
     pub fn lookup_adt(&self, name: &Name) -> Option<&Arc<HashMap<Name, Vec<Type>>>> {
-        for scope in self.stack.iter() {
+        for scope in &self.stack {
             if let Some(cons) = scope.lookup_adt(name) {
                 return Some(cons);
             }
@@ -129,7 +129,7 @@ impl<A: Clone> Environment<A> {
         let mut vars = Vec::new();
 
         // First get variables from local scopes (in reverse order to respect shadowing)
-        for scope in self.stack.iter() {
+        for scope in &self.stack {
             for (name, value) in &scope.variables {
                 if !vars.iter().any(|(n, _)| n == name) {
                     vars.push((name.clone(), value.clone()));

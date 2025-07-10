@@ -54,6 +54,7 @@ pub enum Type {
     TTuple(Vec<Type>),
     TMaybe(Box<Type>),
     TResult(Box<Type>, Box<Type>), // Ok, Error
+    TUnion(Vec<Type>), // Union type for propagate
     TAny,
     TAlgebraicData(Name, HashMap<Name, Vec<Type>>),
 }
