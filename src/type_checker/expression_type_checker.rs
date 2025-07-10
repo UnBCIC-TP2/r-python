@@ -233,6 +233,7 @@ fn check_adt_constructor(
                     args.len()
                 ));
             }
+
             // Check each argument's type
             for (arg, expected_type) in args.into_iter().zip(constructor.into_iter()) {
                 let arg_type = check_expr(&*arg, env)?;
@@ -243,6 +244,7 @@ fn check_adt_constructor(
                     ));
                 }
             }
+
             // Return the algebraic type
             Ok(Type::TAlgebraicData(adt_type_name, (*constructors).clone()))
         }
@@ -264,9 +266,13 @@ mod tests {
     #[test]
     fn check_constant() {
         let env = Environment::new();
+
         let c10 = CInt(10);
 
-        assert_eq!(check_expr(&c10, &env), Ok(TInteger));
+        assert_eq!(
+            check_expr(&c10, &env), 
+            Ok(TInteger)
+        );
     }
 
     #[test]
@@ -277,7 +283,10 @@ mod tests {
         let c20 = CInt(20);
         let add = Add(Box::new(c10), Box::new(c20));
 
-        assert_eq!(check_expr(&add, &env), Ok(TInteger));
+        assert_eq!(
+            check_expr(&add, &env), 
+            Ok(TInteger)
+        );
     }
 
     #[test]
@@ -288,7 +297,10 @@ mod tests {
         let c20 = CReal(20.3);
         let add = Add(Box::new(c10), Box::new(c20));
 
-        assert_eq!(check_expr(&add, &env), Ok(TReal));
+        assert_eq!(
+            check_expr(&add, &env), 
+            Ok(TReal)
+        );
     }
 
     #[test]
@@ -299,7 +311,10 @@ mod tests {
         let c20 = CReal(20.3);
         let add = Add(Box::new(c10), Box::new(c20));
 
-        assert_eq!(check_expr(&add, &env), Ok(TReal));
+        assert_eq!(
+            check_expr(&add, &env), 
+            Ok(TReal)
+        );
     }
 
     #[test]
@@ -310,7 +325,10 @@ mod tests {
         let c20 = CInt(20);
         let add = Add(Box::new(c10), Box::new(c20));
 
-        assert_eq!(check_expr(&add, &env), Ok(TReal));
+        assert_eq!(
+            check_expr(&add, &env), 
+            Ok(TReal)
+        );
     }
 
     #[test]
@@ -371,6 +389,7 @@ mod tests {
     #[test]
     fn check_ok_result() {
         let env = Environment::new();
+
         let e1 = CReal(10.0);
         let e2 = COk(Box::new(e1));
 
@@ -383,6 +402,7 @@ mod tests {
     #[test]
     fn check_err_result() {
         let env = Environment::new();
+
         let e1 = CInt(1);
         let e2 = CErr(Box::new(e1));
 
@@ -395,25 +415,34 @@ mod tests {
     #[test]
     fn check_just_integer() {
         let env = Environment::new();
+
         let e1 = CInt(5);
         let e2 = CJust(Box::new(e1));
 
-        assert_eq!(check_expr(&e2, &env), Ok(TMaybe(Box::new(TInteger))))
+        assert_eq!(
+            check_expr(&e2, &env), 
+            Ok(TMaybe(Box::new(TInteger)))
+        );
     }
 
     #[test]
     fn check_is_error_result_positive() {
         let env = Environment::new();
+
         let e1 = CTrue;
         let e2 = COk(Box::new(e1));
         let e3 = IsError(Box::new(e2));
 
-        assert_eq!(check_expr(&e3, &env), Ok(TBool));
+        assert_eq!(
+            check_expr(&e3, &env), 
+            Ok(TBool)
+        );
     }
 
     #[test]
     fn check_is_error_result_error() {
         let env = Environment::new();
+
         let e1 = CTrue;
         let e2 = IsError(Box::new(e1));
 
@@ -427,107 +456,138 @@ mod tests {
     fn check_nothing() {
         let env = Environment::new();
 
-        assert_eq!(check_expr(&CNothing, &env), Ok(TMaybe(Box::new(TAny))));
+        assert_eq!(
+            check_expr(&CNothing, &env), 
+            Ok(TMaybe(Box::new(TAny)))
+        );
     }
 
     #[test]
     fn check_is_nothing_on_maybe() {
         let env = Environment::new();
+
         let e1 = CInt(5);
         let e2 = CJust(Box::new(e1));
         let e3 = IsNothing(Box::new(e2));
 
-        assert_eq!(check_expr(&e3, &env), Ok(TBool));
+        assert_eq!(
+            check_expr(&e3, &env),
+            Ok(TBool)
+        );
     }
 
     #[test]
     fn check_is_nothing_type_error() {
         let env = Environment::new();
+
         let e1 = CInt(5);
         let e2 = IsNothing(Box::new(e1));
 
         assert!(
             matches!(check_expr(&e2, &env), Err(_)),
-            "expecting a maybe type value."
+            "Expecting a maybe type value."
         );
     }
 
     #[test]
     fn check_unwrap_maybe() {
         let env = Environment::new();
+
         let e1 = CInt(5);
         let e2 = CJust(Box::new(e1));
         let e3 = Unwrap(Box::new(e2));
 
-        assert_eq!(check_expr(&e3, &env), Ok(TInteger));
+        assert_eq!(
+            check_expr(&e3, &env), 
+            Ok(TInteger)
+        );
     }
 
     #[test]
     fn check_unwrap_maybe_type_error() {
         let env = Environment::new();
+
         let e1 = CInt(5);
         let e2 = Unwrap(Box::new(e1));
 
         assert!(
             matches!(check_expr(&e2, &env), Err(_)),
-            "expecting a maybe or result type value."
+            "Expecting a maybe or result type value."
         );
     }
 
     #[test]
     fn check_unwrap_result() {
         let env = Environment::new();
+
         let e1 = CTrue;
         let e2 = COk(Box::new(e1));
         let e3 = Unwrap(Box::new(e2));
 
-        assert_eq!(check_expr(&e3, &env), Ok(TBool));
+        assert_eq!(
+            check_expr(&e3, &env), 
+            Ok(TBool)
+        );
     }
 
     #[test]
     fn check_propagate_maybe() {
         let env = Environment::new();
+
         let e1 = CInt(5);
         let e2 = CJust(Box::new(e1));
         let e3 = Propagate(Box::new(e2));
 
-        assert_eq!(check_expr(&e3, &env), Ok(TInteger));
+        assert_eq!(
+            check_expr(&e3, &env), 
+            Ok(TInteger)
+        );
     }
 
     #[test]
     fn check_propagate_maybe_type_error() {
         let env = Environment::new();
+
         let e1 = CInt(5);
         let e2 = Propagate(Box::new(e1));
 
         assert!(
             matches!(check_expr(&e2, &env), Err(_)),
-            "expecting a maybe or result type value."
+            "Expecting a maybe or result type value."
         );
     }
 
     #[test]
     fn check_propagate_result() {
         let env = Environment::new();
+
         let e1 = CTrue;
         let e2 = COk(Box::new(e1));
         let e3 = Propagate(Box::new(e2));
 
-        assert_eq!(check_expr(&e3, &env), Ok(TUnion(vec![TBool, TAny])));
+        assert_eq!(
+            check_expr(&e3, &env), 
+            Ok(TUnion(vec![TBool, TAny]))
+        );
     }
 
     #[test]
     fn check_propagate_result_with_specific_error_type() {
         let env = Environment::new();
+
         let e2 = CErr(Box::new(CString("error".to_string())));
         let e3 = Propagate(Box::new(e2));
 
-        assert_eq!(check_expr(&e3, &env), Ok(TUnion(vec![TAny, TString])));
+        assert_eq!(
+            check_expr(&e3, &env), 
+            Ok(TUnion(vec![TAny, TString]))
+        );
     }
 
     #[test]
     fn test_undefined_variable() {
         let env = Environment::new();
+
         let exp = Expression::Var("x".to_string());
 
         // Should fail - x is not defined
@@ -537,23 +597,31 @@ mod tests {
     #[test]
     fn test_defined_variable() {
         let mut env = Environment::new();
+
         env.map_variable("x".to_string(), true, Type::TInteger);
         let exp = Expression::Var("x".to_string());
 
         // Should succeed and return integer type
-        assert_eq!(check_expr(&exp, &env), Ok(Type::TInteger));
+        assert_eq!(
+            check_expr(&exp, &env), 
+            Ok(Type::TInteger)
+        );
     }
 
     #[test]
     fn test_adt_constructor_valid() {
         let mut env = Environment::new();
+
         let figure_type = HashMap::from([
             ("Circle".to_string(), vec![Type::TInteger]),
             ("Rectangle".to_string(), vec![Type::TInteger, Type::TInteger]),
         ]);
         env.map_adt("Figure".to_string(), figure_type);
 
-        let circle = Constructor("Circle".to_string(), vec![Box::new(CInt(5))]);
+        let circle = Constructor(
+            "Circle".to_string(), 
+            vec![Box::new(CInt(5))]
+        );
         let result = check_expr(&circle, &env);
         assert!(result.is_ok());
     }
@@ -561,6 +629,7 @@ mod tests {
     #[test]
     fn test_adt_constructor_wrong_args() {
         let mut env = Environment::new();
+
         let figure_type = HashMap::from([
             ("Circle".to_string(), vec![Type::TInteger]),
             ("Rectangle".to_string(), vec![Type::TInteger, Type::TInteger]),
@@ -578,13 +647,18 @@ mod tests {
     #[test]
     fn test_adt_constructor_wrong_count() {
         let mut env = Environment::new();
+
         let figure_type = HashMap::from([
             ("Circle".to_string(), vec![Type::TInteger]),
             ("Rectangle".to_string(), vec![Type::TInteger, Type::TInteger]),
         ]);
         env.map_adt("Figure".to_string(), figure_type);
-
-        let rectangle = Constructor("Rectangle".to_string(), vec![Box::new(CInt(5))]); // Missing second argument
+        
+        // Missing second argument
+        let rectangle = Constructor(
+            "Rectangle".to_string(), 
+            vec![Box::new(CInt(5))]
+        );
         let result = check_expr(&rectangle, &env);
         assert!(result.is_err());
     }
@@ -592,7 +666,11 @@ mod tests {
     #[test]
     fn test_adt_constructor_undefined() {
         let env = Environment::new();
-        let circle = Constructor("Circle".to_string(), vec![Box::new(CInt(5))]);
+
+        let circle = Constructor(
+            "Circle".to_string(), 
+            vec![Box::new(CInt(5))]
+        );
         let result = check_expr(&circle, &env);
         assert!(result.is_err());
     }
@@ -600,6 +678,7 @@ mod tests {
     #[test]
     fn test_adt_constructor_with_mutable_vars() {
         let mut env = Environment::new();
+
         let figure_type = HashMap::from([
             ("Circle".to_string(), vec![Type::TInteger]),
             ("Rectangle".to_string(), vec![Type::TInteger, Type::TInteger]),
