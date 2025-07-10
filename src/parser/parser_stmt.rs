@@ -238,12 +238,15 @@ fn parse_match_statement(input: &str) -> IResult<&str, Statement> {
                 ),
                 parse_match_arm,
             ),
-            delimited(
+            preceded(
                 multispace1,
-                tag(END_KEYWORD),
-                multispace1,
+                tag(END_KEYWORD)
             ),
-            flexible_keyword(MATCH_KEYWORD),
+            opt(delimited(
+                multispace1, 
+                tag(MATCH_KEYWORD), 
+                multispace0
+            )),
         )),
         |(_, expr, _, _, arms, _, _)| Statement::Match(Box::new(expr), arms),
     )(input)
@@ -594,7 +597,7 @@ mod tests {
 
     #[test]
     fn test_parse_match_statement_with_whitespace() {
-        let input = "match   x   :   A   =>   {   :   x   =   1   ;   end   }   ,   B   =>   {   :   x   =   2   ;   end   }   end   match";
+        let input = "match   x   :   A   =>   {   :   x   =   1   ;   end   }   ,   B   =>   {   :   x   =   2   ;   end   }   end   match"; // You can end with "end match"
         let result: IResult<&str, Statement> = parse_match_statement(input);
         assert!(result.is_ok());
         
@@ -626,69 +629,10 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_parse_match_arm_simple() {
-        let input = "A => { : x = 1; end }";
-        let result: IResult<&str, (Expression, Statement)> = parse_match_arm(input);
-        assert!(result.is_ok());
-        let (rest, (pattern, stmt)) = result.unwrap();
-        assert_eq!(rest, "");
-        match pattern {
-            Expression::Constructor(ref name, ref args) => {
-                assert_eq!(name, "A");
-                assert!(args.is_empty());
-            }
-            _ => panic!("Esperado padrão Constructor"),
-        }
-        match stmt {
-            Statement::Block(ref stmts) => {
-                assert_eq!(stmts.len(), 1);
-                match &stmts[0] {
-                    Statement::Assignment(var, expr) => {
-                        assert_eq!(var, "x");
-                        assert_eq!(**expr, Expression::CInt(1));
-                    }
-                    _ => panic!("Esperado Assignment"),
-                }
-            }
-            _ => panic!("Esperado Block"),
-        }
-    }
-
-    #[test]
-    fn test_parse_match_arm_with_parameters() {
-        let input = "B(42, y) => { : z = y; end }";
-        let result: IResult<&str, (Expression, Statement)> = parse_match_arm(input);
-        assert!(result.is_ok());
-        let (rest, (pattern, stmt)) = result.unwrap();
-        assert_eq!(rest, "");
-        match pattern {
-            Expression::Constructor(ref name, ref args) => {
-                assert_eq!(name, "B");
-                assert_eq!(args.len(), 2);
-                assert_eq!(*args[0], Expression::CInt(42));
-                assert_eq!(*args[1], Expression::Var("y".to_string()));
-            }
-            _ => panic!("Esperado padrão Constructor"),
-        }
-        match stmt {
-            Statement::Block(ref stmts) => {
-                assert_eq!(stmts.len(), 1);
-                match &stmts[0] {
-                    Statement::Assignment(var, expr) => {
-                        assert_eq!(var, "z");
-                        assert_eq!(**expr, Expression::Var("y".to_string()));
-                    }
-                    _ => panic!("Esperado Assignment"),
-                }
-            }
-            _ => panic!("Esperado Block"),
-        }
-    }
-
+    
     #[test]
     fn test_parse_match_statement_complex() {
-        let input = r#"match x: Cons(1, y) => { : z = y; end }, Nil => { : z = 0; end } end match"#;
+        let input = r#"match x: Cons(1, y) => { : z = y; end }, Nil => { : z = 0; end } end"#; // or you can end with just "end"
         let result: IResult<&str, Statement> = parse_match_statement(input);
         assert!(result.is_ok());
         let (rest, stmt) = result.unwrap();
@@ -745,25 +689,84 @@ mod tests {
             _ => panic!("Esperado Match statement"),
         }
     }
-
+    
     #[test]
     fn test_parse_match_statement_invalid_missing_end() {
         let input = "match x: A => { : x = 1; end }";
         let result = parse_match_statement(input);
         assert!(result.is_err());
     }
-
+    
     #[test]
     fn test_parse_match_statement_invalid_missing_expression() {
         let input = "match : A => { : x = 1; end } end match";
         let result = parse_match_statement(input);
         assert!(result.is_err());
     }
-
+    
     #[test]
     fn test_parse_match_statement_invalid_missing_arms() {
         let input = "match x: end match";
         let result = parse_match_statement(input);
         assert!(result.is_err());
+    }
+    #[test]
+    fn test_parse_match_arm_simple() {
+        let input = "A => { : x = 1; end }";
+        let result: IResult<&str, (Expression, Statement)> = parse_match_arm(input);
+        assert!(result.is_ok());
+        let (rest, (pattern, stmt)) = result.unwrap();
+        assert_eq!(rest, "");
+        match pattern {
+            Expression::Constructor(ref name, ref args) => {
+                assert_eq!(name, "A");
+                assert!(args.is_empty());
+            }
+            _ => panic!("Esperado padrão Constructor"),
+        }
+        match stmt {
+            Statement::Block(ref stmts) => {
+                assert_eq!(stmts.len(), 1);
+                match &stmts[0] {
+                    Statement::Assignment(var, expr) => {
+                        assert_eq!(var, "x");
+                        assert_eq!(**expr, Expression::CInt(1));
+                    }
+                    _ => panic!("Esperado Assignment"),
+                }
+            }
+            _ => panic!("Esperado Block"),
+        }
+    }
+    
+    #[test]
+    fn test_parse_match_arm_with_parameters() {
+        let input = "B(42, y) => { : z = y; end }";
+        let result: IResult<&str, (Expression, Statement)> = parse_match_arm(input);
+        assert!(result.is_ok());
+        let (rest, (pattern, stmt)) = result.unwrap();
+        assert_eq!(rest, "");
+        match pattern {
+            Expression::Constructor(ref name, ref args) => {
+                assert_eq!(name, "B");
+                assert_eq!(args.len(), 2);
+                assert_eq!(*args[0], Expression::CInt(42));
+                assert_eq!(*args[1], Expression::Var("y".to_string()));
+            }
+            _ => panic!("Esperado padrão Constructor"),
+        }
+        match stmt {
+            Statement::Block(ref stmts) => {
+                assert_eq!(stmts.len(), 1);
+                match &stmts[0] {
+                    Statement::Assignment(var, expr) => {
+                        assert_eq!(var, "z");
+                        assert_eq!(**expr, Expression::Var("y".to_string()));
+                    }
+                    _ => panic!("Esperado Assignment"),
+                }
+            }
+            _ => panic!("Esperado Block"),
+        }
     }
 }
