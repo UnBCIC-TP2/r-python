@@ -3,6 +3,7 @@ pub mod parser_common;
 pub mod parser_expr;
 pub mod parser_stmt;
 pub mod parser_type;
+pub mod parse_pattern;
 use nom::{
     character::complete::{char, multispace0},
     combinator::{map, opt},
@@ -17,6 +18,7 @@ use crate::parser::parser_common::SEMICOLON_CHAR;
 pub use parser_expr::parse_expression;
 pub use parser_stmt::parse_statement;
 pub use parser_type::parse_type;
+pub use parse_pattern::parse_pattern_argument;
 
 pub fn parse(input: &str) -> IResult<&str, Vec<Statement>> {
     map(

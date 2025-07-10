@@ -9,7 +9,8 @@ use nom::{
     IResult,
 };
 
-use crate::ir::ast::{FormalArgument, Function, Name, Statement};
+use crate::ir::ast::{FormalArgument, Function, Statement};
+use crate::ir::ast::Expression;
 use crate::parser::parser_common::{
     identifier, keyword, flexible_keyword, ASSERT_KEYWORD, COLON_CHAR, COMMA_CHAR, DEF_KEYWORD, ELSE_KEYWORD,
     END_KEYWORD, EQUALS_CHAR, FOR_KEYWORD, FUNCTION_ARROW, IF_KEYWORD, IN_KEYWORD, LEFT_PAREN,
@@ -17,6 +18,7 @@ use crate::parser::parser_common::{
     MATCH_ARM_ARROW, LEFT_BRACE, RIGHT_BRACE,
 };
 use crate::parser::parser_expr::parse_expression;
+use crate::parser::parse_pattern::parse_pattern_argument;
 use crate::parser::parser_type::parse_type;
 
 pub fn parse_statement(input: &str) -> IResult<&str, Statement> {
@@ -247,7 +249,7 @@ fn parse_match_statement(input: &str) -> IResult<&str, Statement> {
     )(input)
 }
 
-fn parse_match_arm(input: &str) -> IResult<&str, ((Name, Vec<Name>), Statement)> {
+fn parse_match_arm(input: &str) -> IResult<&str, (Expression, Statement)> {
     map(
         tuple((
             preceded(multispace0, identifier),
@@ -255,7 +257,7 @@ fn parse_match_arm(input: &str) -> IResult<&str, ((Name, Vec<Name>), Statement)>
                     preceded(multispace0, char::<&str, Error<&str>>(LEFT_PAREN)),
                     separated_list0(
                         delimited(multispace0, char::<&str, Error<&str>>(COMMA_CHAR), multispace0),
-                        identifier,
+                        parse_pattern_argument,
                     ),
                     preceded(multispace0, char::<&str, Error<&str>>(RIGHT_PAREN)),
                 )
@@ -273,7 +275,10 @@ fn parse_match_arm(input: &str) -> IResult<&str, ((Name, Vec<Name>), Statement)>
                 ),
             ),
         )),
-        |(constructor, parameters, statement)| ((constructor.to_string(), parameters.unwrap_or_default().into_iter().map(|p| p.to_string()).collect()), statement),
+        |(constructor, parameters, statement)| {
+            let args = parameters.unwrap_or_default();
+            (Expression::Constructor(constructor.to_string(), args.into_iter().map(Box::new).collect()), statement)
+        },
     )(input)
 }
 
@@ -419,14 +424,22 @@ mod tests {
             Statement::Match(expr, arms) => {
                 assert_eq!(*expr, Expression::Var("x".to_string()));
                 assert_eq!(arms.len(), 2);
-                
-                // Verificar primeiro braço: A => { : x = 1; end }
-                assert_eq!(arms[0].0.0, "A");
-                assert_eq!(arms[0].0.1, Vec::<Name>::new()); // Sem parâmetros
-                
-                // Verificar segundo braço: B => { : x = 2; end }
-                assert_eq!(arms[1].0.0, "B");
-                assert_eq!(arms[1].0.1, Vec::<Name>::new()); // Sem parâmetros
+                // Verifica padrão do primeiro braço: A
+                match &arms[0].0 {
+                    Expression::Constructor(name, args) => {
+                        assert_eq!(name, "A");
+                        assert!(args.is_empty());
+                    }
+                    _ => panic!("Esperado padrão Constructor no primeiro braço"),
+                }
+                // Verifica padrão do segundo braço: B
+                match &arms[1].0 {
+                    Expression::Constructor(name, args) => {
+                        assert_eq!(name, "B");
+                        assert!(args.is_empty());
+                    }
+                    _ => panic!("Esperado padrão Constructor no segundo braço"),
+                }
             }
             _ => panic!("Expected Match statement"),
         }
@@ -445,14 +458,27 @@ mod tests {
             Statement::Match(expr, arms) => {
                 assert_eq!(*expr, Expression::Var("x".to_string()));
                 assert_eq!(arms.len(), 2);
-                
-                // Verificar primeiro braço: A(value) => { : x = value; end }
-                assert_eq!(arms[0].0.0, "A");
-                assert_eq!(arms[0].0.1, vec!["value".to_string()]);
-                
-                // Verificar segundo braço: B(x, y) => { : z = x + y; end }
-                assert_eq!(arms[1].0.0, "B");
-                assert_eq!(arms[1].0.1, vec!["x".to_string(), "y".to_string()]);
+
+                // Verifica padrão do primeiro braço: A(value)
+                match &arms[0].0 {
+                    Expression::Constructor(name, args) => {
+                        assert_eq!(name, "A");
+                        assert_eq!(args.len(), 1);
+                        assert_eq!(*args[0], Expression::Var("value".to_string()));
+                    }
+                    _ => panic!("Esperado padrão Constructor no primeiro braço"),
+                }
+
+                // Verifica padrão do segundo braço: B(x, y)
+                match &arms[1].0 {
+                    Expression::Constructor(name, args) => {
+                        assert_eq!(name, "B");
+                        assert_eq!(args.len(), 2);
+                        assert_eq!(*args[0], Expression::Var("x".to_string()));
+                        assert_eq!(*args[1], Expression::Var("y".to_string()));
+                    }
+                    _ => panic!("Esperado padrão Constructor no segundo braço"),
+                }
             }
             _ => panic!("Expected Match statement"),
         }
@@ -486,10 +512,7 @@ mod tests {
                     }
                     _ => panic!("Expected Add expression"),
                 }
-                
                 assert_eq!(arms.len(), 2);
-                assert_eq!(arms[0].0.0, "A");
-                assert_eq!(arms[1].0.0, "B");
             }
             _ => panic!("Expected Match statement"),
         }
@@ -508,15 +531,31 @@ mod tests {
             Statement::Match(expr, arms) => {
                 assert_eq!(*expr, Expression::Var("x".to_string()));
                 assert_eq!(arms.len(), 3);
-                
-                assert_eq!(arms[0].0.0, "A");
-                assert_eq!(arms[0].0.1, Vec::<Name>::new());
-                
-                assert_eq!(arms[1].0.0, "B");
-                assert_eq!(arms[1].0.1, Vec::<Name>::new());
-                
-                assert_eq!(arms[2].0.0, "C");
-                assert_eq!(arms[2].0.1, vec!["value".to_string()]);
+                // Verifica padrão do primeiro braço: A
+                match &arms[0].0 {
+                    Expression::Constructor(name, args) => {
+                        assert_eq!(name, "A");
+                        assert!(args.is_empty());
+                    }
+                    _ => panic!("Esperado padrão Constructor no primeiro braço"),
+                }
+                // Verifica padrão do segundo braço: B
+                match &arms[1].0 {
+                    Expression::Constructor(name, args) => {
+                        assert_eq!(name, "B");
+                        assert!(args.is_empty());
+                    }
+                    _ => panic!("Esperado padrão Constructor no segundo braço"),
+                }
+                // Verifica padrão do terceiro braço: C(value)
+                match &arms[2].0 {
+                    Expression::Constructor(name, args) => {
+                        assert_eq!(name, "C");
+                        assert_eq!(args.len(), 1);
+                        assert_eq!(*args[0], Expression::Var("value".to_string()));
+                    }
+                    _ => panic!("Esperado padrão Constructor no terceiro braço"),
+                }
             }
             _ => panic!("Expected Match statement"),
         }
@@ -535,7 +574,6 @@ mod tests {
             Statement::Match(expr, arms) => {
                 assert_eq!(*expr, Expression::Var("x".to_string()));
                 assert_eq!(arms.len(), 2);
-                
                 // Verificar que os blocos estão vazios
                 match &arms[0].1 {
                     Statement::Block(statements) => {
@@ -543,7 +581,6 @@ mod tests {
                     }
                     _ => panic!("Expected Block statement"),
                 }
-                
                 match &arms[1].1 {
                     Statement::Block(statements) => {
                         assert_eq!(statements.len(), 0);
@@ -568,8 +605,22 @@ mod tests {
             Statement::Match(expr, arms) => {
                 assert_eq!(*expr, Expression::Var("x".to_string()));
                 assert_eq!(arms.len(), 2);
-                assert_eq!(arms[0].0.0, "A");
-                assert_eq!(arms[1].0.0, "B");
+                // Verifica padrão do primeiro braço: A
+                match &arms[0].0 {
+                    Expression::Constructor(name, args) => {
+                        assert_eq!(name, "A");
+                        assert!(args.is_empty());
+                    }
+                    _ => panic!("Esperado padrão Constructor no primeiro braço"),
+                }
+                // Verifica padrão do segundo braço: B
+                match &arms[1].0 {
+                    Expression::Constructor(name, args) => {
+                        assert_eq!(name, "B");
+                        assert!(args.is_empty());
+                    }
+                    _ => panic!("Esperado padrão Constructor no segundo braço"),
+                }
             }
             _ => panic!("Expected Match statement"),
         }
@@ -578,62 +629,120 @@ mod tests {
     #[test]
     fn test_parse_match_arm_simple() {
         let input = "A => { : x = 1; end }";
-        let result: IResult<&str, ((Name, Vec<Name>), Statement)> = parse_match_arm(input);
+        let result: IResult<&str, (Expression, Statement)> = parse_match_arm(input);
         assert!(result.is_ok());
-        
-        let (rest, parsed) = result.unwrap();
+        let (rest, (pattern, stmt)) = result.unwrap();
         assert_eq!(rest, "");
-        
-        let ((constructor, params), statement) = parsed;
-        assert_eq!(constructor, "A");
-        assert_eq!(params, Vec::<Name>::new());
-        
-        match statement {
-            Statement::Block(statements) => {
-                assert_eq!(statements.len(), 1);
-                match &statements[0] {
-                    Statement::Assignment(name, expr) => {
-                        assert_eq!(name, "x");
+        match pattern {
+            Expression::Constructor(ref name, ref args) => {
+                assert_eq!(name, "A");
+                assert!(args.is_empty());
+            }
+            _ => panic!("Esperado padrão Constructor"),
+        }
+        match stmt {
+            Statement::Block(ref stmts) => {
+                assert_eq!(stmts.len(), 1);
+                match &stmts[0] {
+                    Statement::Assignment(var, expr) => {
+                        assert_eq!(var, "x");
                         assert_eq!(**expr, Expression::CInt(1));
                     }
-                    _ => panic!("Expected Assignment statement"),
+                    _ => panic!("Esperado Assignment"),
                 }
             }
-            _ => panic!("Expected Block statement"),
+            _ => panic!("Esperado Block"),
         }
     }
 
     #[test]
     fn test_parse_match_arm_with_parameters() {
-        let input = "A(value1, value2) => { : x = value1 + value2; end }";
-        let result: IResult<&str, ((Name, Vec<Name>), Statement)> = parse_match_arm(input);
+        let input = "B(42, y) => { : z = y; end }";
+        let result: IResult<&str, (Expression, Statement)> = parse_match_arm(input);
         assert!(result.is_ok());
-        
-        let (rest, parsed) = result.unwrap();
+        let (rest, (pattern, stmt)) = result.unwrap();
         assert_eq!(rest, "");
-        
-        let ((constructor, params), statement) = parsed;
-        assert_eq!(constructor, "A");
-        assert_eq!(params, vec!["value1".to_string(), "value2".to_string()]);
-        
-        match statement {
-            Statement::Block(statements) => {
-                assert_eq!(statements.len(), 1);
-                match &statements[0] {
-                    Statement::Assignment(name, expr) => {
-                        assert_eq!(name, "x");
-                        match &**expr {
-                            Expression::Add(left, right) => {
-                                assert_eq!(*left, Box::new(Expression::Var("value1".to_string())));
-                                assert_eq!(*right, Box::new(Expression::Var("value2".to_string())));
-                            }
-                            _ => panic!("Expected Add expression"),
-                        }
+        match pattern {
+            Expression::Constructor(ref name, ref args) => {
+                assert_eq!(name, "B");
+                assert_eq!(args.len(), 2);
+                assert_eq!(*args[0], Expression::CInt(42));
+                assert_eq!(*args[1], Expression::Var("y".to_string()));
+            }
+            _ => panic!("Esperado padrão Constructor"),
+        }
+        match stmt {
+            Statement::Block(ref stmts) => {
+                assert_eq!(stmts.len(), 1);
+                match &stmts[0] {
+                    Statement::Assignment(var, expr) => {
+                        assert_eq!(var, "z");
+                        assert_eq!(**expr, Expression::Var("y".to_string()));
                     }
-                    _ => panic!("Expected Assignment statement"),
+                    _ => panic!("Esperado Assignment"),
                 }
             }
-            _ => panic!("Expected Block statement"),
+            _ => panic!("Esperado Block"),
+        }
+    }
+
+    #[test]
+    fn test_parse_match_statement_complex() {
+        let input = r#"match x: Cons(1, y) => { : z = y; end }, Nil => { : z = 0; end } end match"#;
+        let result: IResult<&str, Statement> = parse_match_statement(input);
+        assert!(result.is_ok());
+        let (rest, stmt) = result.unwrap();
+        assert_eq!(rest, "");
+        match stmt {
+            Statement::Match(expr, arms) => {
+                assert_eq!(*expr, Expression::Var("x".to_string()));
+                assert_eq!(arms.len(), 2);
+                // Primeiro braço: Cons(1, y)
+                match &arms[0].0 {
+                    Expression::Constructor(name, args) => {
+                        assert_eq!(name, "Cons");
+                        assert_eq!(args.len(), 2);
+                        assert_eq!(*args[0], Expression::CInt(1));
+                        assert_eq!(*args[1], Expression::Var("y".to_string()));
+                    }
+                    _ => panic!("Esperado padrão Cons(1, y)"),
+                }
+                match &arms[0].1 {
+                    Statement::Block(stmts) => {
+                        assert_eq!(stmts.len(), 1);
+                        match &stmts[0] {
+                            Statement::Assignment(var, expr) => {
+                                assert_eq!(var, "z");
+                                assert_eq!(**expr, Expression::Var("y".to_string()));
+                            }
+                            _ => panic!("Esperado Assignment"),
+                        }
+                    }
+                    _ => panic!("Esperado Block"),
+                }
+                // Segundo braço: Nil
+                match &arms[1].0 {
+                    Expression::Constructor(name, args) => {
+                        assert_eq!(name, "Nil");
+                        assert!(args.is_empty());
+                    }
+                    _ => panic!("Esperado padrão Nil"),
+                }
+                match &arms[1].1 {
+                    Statement::Block(stmts) => {
+                        assert_eq!(stmts.len(), 1);
+                        match &stmts[0] {
+                            Statement::Assignment(var, expr) => {
+                                assert_eq!(var, "z");
+                                assert_eq!(**expr, Expression::CInt(0));
+                            }
+                            _ => panic!("Esperado Assignment"),
+                        }
+                    }
+                    _ => panic!("Esperado Block"),
+                }
+            }
+            _ => panic!("Esperado Match statement"),
         }
     }
 

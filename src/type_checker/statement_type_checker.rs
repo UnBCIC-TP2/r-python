@@ -42,16 +42,27 @@ fn check_assignment_stmt(
     let expr_type = check_expr(&*exp, &new_env)?;
 
     match new_env.lookup(name) {
-        Some((false, _)) => Err(format!("[Type Error] Cannot assign to immutable variable '{}'. Variables declared with 'val' cannot be changed.", name)),
+        Some((false, _)) => return Err(format!(
+            "[Type Error] Cannot assign to immutable variable '{}'. Variables declared with 'val' cannot be changed.",
+            name
+        )),
         Some((_, var_type)) => {
             if var_type == expr_type || var_type == Type::TAny {
                 new_env.map_variable(name.clone(), true, expr_type);
                 Ok(new_env)
             } else {
-                return Err(format!("[Type Mismatch] Variable '{}' has type '{:?}', but is being assigned a value of type '{:?}'", name, var_type, expr_type));
+                return Err(format!(
+                    "[Type Error] Variable '{}' has type '{:?}', but is being assigned a value of type '{:?}'.",
+                    name,
+                    var_type,
+                    expr_type
+                ));
             }
         },
-        None => Err(format!("[Name Error] Variable '{}' was not declared in this scope.", name))
+        None => return Err(format!(
+            "[Type Error] Variable '{}' was not declared in this scope.",
+            name
+        )),
     }
 }
 
@@ -68,7 +79,10 @@ fn check_var_declaration_stmt(
         new_env.map_variable(name.clone(), true, expr_type);
         Ok(new_env)
     } else {
-        Err(format!("[Type Error] Variable '{}' has already been declared in this scope.", name))
+        return Err(format!(
+            "[Type Error] Variable '{}' has already been declared in this scope.",
+            name
+        ));
     }
 }
 
@@ -79,11 +93,12 @@ fn check_if_then_else_stmt(
     env: &Environment<Type>,
 ) -> Result<Environment<Type>, ErrorMessage> {
     let cond_type = check_expr(&*cond, env)?;
-    
     if cond_type != Type::TBool {
-        return Err(String::from("[Type Error] The condition of an 'if' statement must be a Boolean expression."));
+        return Err(format!(
+            "[Type Error] The condition of an 'if' statement must be a Boolean expression. Found '{:?}'.",
+            cond_type
+        ));
     }
-
     let then_env = check_stmt(stmt_then, env)?;
     match stmt_else_opt {
         Some(stmt_else) => {
@@ -102,7 +117,10 @@ fn check_while_stmt(
     let cond_type = check_expr(&*cond, env)?;
 
     if cond_type != Type::TBool {
-        return Err(String::from("[Type Error] The condition of a 'while' statement must be a Boolean expression."));
+        return Err(format!(
+            "[Type Error] The condition of a 'while' statement must be a Boolean expression. Found '{:?}'.",
+            cond_type
+        ));
     }
 
     check_stmt(stmt, env)
@@ -118,7 +136,10 @@ fn check_for_stmt(
 
     let expr_type = check_expr(&*expr, &new_env)?;
     if !matches!(expr_type, Type::TList(_)) {
-        return Err(format!("[Type Error] The 'for' loop can only iterate over a list. Expected a List type, but found {:?}", expr_type));
+        return Err(format!(
+            "[Type Error] The 'for' loop can only iterate over a list. Expected a List type, but found '{:?}'.",
+            expr_type
+        ));
     }
 
     let element_type = match expr_type {
@@ -225,48 +246,74 @@ fn merge_environments(
 
 fn check_match_statement(
     expr: &Expression,
-    arms: &Vec<((Name, Vec<Name>), Statement)>,
+    arms: &Vec<(Expression, Statement)>,
     env: &Environment<Type>,
 ) -> Result<Environment<Type>, ErrorMessage> {
     let mut new_env = env.clone();
 
     if let Type::TAlgebraicData(adt_name, mut constructors) = check_expr(expr, &new_env)? {
-        arms.iter().try_for_each(|((name, args), arm_stmt)| {
-            match constructors.remove(name) {
-                None => Err(format!("[Type Error] Constructor '{}' is not defined in ADT '{}'.", name, adt_name)),
-                Some(types) => {
-                    new_env.push();
-
-                    if types.len() != args.len() {
-                        return Err(format!("[Type Error] Constructor '{}' expects {} arguments, but got {}.", name, types.len(), args.len()));
+        arms.iter().try_for_each(|(pattern, arm_stmt)| {
+            // Only accepts patterns of type Constructor
+            if let Expression::Constructor(name, args) = pattern {
+                match constructors.remove(name) {
+                    None => Err(format!(
+                        "[Type Error] Constructor '{}' is not defined in ADT '{}'.",
+                        name, adt_name
+                    )),
+                    Some(types) => {
+                        new_env.push();
+                        if types.len() != args.len() {
+                            return Err(format!(
+                                "[Type Error] Constructor '{}' expects {} arguments, but got {}.",
+                                name,
+                                types.len(),
+                                args.len()
+                            ));
+                        }
+                        // Check if the types of the arguments match the types of the constructor
+                        for (tp, arg_pattern) in types.into_iter().zip(args.iter()) {
+                            if let Expression::Var(var_name) = &**arg_pattern {
+                                // if the pattern is a variable, there no type checking, we just infer the variable's type as the argument's type
+                                new_env.map_variable(var_name.clone(), false, tp);
+                            } else {
+                                // if the pattern is not a variable, it is a constant of type. We must check if the type of the constant is the same as the type of the argument
+                                let pat_type = check_expr(&*arg_pattern, &new_env)?;
+                                if pat_type != tp {
+                                    return Err(format!(
+                                        "[Type Error] Pattern argument type mismatch in constructor '{}'. Expected '{:?}', found '{:?}'.",
+                                        name,
+                                        tp,
+                                        pat_type
+                                    ));
+                                }
+                            }
+                        }
+                        check_stmt(arm_stmt, &new_env)?;
+                        new_env.pop();
+                        Ok(())
                     }
-
-                    for (tp, arg) in types.into_iter().zip(args.iter()) {
-                        // Se a variável já existe no ambiente externo, preserve a mutabilidade original
-                        let mutability = env.lookup(arg).map(|(m, _)| m).unwrap_or(false);
-                        new_env.map_variable(arg.clone(), mutability, tp);
-                    }
-                    check_stmt(arm_stmt, &new_env)?;
-                    new_env.pop();
-                    Ok(())
                 }
+            } else {
+                return Err(format!(
+                    "[Type Error] Only constructor patterns are supported in match arms over algebraic data types. Expected a constructor but found a pattern of type '{:?}'.",
+                    pattern
+                ));
             }
         })?;
 
         if !constructors.is_empty() {
             return Err(format!(
-                "[Type Error] The adt isn't exhausted. Missing the following constructor(s): {}",
-                constructors
-                    .into_iter()
-                    .map(|(name, _)| name)
-                    .collect::<Vec<Name>>()
-                    .join(", ")
+                "[Type Error] The adt isn't exhausted. Missing the following constructor(s): '{:?}'",
+                constructors.keys().collect::<Vec<&Name>>()
             ));
         }
 
         Ok(new_env)
     } else {
-        Err(format!("[Type Error] Expression must be an algebraic data type for match statement."))
+        return Err(format!(
+            "[Type Error] Expression must be an algebraic data type for match statement. Found '{:?}'.",
+            expr
+        ));
     }
 }
 
@@ -693,8 +740,8 @@ mod tests {
         let match_stmt = Statement::Match(
             Box::new(expr),
             vec![
-                (("A".to_string(), vec!["x".to_string()]), Statement::Assignment("x".to_string(), Box::new(CInt(2)))),
-                (("B".to_string(), vec!["y".to_string()]), Statement::Assignment("y".to_string(), Box::new(CTrue))),
+                (Expression::Constructor("A".to_string(), vec![Box::new(Expression::CInt(1))]), Statement::Assignment("x".to_string(), Box::new(CInt(2)))),
+                (Expression::Constructor("B".to_string(), vec![Box::new(Expression::CTrue)]), Statement::Assignment("y".to_string(), Box::new(CTrue))),
             ],
         );
 
@@ -716,7 +763,7 @@ mod tests {
         let match_stmt = Statement::Match(
             Box::new(expr),
             vec![
-                (("A".to_string(), vec!["x".to_string()]), Statement::Assignment("x".to_string(), Box::new(CInt(2)))),
+                (Expression::Constructor("A".to_string(), vec![Box::new(Expression::CInt(1))]), Statement::Assignment("x".to_string(), Box::new(CInt(2)))),
                 // Falta o braço para "B"
             ],
         );
@@ -744,8 +791,8 @@ mod tests {
         let match_stmt = Statement::Match(
             Box::new(expr),
             vec![
-                (("A".to_string(), vec!["x".to_string()]), Statement::Assignment("x".to_string(), Box::new(CInt(2)))),
-                (("B".to_string(), vec!["y".to_string()]), Statement::Assignment("y".to_string(), Box::new(CTrue))), // "B" não existe
+                (Expression::Constructor("A".to_string(), vec![Box::new(Expression::CInt(1))]), Statement::Assignment("x".to_string(), Box::new(CInt(2)))),
+                (Expression::Constructor("B".to_string(), vec![Box::new(Expression::CTrue)]), Statement::Assignment("y".to_string(), Box::new(CTrue))), // "B" não existe
             ],
         );
 
@@ -770,7 +817,7 @@ mod tests {
         let match_stmt = Statement::Match(
             Box::new(expr),
             vec![
-                (("A".to_string(), vec!["x".to_string(), "y".to_string()]), Statement::Assignment("x".to_string(), Box::new(CInt(2)))), // Argumentos a mais
+                (Expression::Constructor("A".to_string(), vec![Box::new(Expression::CInt(1)), Box::new(Expression::CInt(2))]), Statement::Assignment("x".to_string(), Box::new(CInt(2)))), // Argumentos a mais
             ],
         );
 

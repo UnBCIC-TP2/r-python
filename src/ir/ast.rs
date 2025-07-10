@@ -110,9 +110,6 @@ pub enum Expression {
 
     // Constructor
     Constructor(Name, Vec<Box<Expression>>),
-    
-    // Match expression
-    Match(Box<Expression>, Vec<((Name, Vec<Name>), Expression)>),
 }
 
 // Represents statements in the AST
@@ -137,5 +134,5 @@ pub enum Statement {
     FuncDef(Function),
     Return(Box<Expression>),
     TypeDeclaration(Name, HashMap<Name, Vec<Type>>),
-    Match(Box<Expression>, Vec<((Name, Vec<Name>), Statement)>),
+    Match(Box<Expression>, Vec<(Expression, Statement)>),
 }
