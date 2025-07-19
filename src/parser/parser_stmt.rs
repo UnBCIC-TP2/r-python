@@ -329,13 +329,12 @@ mod tests {
 #[test]
 fn test_parse_trait_statement() {
     let input = r#"trait Printable:
-def print(self: String) -> Void;
-def to_string(self: String) -> String;
+print(self: String) -> Void
+to_string(self: String) -> String
 end"#;
 
-    dbg!(input); // Verifica se está limpo
-
     let result = parse_trait_statement(input);
+    dbg!(input); // Verifica se está limpo
 
     match result {
         Ok((_, stmt)) => {
