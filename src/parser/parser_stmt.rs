@@ -223,11 +223,14 @@ fn parse_formal_argument(input: &str) -> IResult<&str, FormalArgument> {
 fn parse_trait_statement(input: &str) -> IResult<&str, Statement> {
     map(
         tuple((
-            terminated(keyword("trait"), multispace1), // Consome "trait" + espaço
-            identifier,                                // Nome do trait
-            preceded(multispace0, char(COLON_CHAR)),   // Dois-pontos
-            many0(preceded(multispace0, parse_trait_method_signature)), // Métodos
-            preceded(multispace0, keyword("end")),     // Fim do bloco
+            terminated(keyword("trait"), multispace1),
+            identifier,
+            preceded(multispace0, char(COLON_CHAR)),
+            many0(preceded(
+                multispace0, // aceita espaço ou newline antes do método
+                parse_trait_method_signature,
+            )),
+            preceded(multispace0, keyword("end")),
         )),
         |(_, name, _, methods, _)| {
             Statement::Trait(Trait {
@@ -328,13 +331,15 @@ mod tests {
 
 #[test]
 fn test_parse_trait_statement() {
-    let input = r#"trait Printable:
-print(self: String) -> Void
-to_string(self: String) -> String
-end"#;
+    let input = r#"
+trait Printable:
+    def print(self: String) -> Void;
+    def to_string(self: String) -> String;
+end
+"#;
 
     let result = parse_trait_statement(input);
-    dbg!(input); // Verifica se está limpo
+    dbg!(&result); // útil se ainda falhar
 
     match result {
         Ok((_, stmt)) => {
@@ -353,6 +358,7 @@ end"#;
         }
     }
 }
+
 
 
 
