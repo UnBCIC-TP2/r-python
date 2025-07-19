@@ -145,4 +145,12 @@ pub enum Statement {
     FuncDef(Function),
     Return(Box<Expression>),
     TypeDeclaration(Name, Vec<ValueConstructor>),
+    Trait(Trait),
+}
+
+// Represents a trait
+#[derive(Debug, PartialEq, Clone)]
+pub struct Trait {
+    pub name: Name,
+    pub methods: Vec<Function>,
 }

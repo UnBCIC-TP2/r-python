@@ -7,6 +7,8 @@ use nom::{
     multi::separated_list0,
     sequence::{delimited, preceded, tuple},
     IResult,
+    multi::many0,
+    sequence::terminated,
 };
 
 use crate::ir::ast::{FormalArgument, Function, Statement};
@@ -18,8 +20,11 @@ use crate::parser::parser_common::{
 use crate::parser::parser_expr::parse_expression;
 use crate::parser::parser_type::parse_type;
 
+use crate::ir::ast::Trait;
+
 pub fn parse_statement(input: &str) -> IResult<&str, Statement> {
     alt((
+        parse_trait_statement,
         parse_var_declaration_statement,
         parse_val_declaration_statement,
         parse_assignment_statement,
@@ -215,6 +220,52 @@ fn parse_formal_argument(input: &str) -> IResult<&str, FormalArgument> {
     )(input)
 }
 
+fn parse_trait_statement(input: &str) -> IResult<&str, Statement> {
+    map(
+        tuple((
+            terminated(keyword("trait"), multispace1), // Consome "trait" + espaço
+            identifier,                                // Nome do trait
+            preceded(multispace0, char(COLON_CHAR)),   // Dois-pontos
+            many0(preceded(multispace0, parse_trait_method_signature)), // Métodos
+            preceded(multispace0, keyword("end")),     // Fim do bloco
+        )),
+        |(_, name, _, methods, _)| {
+            Statement::Trait(Trait {
+                name: name.to_string(),
+                methods,
+            })
+        },
+    )(input)
+}
+
+fn parse_trait_method_signature(input: &str) -> IResult<&str, Function> {
+    map(
+        tuple((
+            keyword("def"),
+            preceded(multispace1, identifier),
+            delimited(
+                char(LEFT_PAREN),
+                separated_list0(
+                    tuple((multispace0, char(COMMA_CHAR), multispace0)),
+                    parse_formal_argument,
+                ),
+                char(RIGHT_PAREN),
+            ),
+            preceded(multispace0, tag(FUNCTION_ARROW)),
+            preceded(multispace0, parse_type),
+            opt(char(SEMICOLON_CHAR)), // ← tolera o ;
+        )),
+        |(_, name, args, _, return_type, _)| Function {
+            name: name.to_string(),
+            kind: return_type,
+            params: args,
+            body: None,
+        },
+    )(input)
+}
+
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -274,6 +325,38 @@ mod tests {
         let parsed = parse_for_statement(input).unwrap().1;
         assert_eq!(parsed, expected);
     }
+
+#[test]
+fn test_parse_trait_statement() {
+    let input = r#"trait Printable:
+def print(self: String) -> Void;
+def to_string(self: String) -> String;
+end"#;
+
+    dbg!(input); // Verifica se está limpo
+
+    let result = parse_trait_statement(input);
+
+    match result {
+        Ok((_, stmt)) => {
+            match stmt {
+                Statement::Trait(tr) => {
+                    assert_eq!(tr.name, "Printable");
+                    assert_eq!(tr.methods.len(), 2);
+                    assert_eq!(tr.methods[0].name, "print");
+                    assert_eq!(tr.methods[1].name, "to_string");
+                }
+                _ => panic!("Expected Trait statement"),
+            }
+        }
+        Err(e) => {
+            panic!("Erro ao fazer parsing de trait: {:?}", e);
+        }
+    }
+}
+
+
+
 
     #[test]
     fn test_parse_assert_statement() {
