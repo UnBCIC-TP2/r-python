@@ -1,3 +1,5 @@
+use std::fmt;
+
 // Type alias for variable and function names
 pub type Name = String;
 
@@ -39,15 +41,56 @@ impl FormalArgument {
     }
 }
 
+//Represents function signature
+#[derive(Eq, Hash, PartialEq, Debug, Clone)]
+pub struct FuncSignature {
+    pub name: Name,
+    pub argument_types: Vec<Type>,
+}
+
+impl FuncSignature {
+    pub fn new() -> FuncSignature {
+        FuncSignature {
+            name: "".to_string(),
+            argument_types: vec![],
+        }
+    }
+    pub fn from_func(func: &Function) -> FuncSignature {
+        FuncSignature {
+            name: func.name.clone(),
+            argument_types: func
+                .params
+                .iter()
+                .map(|arg| arg.argument_type.clone())
+                .collect(),
+        }
+    }
+}
+
+impl fmt::Display for FuncSignature {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}({})",
+            self.name,
+            self.argument_types
+                .iter()
+                .map(|t| t.to_string())
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    }
+}
+
 // Represents the types that can be used in the AST
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum Type {
     TInteger,
     TBool,
     TReal,
     TString,
     TVoid,
-    TFunction(Box<Option<Type>>, Vec<Type>),
+    TFunction(Box<Type>, Vec<Type>),
     TList(Box<Type>),
     TTuple(Vec<Type>),
     TMaybe(Box<Type>),
@@ -56,8 +99,49 @@ pub enum Type {
     TAlgebraicData(Name, Vec<ValueConstructor>),
 }
 
+impl fmt::Display for Type {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Type::TInteger => write!(f, "int"),
+            Type::TBool => write!(f, "bool"),
+            Type::TReal => write!(f, "real"),
+            Type::TString => write!(f, "string"),
+            Type::TVoid => write!(f, "void"),
+            Type::TAny => write!(f, "any"),
+
+            Type::TList(inner) => write!(f, "[{}]", inner),
+
+            Type::TTuple(elements) => {
+                let types = elements
+                    .iter()
+                    .map(|t| t.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                write!(f, "({})", types)
+            }
+
+            Type::TMaybe(inner) => write!(f, "Maybe<{}>", inner),
+
+            Type::TResult(ok, err) => write!(f, "Result<{}, {}>", ok, err),
+
+            Type::TFunction(ret, params) => {
+                let params_str = params
+                    .iter()
+                    .map(|t| t.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                write!(f, "fn({}) -> {}", params_str, ret)
+            }
+
+            Type::TAlgebraicData(name, _constructors) => {
+                write!(f, "{}", name)
+            }
+        }
+    }
+}
+
 // Represents a value constructor for an algebraic data type
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct ValueConstructor {
     pub name: Name,
     pub types: Vec<Type>,
@@ -115,6 +199,9 @@ pub enum Expression {
     IsError(Box<Expression>),
     IsNothing(Box<Expression>),
     Propagate(Box<Expression>),
+
+    //Lambda expression
+    Lambda(Function),
 
     // List value
     ListValue(Vec<Expression>),

@@ -13,7 +13,7 @@ use crate::ir::ast::{FormalArgument, Function, Statement};
 use crate::parser::parser_common::{
     identifier, keyword, ASSERT_KEYWORD, COLON_CHAR, COMMA_CHAR, DEF_KEYWORD, ELSE_KEYWORD,
     END_KEYWORD, EQUALS_CHAR, FOR_KEYWORD, FUNCTION_ARROW, IF_KEYWORD, IN_KEYWORD, LEFT_PAREN,
-    RIGHT_PAREN, SEMICOLON_CHAR, VAL_KEYWORD, VAR_KEYWORD, WHILE_KEYWORD,
+    RIGHT_PAREN, SEMICOLON_CHAR, VAL_KEYWORD, VAR_KEYWORD, WHILE_KEYWORD, RET_KEYWORD
 };
 use crate::parser::parser_expr::parse_expression;
 use crate::parser::parser_type::parse_type;
@@ -28,7 +28,19 @@ pub fn parse_statement(input: &str) -> IResult<&str, Statement> {
         parse_for_statement,
         parse_assert_statement,
         parse_function_definition_statement,
+        parse_return_statement,
     ))(input)
+}
+
+pub fn parse_return_statement(input: &str) -> IResult<&str, Statement> {
+    map(
+        tuple((
+            keyword(RET_KEYWORD),
+            multispace0,
+            parse_expression,
+        )),
+        |(_, _, expr)| Statement::Return(Box::new(expr)),
+    )(input)
 }
 
 fn parse_var_declaration_statement(input: &str) -> IResult<&str, Statement> {
@@ -181,7 +193,7 @@ fn parse_function_definition_statement(input: &str) -> IResult<&str, Statement> 
     )(input)
 }
 
-fn parse_block(input: &str) -> IResult<&str, Statement> {
+pub fn parse_block(input: &str) -> IResult<&str, Statement> {
     map(
         tuple((
             char::<&str, Error<&str>>(COLON_CHAR),
@@ -204,7 +216,7 @@ fn parse_block(input: &str) -> IResult<&str, Statement> {
     )(input)
 }
 
-fn parse_formal_argument(input: &str) -> IResult<&str, FormalArgument> {
+pub fn parse_formal_argument(input: &str) -> IResult<&str, FormalArgument> {
     map(
         tuple((
             preceded(multispace0, identifier),

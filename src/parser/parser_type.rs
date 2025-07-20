@@ -101,7 +101,7 @@ fn parse_result_type(input: &str) -> IResult<&str, Type> {
     )(input)
 }
 
-fn parse_function_type(input: &str) -> IResult<&str, Type> {
+pub fn parse_function_type(input: &str) -> IResult<&str, Type> {
     map(
         tuple((
             preceded(multispace0, char(LEFT_PAREN)),
@@ -113,7 +113,7 @@ fn parse_function_type(input: &str) -> IResult<&str, Type> {
             preceded(multispace0, tag(FUNCTION_ARROW)),
             preceded(multispace0, parse_type),
         )),
-        |(_, t_args, _, _, t_ret)| Type::TFunction(Box::new(Some(t_ret)), t_args),
+        |(_, t_args, _, _, t_ret)| Type::TFunction(Box::new(t_ret), t_args),
     )(input)
 }
 
@@ -193,7 +193,7 @@ mod tests {
             Ok((
                 "",
                 Type::TFunction(
-                    Box::new(Some(Type::TString)),
+                    Box::new(Type::TString),
                     vec![Type::TInteger, Type::TBool]
                 )
             ))

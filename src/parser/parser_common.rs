@@ -2,9 +2,9 @@ use nom::{
     branch::alt,
     bytes::complete::tag,
     character::complete::{alpha1, multispace0},
-    combinator::{not, peek, recognize},
+    combinator::{map, not, peek, recognize},
     multi::many0,
-    sequence::{delimited, terminated},
+    sequence::{delimited, preceded, terminated, tuple},
     IResult,
 };
 
@@ -36,6 +36,8 @@ pub const ASSERT_KEYWORD: &str = "assert";
 pub const VAR_KEYWORD: &str = "var";
 pub const VAL_KEYWORD: &str = "val";
 pub const DEF_KEYWORD: &str = "def";
+pub const LAMBDA_KEYWORD: &str = "lambda";
+pub const RET_KEYWORD: &str = "return";
 
 // Operator and symbol constants
 pub const FUNCTION_ARROW: &str = "->";
@@ -69,10 +71,20 @@ pub fn separator<'a>(sep: &'static str) -> impl FnMut(&'a str) -> IResult<&'a st
 /// Parses a reserved keyword (e.g., "if") surrounded by optional spaces
 /// Fails if followed by an identifier character
 pub fn keyword<'a>(kw: &'static str) -> impl FnMut(&'a str) -> IResult<&'a str, &'a str> {
-    terminated(
-        delimited(multispace0, tag(kw), multispace0),
-        not(peek(identifier_start_or_continue)),
-    )
+    move |input: &'a str| {
+        let result = map(
+            tuple((
+                terminated(
+                    preceded(multispace0, tag(kw)),
+                    not(peek(identifier_start_or_continue)),
+                ),
+                multispace0,
+            )),
+            |(kw, _)| kw,
+        )(input);
+
+        result
+    }
 }
 
 /// Parsers for identifiers.
