@@ -21,4 +21,7 @@ pub const KEYWORDS: &[&str] = &[
     "not",
     "True",
     "False",
+    "print",
+    "input",
+    "open",
 ];

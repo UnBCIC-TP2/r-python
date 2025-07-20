@@ -1,6 +1,7 @@
 use super::expression_eval::{eval, ExpressionResult};
 use crate::environment::environment::Environment;
 use crate::ir::ast::{Expression, Statement};
+use crate::stdlib::standard_library::get_metabuiltins_table;
 
 pub enum Computation {
     Continue(Environment<Expression>),
@@ -24,6 +25,7 @@ pub fn run(
     stmt: Statement,
     env: &Environment<Expression>,
 ) -> Result<Environment<Expression>, String> {
+    get_metabuiltins_table();
     match execute(stmt, env) {
         Ok(Computation::Continue(new_env)) => Ok(new_env),
         Ok(Computation::Return(_, new_env)) => Ok(new_env),
@@ -190,6 +192,16 @@ pub fn execute(stmt: Statement, env: &Environment<Expression>) -> Result<Computa
         Statement::TypeDeclaration(name, constructors) => {
             new_env.map_adt(name, constructors);
             Ok(Computation::Continue(new_env))
+        }
+
+        Statement::MetaStmt(ref name) => {
+            let table = get_metabuiltins_table();
+            if let Some(f) = table.get(name) {
+                let next_stmt = f(&mut new_env);
+                execute(next_stmt, &new_env)
+            } else {
+                Err(format!("Meta built-in '{}' not found", name))
+            }
         }
 
         _ => Err(String::from("not implemented yet")),
