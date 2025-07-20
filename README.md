@@ -14,16 +14,6 @@ RPython é um projeto educacional que visa:
 - Explorar conceitos fundamentais de técnicas de programação
 - Criar uma linguagem com sintaxe amigável similar ao Python
 
-## 📚 Documentação
-
-Para uma compreensão mais profunda dos componentes do projeto, consulte nossa documentação técnica:
-
-- **[Environment Module](docs/environment.md)** - Sistema de gerenciamento de escopo lexical com tabela de símbolos para variáveis e funções. Implementa uma pilha de escopos com resolução adequada da cadeia de escopo.
-
-- **[Parser Component](docs/parser.md)** - Componente de análise sintática que transforma código fonte em Árvore de Sintaxe Abstrata (AST). Usa a biblioteca `nom` e segue um design modular com funcionalidades especializadas para expressões, tipos e declarações.
-
-- **[Type Checker Module](docs/type_checker.md)** - Sistema de verificação de tipos estática que analisa expressões e declarações para garantir segurança de tipos em tempo de compilação. Implementa regras de tipagem bem definidas para todos os construtos da linguagem. *(Em desenvolvimento)*
-
 ## 🤝 Contribuindo
 
 Adoraríamos contar com sua contribuição! Por favor, leia nossos guias de contribuição:
