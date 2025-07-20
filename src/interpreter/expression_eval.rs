@@ -33,6 +33,7 @@ pub fn eval(exp: Expression, env: &Environment<Expression>) -> Result<Expression
         Expression::IsNothing(e) => eval_isnothing_expression(*e, env),
         Expression::FuncCall(name, args) => eval_function_call(name, args, env),
         Expression::ListValue(values) => eval_list_value(values, env),
+        Expression::CompletedProcess { .. } => Ok(ExpressionResult::Value(exp)),
         _ if is_constant(exp.clone()) => Ok(ExpressionResult::Value(exp)),
         _ => Err(String::from("Not implemented yet.")),
     }
@@ -387,6 +388,12 @@ pub fn eval_function_call(
     args: Vec<Expression>,
     env: &Environment<Expression>,
 ) -> Result<ExpressionResult, String> {
+    // Check for built-in functions first
+    if let Some(result) = super::builtins::eval_builtin_function(&name, args.clone(), env)? {
+        return Ok(result);
+    }
+    
+    // If not a built-in function, look for user-defined functions
     match env.lookup_function(&name) {
         Some(function_definition) => {
             let mut new_env = Environment::new();

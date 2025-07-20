@@ -54,6 +54,7 @@ pub enum Type {
     TResult(Box<Type>, Box<Type>), // Ok, Error
     TAny,
     TAlgebraicData(Name, Vec<ValueConstructor>),
+    TCompletedProcess, // Type for subprocess result objects
 }
 
 // Represents a value constructor for an algebraic data type
@@ -121,6 +122,13 @@ pub enum Expression {
 
     // Constructor
     Constructor(Name, Vec<Box<Expression>>),
+
+    // Subprocess result object
+    CompletedProcess {
+        returncode: i32,
+        stdout: Option<String>,
+        stderr: Option<String>,
+    },
 }
 
 // Represents statements in the AST
