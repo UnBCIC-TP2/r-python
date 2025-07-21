@@ -4,11 +4,9 @@ use nom::{
     character::complete::{char, multispace0, multispace1},
     combinator::{map, opt},
     error::Error,
-    multi::separated_list0,
+    multi::{many0, separated_list0},
     sequence::{delimited, preceded, tuple},
     IResult,
-    multi::many0,
-    sequence::terminated,
 };
 
 use crate::ir::ast::{FormalArgument, Function, Statement};
@@ -20,7 +18,43 @@ use crate::parser::parser_common::{
 use crate::parser::parser_expr::parse_expression;
 use crate::parser::parser_type::parse_type;
 
-use crate::ir::ast::Trait;
+fn parse_trait_method_signature(input: &str) -> IResult<&str, Function> {
+    map(
+        tuple((
+            keyword("def"),
+            preceded(multispace1, identifier),
+            delimited(
+                char(LEFT_PAREN),
+                separated_list0(tuple((multispace0, char(COMMA_CHAR), multispace0)), parse_formal_argument),
+                char(RIGHT_PAREN),
+            ),
+            preceded(multispace0, tag(FUNCTION_ARROW)),
+            preceded(multispace0, parse_type),
+            opt(char(';')),
+        )),
+        |(_, name, args, _, ret, _)| Function { name: name.to_string(), kind: ret, params: args, body: None },
+    )(input)
+}
+
+fn parse_trait_statement(input: &str) -> IResult<&str, Statement> {
+    map(
+        tuple((
+            keyword("trait"),
+            preceded(multispace1, identifier),
+            preceded(multispace0, char(COLON_CHAR)),
+            many0(preceded(multispace0, parse_trait_method_signature)),
+            preceded(multispace0, keyword("end")),
+        )),
+        |(_, name, _, methods, _)| {
+            Statement::Trait(crate::ir::ast::Trait {
+                trait_name: name.to_string(), // <- use trait_name!
+                methods,
+            })
+        },
+    )(input)
+}
+
+
 
 pub fn parse_statement(input: &str) -> IResult<&str, Statement> {
     alt((
@@ -220,55 +254,6 @@ fn parse_formal_argument(input: &str) -> IResult<&str, FormalArgument> {
     )(input)
 }
 
-fn parse_trait_statement(input: &str) -> IResult<&str, Statement> {
-    map(
-        tuple((
-            terminated(keyword("trait"), multispace1),
-            identifier,
-            preceded(multispace0, char(COLON_CHAR)),
-            many0(preceded(
-                multispace0, // aceita espaço ou newline antes do método
-                parse_trait_method_signature,
-            )),
-            preceded(multispace0, keyword("end")),
-        )),
-        |(_, name, _, methods, _)| {
-            Statement::Trait(Trait {
-                name: name.to_string(),
-                methods,
-            })
-        },
-    )(input)
-}
-
-fn parse_trait_method_signature(input: &str) -> IResult<&str, Function> {
-    map(
-        tuple((
-            keyword("def"),
-            preceded(multispace1, identifier),
-            delimited(
-                char(LEFT_PAREN),
-                separated_list0(
-                    tuple((multispace0, char(COMMA_CHAR), multispace0)),
-                    parse_formal_argument,
-                ),
-                char(RIGHT_PAREN),
-            ),
-            preceded(multispace0, tag(FUNCTION_ARROW)),
-            preceded(multispace0, parse_type),
-            opt(char(SEMICOLON_CHAR)), // ← tolera o ;
-        )),
-        |(_, name, args, _, return_type, _)| Function {
-            name: name.to_string(),
-            kind: return_type,
-            params: args,
-            body: None,
-        },
-    )(input)
-}
-
-
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -328,40 +313,6 @@ mod tests {
         let parsed = parse_for_statement(input).unwrap().1;
         assert_eq!(parsed, expected);
     }
-
-#[test]
-fn test_parse_trait_statement() {
-    let input = r#"
-trait Printable:
-    def print(self: String) -> Void;
-    def to_string(self: String) -> String;
-end
-"#;
-
-    let result = parse_trait_statement(input);
-    dbg!(&result); // útil se ainda falhar
-
-    match result {
-        Ok((_, stmt)) => {
-            match stmt {
-                Statement::Trait(tr) => {
-                    assert_eq!(tr.name, "Printable");
-                    assert_eq!(tr.methods.len(), 2);
-                    assert_eq!(tr.methods[0].name, "print");
-                    assert_eq!(tr.methods[1].name, "to_string");
-                }
-                _ => panic!("Expected Trait statement"),
-            }
-        }
-        Err(e) => {
-            panic!("Erro ao fazer parsing de trait: {:?}", e);
-        }
-    }
-}
-
-
-
-
 
     #[test]
     fn test_parse_assert_statement() {
@@ -431,4 +382,47 @@ end
         let parsed = parse_formal_argument(input).unwrap().1;
         assert_eq!(parsed, expected);
     }
+
+    #[test]
+    fn test_parse_trait_statement() {
+        let input = "trait Printable:
+    def print(self: String) -> Void;
+    def to_string(self: String) -> String;
+    end";
+
+        let (rest, stmt) = parse_trait_statement(input)
+            .expect("Falha ao fazer parsing de trait");
+
+        assert!(rest.trim().is_empty(), "Sobrou no input: `{}`", rest);
+
+        match stmt {
+            Statement::Trait(tr) => {
+                assert_eq!(tr.trait_name, "Printable");
+                assert_eq!(tr.methods.len(), 2);
+                assert_eq!(tr.methods[0].name, "print");
+                assert_eq!(tr.methods[1].name, "to_string");
+            }
+            _ => panic!("Esperava Statement::Trait, obteve {:?}", stmt),
+        }
+    }
+
+
+
+    #[test]
+    fn test_parse_trait_method_signature() {
+        let input = "def foo(self: Int, x: Bool) -> String;";
+        let (rest, func) = parse_trait_method_signature(input)
+            .expect("Falha no parsing de assinatura de método");
+        assert_eq!(rest.trim(), ""); 
+        assert_eq!(func.name, "foo");
+        assert_eq!(func.params.len(), 2);
+
+        assert_eq!(func.params[0].argument_name, "self");
+        assert_eq!(func.params[0].argument_type, Type::TInteger);
+        assert_eq!(func.params[1].argument_name, "x");
+        assert_eq!(func.params[1].argument_type, Type::TBool);
+
+        assert_eq!(func.kind, Type::TString);
+    }
+
 }
