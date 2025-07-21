@@ -123,6 +123,21 @@ pub enum Expression {
     Constructor(Name, Vec<Box<Expression>>),
 }
 
+// Represents a trait
+#[derive(Debug, PartialEq, Clone)]
+pub struct Trait {
+    pub trait_name: Name,
+    pub methods: Vec<Function>,
+}
+
+// Represents a trait implementation for an especific type
+#[derive(Debug, PartialEq, Clone)]
+pub struct TraitImplementation {
+    pub trait_name: Name,
+    pub type_name: Name,
+    pub methods: Vec<Function>,
+}
+
 // Represents statements in the AST
 #[derive(Debug, PartialEq, Clone)]
 pub enum Statement {
@@ -145,4 +160,6 @@ pub enum Statement {
     FuncDef(Function),
     Return(Box<Expression>),
     TypeDeclaration(Name, Vec<ValueConstructor>),
+    Trait(Trait),
+    TraitImplementation(TraitImplementation),
 }
